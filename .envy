@@ -1,0 +1,5 @@
+ANTHROPIC_API_KEY=your-anthropic-api-key-here
+TWILIO_ACCOUNT_SID=your-twilio-sid-here
+TWILIO_AUTH_TOKEN=your-twilio-auth-token-here
+TWILIO_PHONE_NUMBER=your-twilio-phone-number-here
+
