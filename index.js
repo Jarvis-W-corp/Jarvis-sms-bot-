@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const Anthropic = require('@anthropic-ai/sdk').default;
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-const Database = require('better-sqlite3');
+const fs = require('fs');
 const path = require('path');
 
 const app = express();
@@ -21,86 +21,61 @@ const discord = new Client({
   ],
 });
 
-const db = new Database(path.join(__dirname, 'jarvis_memory.db'));
-db.pragma('journal_mode = WAL');
+const DB_PATH = path.join(__dirname, 'jarvis_memory.json');
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS conversations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT NOT NULL,
-    platform TEXT NOT NULL,
-    role TEXT NOT NULL,
-    content TEXT NOT NULL,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-  CREATE TABLE IF NOT EXISTS user_profiles (
-    user_id TEXT PRIMARY KEY,
-    platform TEXT NOT NULL,
-    name TEXT DEFAULT '',
-    facts TEXT DEFAULT '[]',
-    preferences TEXT DEFAULT '{}',
-    first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
-    last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
-    message_count INTEGER DEFAULT 0,
-    summary TEXT DEFAULT ''
-  );
-  CREATE TABLE IF NOT EXISTS memory_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT NOT NULL,
-    fact TEXT NOT NULL,
-    source TEXT DEFAULT '',
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-  CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id);
-  CREATE INDEX IF NOT EXISTS idx_conversations_timestamp ON conversations(timestamp);
-`);
+function loadDB() {
+  try {
+    if (fs.existsSync(DB_PATH)) return JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+  } catch (e) { console.error('DB load error:', e.message); }
+  return { users: {}, conversations: {} };
+}
+
+function saveDB(data) {
+  try { fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2)); }
+  catch (e) { console.error('DB save error:', e.message); }
+}
+
+let memoryDB = loadDB();
 
 function getOrCreateProfile(userId, platform) {
-  let profile = db.prepare('SELECT * FROM user_profiles WHERE user_id = ?').get(userId);
-  if (!profile) {
-    db.prepare('INSERT INTO user_profiles (user_id, platform) VALUES (?, ?)').run(userId, platform);
-    profile = db.prepare('SELECT * FROM user_profiles WHERE user_id = ?').get(userId);
+  if (!memoryDB.users[userId]) {
+    memoryDB.users[userId] = { platform, name: '', facts: [], summary: '', messageCount: 0, firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString() };
+    saveDB(memoryDB);
   }
-  return profile;
+  return memoryDB.users[userId];
 }
 
 function saveMessage(userId, platform, role, content) {
-  db.prepare('INSERT INTO conversations (user_id, platform, role, content) VALUES (?, ?, ?, ?)').run(userId, platform, role, content);
-  db.prepare('UPDATE user_profiles SET last_seen = CURRENT_TIMESTAMP, message_count = message_count + 1 WHERE user_id = ?').run(userId);
+  if (!memoryDB.conversations[userId]) memoryDB.conversations[userId] = [];
+  memoryDB.conversations[userId].push({ role, content, timestamp: new Date().toISOString() });
+  if (memoryDB.conversations[userId].length > 50) memoryDB.conversations[userId] = memoryDB.conversations[userId].slice(-50);
+  if (memoryDB.users[userId]) {
+    memoryDB.users[userId].lastSeen = new Date().toISOString();
+    memoryDB.users[userId].messageCount = (memoryDB.users[userId].messageCount || 0) + 1;
+  }
+  saveDB(memoryDB);
 }
 
 function getRecentMessages(userId, limit = 20) {
-  return db.prepare('SELECT role, content FROM conversations WHERE user_id = ? ORDER BY timestamp DESC LIMIT ?').all(userId, limit).reverse();
+  const msgs = memoryDB.conversations[userId] || [];
+  return msgs.slice(-limit).map(m => ({ role: m.role, content: m.content }));
 }
 
-function getMessageCount(userId) {
-  return db.prepare('SELECT COUNT(*) as count FROM conversations WHERE user_id = ?').get(userId).count;
-}
-
-function saveFact(userId, fact, source = '') {
-  const existing = db.prepare('SELECT * FROM memory_log WHERE user_id = ? AND fact = ?').get(userId, fact);
-  if (!existing) {
-    db.prepare('INSERT INTO memory_log (user_id, fact, source) VALUES (?, ?, ?)').run(userId, fact, source);
-    const profile = db.prepare('SELECT facts FROM user_profiles WHERE user_id = ?').get(userId);
-    if (profile) {
-      const facts = JSON.parse(profile.facts || '[]');
-      facts.push(fact);
-      db.prepare('UPDATE user_profiles SET facts = ? WHERE user_id = ?').run(JSON.stringify(facts.slice(-50)), userId);
-    }
+function saveFact(userId, fact) {
+  const profile = memoryDB.users[userId];
+  if (profile && !profile.facts.includes(fact)) {
+    profile.facts.push(fact);
+    if (profile.facts.length > 50) profile.facts = profile.facts.slice(-50);
+    saveDB(memoryDB);
   }
 }
 
 function getUserFacts(userId) {
-  const profile = db.prepare('SELECT facts FROM user_profiles WHERE user_id = ?').get(userId);
-  return profile ? JSON.parse(profile.facts || '[]') : [];
-}
-
-function updateUserSummary(userId, summary) {
-  db.prepare('UPDATE user_profiles SET summary = ? WHERE user_id = ?').run(summary, userId);
+  return memoryDB.users[userId]?.facts || [];
 }
 
 function updateUserName(userId, name) {
-  db.prepare('UPDATE user_profiles SET name = ? WHERE user_id = ?').run(name, userId);
+  if (memoryDB.users[userId]) { memoryDB.users[userId].name = name; saveDB(memoryDB); }
 }
 
 function buildSystemPrompt(userId, platform) {
@@ -108,15 +83,15 @@ function buildSystemPrompt(userId, platform) {
   const facts = getUserFacts(userId);
   let prompt = `You are Jarvis, an AI business assistant built by Mark. You are helpful, professional, and efficient. You respond concisely but helpfully. If you don't know something, say so honestly. Always be friendly and professional.\n\nCurrent platform: ${platform}\n`;
   if (profile.name) prompt += `\nYou are speaking with: ${profile.name}`;
-  if (profile.summary) prompt += `\n\nConversation summary with this user:\n${profile.summary}`;
+  if (profile.summary) prompt += `\n\nConversation summary:\n${profile.summary}`;
   if (facts.length > 0) prompt += `\n\nKnown facts about this user:\n${facts.map(f => '- ' + f).join('\n')}`;
   prompt += `\n\nIMPORTANT RULES:\n- Keep responses concise for text/Telegram. Discord allows longer responses.\n- If the user shares personal info, remember it naturally.\n- If asked what you remember, share the facts you know about them.\n- You have persistent memory across conversations.`;
   return prompt;
 }
 
 async function learnFromConversation(userId, platform) {
-  const messageCount = getMessageCount(userId);
-  if (messageCount % 10 !== 0 || messageCount === 0) return;
+  const profile = memoryDB.users[userId];
+  if (!profile || profile.messageCount % 10 !== 0 || profile.messageCount === 0) return;
   const recentMessages = getRecentMessages(userId, 20);
   const existingFacts = getUserFacts(userId);
   if (recentMessages.length < 5) return;
@@ -124,18 +99,14 @@ async function learnFromConversation(userId, platform) {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 500,
-      messages: [{ role: 'user', content: `Analyze this conversation and extract key facts about the user. Return ONLY a JSON object with:\n- "facts": array of short factual strings about the user\n- "summary": a 2-3 sentence summary\n\nAlready known facts (dont repeat): ${JSON.stringify(existingFacts)}\n\nConversation:\n${recentMessages.map(m => m.role + ': ' + m.content).join('\n')}\n\nReturn ONLY valid JSON, no markdown.` }],
+      messages: [{ role: 'user', content: `Analyze this conversation and extract key facts about the user. Return ONLY a JSON object with:\n- "facts": array of short factual strings about the user\n- "summary": a 2-3 sentence summary\n\nAlready known (dont repeat): ${JSON.stringify(existingFacts)}\n\nConversation:\n${recentMessages.map(m => m.role + ': ' + m.content).join('\n')}\n\nReturn ONLY valid JSON, no markdown.` }],
     });
     const analysis = JSON.parse(response.content[0].text.trim());
-    if (analysis.facts && Array.isArray(analysis.facts)) {
-      for (const fact of analysis.facts) saveFact(userId, fact, 'auto-learned');
-    }
-    if (analysis.summary) updateUserSummary(userId, analysis.summary);
+    if (analysis.facts) for (const fact of analysis.facts) saveFact(userId, fact);
+    if (analysis.summary && memoryDB.users[userId]) { memoryDB.users[userId].summary = analysis.summary; saveDB(memoryDB); }
     console.log('[LEARN] Extracted ' + (analysis.facts?.length || 0) + ' facts for ' + userId);
     logToDiscord('memory-log', '📝 **Learned about ' + userId + ':**\n' + (analysis.facts || []).map(f => '• ' + f).join('\n'));
-  } catch (error) {
-    console.error('[LEARN] Error:', error.message);
-  }
+  } catch (error) { console.error('[LEARN] Error:', error.message); }
 }
 
 async function handleChat(userId, platform, userText) {
@@ -175,14 +146,14 @@ discord.on('messageCreate', async (message) => {
   const userText = message.content;
 
   if (userText === '!stats') {
-    const totalUsers = db.prepare('SELECT COUNT(*) as count FROM user_profiles').get().count;
-    const totalMessages = db.prepare('SELECT COUNT(*) as count FROM conversations').get().count;
-    const totalFacts = db.prepare('SELECT COUNT(*) as count FROM memory_log').get().count;
+    const userCount = Object.keys(memoryDB.users).length;
+    const msgCount = Object.values(memoryDB.conversations).reduce((sum, msgs) => sum + msgs.length, 0);
+    const factCount = Object.values(memoryDB.users).reduce((sum, u) => sum + (u.facts?.length || 0), 0);
     const embed = new EmbedBuilder().setTitle('📊 Jarvis Stats').setColor(0x00ff00)
       .addFields(
-        { name: 'Total Users', value: String(totalUsers), inline: true },
-        { name: 'Total Messages', value: String(totalMessages), inline: true },
-        { name: 'Facts Learned', value: String(totalFacts), inline: true }
+        { name: 'Total Users', value: String(userCount), inline: true },
+        { name: 'Total Messages', value: String(msgCount), inline: true },
+        { name: 'Facts Learned', value: String(factCount), inline: true }
       ).setTimestamp();
     return message.reply({ embeds: [embed] });
   }
@@ -201,17 +172,17 @@ discord.on('messageCreate', async (message) => {
   }
 
   if (userText === '!users') {
-    const users = db.prepare('SELECT user_id, platform, name, message_count, last_seen FROM user_profiles ORDER BY last_seen DESC LIMIT 20').all();
+    const users = Object.entries(memoryDB.users).sort((a, b) => new Date(b[1].lastSeen) - new Date(a[1].lastSeen)).slice(0, 20);
     if (users.length === 0) return message.reply('No users yet.');
-    return message.reply('👥 **Known Users:**\n' + users.map(u => '**' + (u.name || u.user_id) + '** (' + u.platform + ') — ' + u.message_count + ' msgs').join('\n'));
+    return message.reply('👥 **Known Users:**\n' + users.map(([id, u]) => '**' + (u.name || id) + '** (' + u.platform + ') — ' + (u.messageCount || 0) + ' msgs').join('\n'));
   }
 
   if (userText.startsWith('!forget')) {
     const targetId = userText.split(' ')[1];
     if (!targetId) return message.reply('Usage: !forget <user_id>');
-    db.prepare('DELETE FROM conversations WHERE user_id = ?').run(targetId);
-    db.prepare('DELETE FROM memory_log WHERE user_id = ?').run(targetId);
-    db.prepare('DELETE FROM user_profiles WHERE user_id = ?').run(targetId);
+    delete memoryDB.users[targetId];
+    delete memoryDB.conversations[targetId];
+    saveDB(memoryDB);
     return message.reply('🗑️ All data for ' + targetId + ' deleted.');
   }
 
@@ -320,9 +291,8 @@ app.get('/', (req, res) => {
   res.json({
     status: 'Jarvis is alive',
     uptime: Math.floor(process.uptime()) + 's',
-    users: db.prepare('SELECT COUNT(*) as count FROM user_profiles').get().count,
-    messages: db.prepare('SELECT COUNT(*) as count FROM conversations').get().count,
-    facts_learned: db.prepare('SELECT COUNT(*) as count FROM memory_log').get().count,
+    users: Object.keys(memoryDB.users).length,
+    messages: Object.values(memoryDB.conversations).reduce((sum, msgs) => sum + msgs.length, 0),
   });
 });
 
@@ -337,9 +307,4 @@ app.listen(PORT, () => {
   }
 });
 
-process.on('SIGINT', () => {
-  console.log('Shutting down...');
-  db.close();
-  discord.destroy();
-  process.exit(0);
-});
+process.on('SIGINT', () => { discord.destroy(); process.exit(0); });
