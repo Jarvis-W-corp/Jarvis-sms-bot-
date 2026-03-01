@@ -1,0 +1,37 @@
+{
+  "users": {
+    "discord_1245879632692248588": {
+      "platform": "discord",
+      "name": "",
+      "facts": [],
+      "summary": "",
+      "messageCount": 4,
+      "firstSeen": "2026-02-27T05:10:47.548Z",
+      "lastSeen": "2026-02-27T05:15:48.777Z"
+    }
+  },
+  "conversations": {
+    "discord_1245879632692248588": [
+      {
+        "role": "user",
+        "content": "jarvis",
+        "timestamp": "2026-02-27T05:10:47.552Z"
+      },
+      {
+        "role": "assistant",
+        "content": "Hello! I'm Jarvis, your AI business assistant. How can I help you today?",
+        "timestamp": "2026-02-27T05:10:48.997Z"
+      },
+      {
+        "role": "user",
+        "content": "stats",
+        "timestamp": "2026-02-27T05:15:46.056Z"
+      },
+      {
+        "role": "assistant",
+        "content": "I'd be happy to provide stats! Could you clarify what specific statistics you're looking for? For example:\n\n- Business metrics or KPIs\n- Website/app analytics \n- Financial data\n- Performance statistics\n- Something else entirely\n\nWhat kind of stats would be most helpful for you right now?",
+        "timestamp": "2026-02-27T05:15:48.777Z"
+      }
+    ]
+  }
+}

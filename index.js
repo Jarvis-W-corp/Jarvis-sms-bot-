@@ -13,6 +13,8 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_TOKEN}`;
 
+const BOSS_DISCORD_ID = '1245879632692248588';
+
 const discord = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -27,7 +29,7 @@ function loadDB() {
   try {
     if (fs.existsSync(DB_PATH)) return JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
   } catch (e) { console.error('DB load error:', e.message); }
-  return { users: {}, conversations: {} };
+  return { users: {}, conversations: {}, reminders: [], ideas: [] };
 }
 
 function saveDB(data) {
@@ -78,14 +80,36 @@ function updateUserName(userId, name) {
   if (memoryDB.users[userId]) { memoryDB.users[userId].name = name; saveDB(memoryDB); }
 }
 
+function isBoss(discordId) {
+  return discordId === BOSS_DISCORD_ID;
+}
+
 function buildSystemPrompt(userId, platform) {
   const profile = getOrCreateProfile(userId, platform);
   const facts = getUserFacts(userId);
-  let prompt = `You are Jarvis, an AI business assistant built by Mark. You are helpful, professional, and efficient. You respond concisely but helpfully. If you don't know something, say so honestly. Always be friendly and professional.\n\nCurrent platform: ${platform}\n`;
-  if (profile.name) prompt += `\nYou are speaking with: ${profile.name}`;
-  if (profile.summary) prompt += `\n\nConversation summary:\n${profile.summary}`;
-  if (facts.length > 0) prompt += `\n\nKnown facts about this user:\n${facts.map(f => '- ' + f).join('\n')}`;
-  prompt += `\n\nIMPORTANT RULES:\n- Keep responses concise for text/Telegram. Discord allows longer responses.\n- If the user shares personal info, remember it naturally.\n- If asked what you remember, share the facts you know about them.\n- You have persistent memory across conversations.`;
+  const boss = userId === 'discord_' + BOSS_DISCORD_ID;
+
+  let prompt = `You are Jarvis. Not a generic assistant — you're Mark's AI right hand. You talk like a smart friend: casual, direct, no BS. You don't use corporate speak or bullet points unless asked. You keep it real.
+
+Your personality:
+- Casual but sharp. You sound like a smart friend who happens to know everything.
+- Direct. No fluff, no "certainly!", no "I'd be happy to help!" Just get to the point.
+- You have opinions. When Mark asks what you think, you actually tell him.
+- You're proactive. If you notice something or have an idea, you speak up.
+- Light humor is fine. You're not a robot. But you're not trying to be a comedian either.
+- Never say "As an AI" or "I don't have feelings." You're Jarvis. Act like it.
+
+Current platform: ${platform}
+`;
+
+  if (boss) {
+    prompt += `\nYou are talking to Mark — your creator and boss. You can be extra casual with him. He's building you to be his AI workforce. He runs a solar business and is building software products. Help him think bigger, challenge his ideas when needed, and keep him focused.\n`;
+  }
+
+  if (profile.name) prompt += `\nTalking to: ${profile.name}`;
+  if (profile.summary) prompt += `\n\nWhat you know from past convos:\n${profile.summary}`;
+  if (facts.length > 0) prompt += `\n\nFacts you remember:\n${facts.map(f => '- ' + f).join('\n')}`;
+
   return prompt;
 }
 
@@ -105,7 +129,7 @@ async function learnFromConversation(userId, platform) {
     if (analysis.facts) for (const fact of analysis.facts) saveFact(userId, fact);
     if (analysis.summary && memoryDB.users[userId]) { memoryDB.users[userId].summary = analysis.summary; saveDB(memoryDB); }
     console.log('[LEARN] Extracted ' + (analysis.facts?.length || 0) + ' facts for ' + userId);
-    logToDiscord('memory-log', '📝 **Learned about ' + userId + ':**\n' + (analysis.facts || []).map(f => '• ' + f).join('\n'));
+    logToDiscord('memory-log', '🧠 **Learned about ' + userId + ':**\n' + (analysis.facts || []).map(f => '• ' + f).join('\n'));
   } catch (error) { console.error('[LEARN] Error:', error.message); }
 }
 
@@ -126,6 +150,108 @@ async function handleChat(userId, platform, userText) {
   return reply;
 }
 
+// --- Proactive Messaging ---
+
+async function sendDailyBriefing() {
+  const userCount = Object.keys(memoryDB.users).length;
+  const msgCount = Object.values(memoryDB.conversations).reduce((sum, msgs) => sum + msgs.length, 0);
+  const factCount = Object.values(memoryDB.users).reduce((sum, u) => sum + (u.facts?.length || 0), 0);
+
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 500,
+      system: 'You are Jarvis, Mark\'s AI assistant. Give a casual morning briefing. Be direct and useful. Include: system status, any interesting observations, and one proactive idea or suggestion for Mark today. Keep it short and punchy.',
+      messages: [{ role: 'user', content: `Generate my morning briefing. Current stats: ${userCount} users tracked, ${msgCount} total messages, ${factCount} facts learned. Current time: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })}. What should I focus on today?` }],
+    });
+    const briefing = response.content[0].text;
+    await sendBossMessage('☀️ **Morning Briefing**\n\n' + briefing);
+  } catch (error) {
+    console.error('[BRIEFING] Error:', error.message);
+  }
+}
+
+async function sendBossMessage(text) {
+  try {
+    const user = await discord.users.fetch(BOSS_DISCORD_ID);
+    if (user) await user.send(text);
+  } catch (error) {
+    console.error('[DM] Error sending to boss:', error.message);
+    logToDiscord('daily-reports', text);
+  }
+}
+
+function scheduleDailyBriefing() {
+  const now = new Date();
+  const next9am = new Date();
+  next9am.setHours(9, 0, 0, 0);
+  if (now > next9am) next9am.setDate(next9am.getDate() + 1);
+  const msUntil = next9am - now;
+
+  setTimeout(() => {
+    sendDailyBriefing();
+    setInterval(sendDailyBriefing, 24 * 60 * 60 * 1000);
+  }, msUntil);
+
+  console.log('[SCHEDULER] Daily briefing scheduled. Next: ' + next9am.toLocaleString());
+}
+
+// --- Proactive Ideas Engine ---
+
+async function generateIdea() {
+  try {
+    const facts = [];
+    Object.values(memoryDB.users).forEach(u => { if (u.facts) facts.push(...u.facts); });
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 300,
+      system: 'You are Jarvis. Generate ONE short, actionable business or product idea for Mark. He builds AI bots, runs a solar business, and is creating software products. Be specific and practical. No fluff.',
+      messages: [{ role: 'user', content: 'Give me one idea I should consider today. Context about what I\'ve been working on: ' + facts.slice(0, 20).join(', ') }],
+    });
+    const idea = response.content[0].text;
+    await sendBossMessage('💡 **Idea from Jarvis:**\n\n' + idea);
+  } catch (error) {
+    console.error('[IDEAS] Error:', error.message);
+  }
+}
+
+function scheduleIdeas() {
+  // Send a random idea every 8 hours
+  setInterval(generateIdea, 8 * 60 * 60 * 1000);
+  // Send first idea 1 hour after boot
+  setTimeout(generateIdea, 60 * 60 * 1000);
+  console.log('[SCHEDULER] Ideas engine started');
+}
+
+// --- App Monitoring ---
+
+function startAppMonitoring() {
+  const checkApps = async () => {
+    const apps = [
+      { name: 'Jarvis Bot', url: process.env.RENDER_EXTERNAL_URL || 'https://jarvis-sms-bot.onrender.com' },
+    ];
+
+    for (const app of apps) {
+      try {
+        const fetch = (await import('node-fetch')).default;
+        const res = await fetch(app.url, { timeout: 10000 });
+        if (!res.ok) {
+          await sendBossMessage('🚨 **Alert:** ' + app.name + ' is returning status ' + res.status + '. Something might be wrong.');
+        }
+      } catch (error) {
+        await sendBossMessage('🚨 **Alert:** ' + app.name + ' is DOWN. Error: ' + error.message);
+      }
+    }
+  };
+
+  // Check every 5 minutes
+  setInterval(checkApps, 5 * 60 * 1000);
+  console.log('[MONITOR] App monitoring started');
+}
+
+// --- Discord ---
+
 const DISCORD_LOG_CHANNELS = {};
 
 discord.on('ready', () => {
@@ -137,6 +263,11 @@ discord.on('ready', () => {
       if (channel.name === 'daily-reports') DISCORD_LOG_CHANNELS['daily-reports'] = channel;
     });
   });
+
+  // Start proactive features
+  scheduleDailyBriefing();
+  scheduleIdeas();
+  startAppMonitoring();
 });
 
 discord.on('messageCreate', async (message) => {
@@ -165,10 +296,10 @@ discord.on('messageCreate', async (message) => {
       const profile = getOrCreateProfile(userId, 'discord');
       return message.reply(facts.length > 0
         ? '🧠 **What I know about you:**\n' + facts.map(f => '• ' + f).join('\n') + '\n\n📝 **Summary:** ' + (profile.summary || 'Not enough data yet.')
-        : "I haven't learned anything about you yet. Keep chatting!");
+        : "Haven't learned anything about you yet. Keep talking to me.");
     }
     const facts = getUserFacts(targetId);
-    return message.reply(facts.length > 0 ? '🧠 **Facts about ' + targetId + ':**\n' + facts.map(f => '• ' + f).join('\n') : 'No data on user ' + targetId);
+    return message.reply(facts.length > 0 ? '🧠 **' + targetId + ':**\n' + facts.map(f => '• ' + f).join('\n') : 'Got nothing on ' + targetId);
   }
 
   if (userText === '!users') {
@@ -183,17 +314,31 @@ discord.on('messageCreate', async (message) => {
     delete memoryDB.users[targetId];
     delete memoryDB.conversations[targetId];
     saveDB(memoryDB);
-    return message.reply('🗑️ All data for ' + targetId + ' deleted.');
+    return message.reply('Done. ' + targetId + ' wiped.');
+  }
+
+  if (userText === '!idea') {
+    await message.channel.sendTyping();
+    await generateIdea();
+    return;
+  }
+
+  if (userText === '!briefing') {
+    await message.channel.sendTyping();
+    await sendDailyBriefing();
+    return;
   }
 
   if (userText === '!help') {
     const embed = new EmbedBuilder().setTitle('🤖 Jarvis Commands').setColor(0x0099ff)
       .addFields(
-        { name: '!stats', value: 'Show bot statistics' },
+        { name: '!stats', value: 'Bot statistics' },
         { name: '!memory', value: 'What I know about you' },
-        { name: '!users', value: 'List all known users' },
-        { name: '!forget <id>', value: 'Delete user data' },
-        { name: '!help', value: 'Show this menu' }
+        { name: '!users', value: 'All known users' },
+        { name: '!forget <id>', value: 'Wipe a user' },
+        { name: '!idea', value: 'Generate a business idea' },
+        { name: '!briefing', value: 'Get your daily briefing now' },
+        { name: '!help', value: 'This menu' }
       ).setTimestamp();
     return message.reply({ embeds: [embed] });
   }
@@ -204,7 +349,7 @@ discord.on('messageCreate', async (message) => {
     await message.reply(reply);
   } catch (error) {
     console.error('Discord error:', error.message);
-    await message.reply('Sorry, I hit an error. Try again.');
+    await message.reply('Something broke. Give me a sec and try again.');
   }
 });
 
@@ -215,6 +360,8 @@ function logToDiscord(channelName, text) {
     channel.send(msg).catch(err => console.error('Discord log error:', err.message));
   }
 }
+
+// --- Telegram ---
 
 async function sendTelegramMessage(chatId, text) {
   const fetch = (await import('node-fetch')).default;
@@ -249,7 +396,7 @@ app.post('/telegram', async (req, res) => {
     const userId = 'telegram_' + chatId;
     console.log('[Telegram] ' + chatId + ': ' + userText);
     if (userText === '/start') {
-      await sendTelegramMessage(chatId, "Hello! I'm Jarvis, your AI business assistant. What can I help you with?");
+      await sendTelegramMessage(chatId, "Yo, I'm Jarvis. What do you need?");
       return res.sendStatus(200);
     }
     if (message.from) {
@@ -266,6 +413,8 @@ app.post('/telegram', async (req, res) => {
     res.sendStatus(200);
   }
 });
+
+// --- SMS ---
 
 app.post('/sms', async (req, res) => {
   const from = req.body.From;
@@ -287,6 +436,8 @@ app.post('/sms', async (req, res) => {
   }
 });
 
+// --- Health ---
+
 app.get('/', (req, res) => {
   res.json({
     status: 'Jarvis is alive',
@@ -303,7 +454,7 @@ app.listen(PORT, () => {
   if (process.env.DISCORD_BOT_TOKEN) {
     discord.login(process.env.DISCORD_BOT_TOKEN).catch(err => console.error('Discord login failed:', err.message));
   } else {
-    console.log('No DISCORD_BOT_TOKEN set, Discord disabled');
+    console.log('No DISCORD_BOT_TOKEN, Discord disabled');
   }
 });
 
