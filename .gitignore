@@ -1,4 +1,8 @@
 .env
+.env.swp
+.env.bak
+*.swp
 node_modules/
+jarvis_memory.json
 jarvis_memory.db
 index.backup.js
