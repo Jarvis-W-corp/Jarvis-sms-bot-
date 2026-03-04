@@ -1,22 +1,20 @@
 {
-  "name": "ai-bot",
-  "version": "1.0.0",
-  "description": "",
+  "name": "super-jarvis",
+  "version": "2.0.0",
+  "description": "Super Jarvis - AI Workforce Platform",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "setup-db": "node src/db/setup.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "type": "commonjs",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
+    "@supabase/supabase-js": "^2.49.1",
     "discord.js": "^14.25.1",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
-    "node-fetch": "^3.3.2",
-    "sql.js": "^1.14.0",
+    "openai": "^4.85.0",
     "twilio": "^5.12.1"
   }
 }
