@@ -97,6 +97,15 @@ async function handleCommand(message, command, args, tenant) {
       await memoryModule.storeMemory(tenantId, 'training', trainingText, 8, 'discord_' + message.author.id);
       return message.reply('📚 Learned: "' + trainingText.substring(0, 100) + '"');
     }
+    case '!solar': {
+      await message.channel.sendTyping();
+      const enerflo = require('../core/enerflo');
+      const summary = await enerflo.getPipelineSummary();
+      const formatted = enerflo.formatForDiscord(summary);
+      await enerflo.syncToMemory(tenantId);
+      return message.reply(formatted);
+    }
+
     case '!help': {
       const embed = new EmbedBuilder().setTitle('🤖 Super Jarvis Commands').setColor(0x0099ff)
         .addFields(
@@ -108,6 +117,7 @@ async function handleCommand(message, command, args, tenant) {
           { name: '!teach <info>', value: 'Teach me something' },
           { name: '!idea', value: 'Generate a business idea' },
           { name: '!briefing', value: 'Daily briefing now' },
+          { name: '!solar', value: 'Pull Enerflo pipeline data' },
           { name: '!help', value: 'This menu' },
         ).setFooter({ text: 'Super Jarvis v2.0' }).setTimestamp();
       return message.reply({ embeds: [embed] });
