@@ -31,7 +31,7 @@ async function chat(tenantId, userId, platform, userText, userName) {
     system: systemPrompt,
     messages: history,
   });
-  const replyText = response?.content?.[0]?.text || 'Error generating response.'; const needsSearch = replyText.includes("don't have") || replyText.includes("don't know") || replyText.includes("not sure") || replyText.includes("I cannot") || replyText.includes("my knowledge cutoff"); let reply = replyText; if (needsSearch) { const search = require('./search'); const searchResult = await search.searchAndSummarize(userText, tenantId); reply = searchResult; }
+  const reply = response.content[0].text;
   await db.saveConversation(tenantId, platform, userId, 'assistant', reply);
   memory.learnFromConversation(tenantId, userId, platform).catch(err =>
     console.error('[LEARN] Background error:', err.message));
