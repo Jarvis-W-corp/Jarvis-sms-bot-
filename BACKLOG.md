@@ -16,3 +16,6 @@
 
 ## 🔲 Sprint 7 Items
 - [ ] Dashboard — web interface to monitor Jarvis activity and tenants
+
+## 🔴 URGENT — Recurring Issues
+- [ ] Fix Discord token invalidation — happens repeatedly, root cause unknown. Investigate switching to OAuth2 or find what's invalidating the token. This is the #1 stability issue.
