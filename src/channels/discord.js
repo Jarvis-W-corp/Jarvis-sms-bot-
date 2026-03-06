@@ -187,7 +187,13 @@ const userText = message.content.trim();
   });
 
   if (process.env.DISCORD_BOT_TOKEN) {
-    discord.login(process.env.DISCORD_BOT_TOKEN).catch(err => console.error('[DISCORD] Login failed:', err.message));
+   console.log('[DISCORD] Attempting login...');
+discord.login(process.env.DISCORD_BOT_TOKEN)
+  .then(() => console.log('[DISCORD] Login successful'))
+  .catch(err => {
+    console.error('[DISCORD] Login failed:', err.message);
+    setTimeout(() => process.exit(1), 1000); // Force Render to restart
+  });
   } else {
     console.log('[DISCORD] No token, disabled');
   }
