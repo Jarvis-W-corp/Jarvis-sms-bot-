@@ -143,7 +143,8 @@ function initDiscord() {
     if (message.author.bot) return;
     if (['customer-logs', 'memory-log', 'daily-reports'].includes(message.channel?.name)) return;
     const discordId = message.author.id;
-    const userText = message.content.trim();
+if (message.attachments.size > 0) return message.reply("I can't read files yet — send me text only.");    
+const userText = message.content.trim();
     const userName = message.author.displayName || message.author.username;
     const tenant = await tenantManager.resolveTenant(discordId);
     if (!tenant) return message.reply("I'm not set up yet. Database needs initialization.");
