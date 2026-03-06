@@ -97,7 +97,20 @@ async function handleCommand(message, command, args, tenant) {
       await memoryModule.storeMemory(tenantId, 'training', trainingText, 8, 'discord_' + message.author.id);
       return message.reply('📚 Learned: "' + trainingText.substring(0, 100) + '"');
     }
-    case '!solar': {
+    case '!search': {
+      const query = args.join(' ');
+      if (!query) return message.reply('Usage: !search <query>');
+      await message.channel.sendTyping();
+      const search = require('../core/search');
+      const result = await search.searchAndSummarize(query, tenantId);
+      if (result.length > 2000) {
+        const chunks = result.match(/.{1,2000}/gs) || [result];
+        for (const chunk of chunks) await message.reply(chunk);
+      } else {
+        await message.reply(result);
+      }
+      return;
+    }case '!solar': {
       await message.channel.sendTyping();
       const enerflo = require('../core/enerflo');
       const summary = await enerflo.getPipelineSummary();
