@@ -32,6 +32,12 @@ async function chat(tenantId, userId, platform, userText, userName) {
     messages: history,
   });
   const reply = response.content[0].text;
+  const needsSearch = /don't have|don't know|not sure|I cannot|my knowledge cutoff/i.test(reply);
+  if (needsSearch) {
+    const { searchAndSummarize } = require('./search');
+    const searchResult = await searchAndSummarize(userText);
+    return searchResult;
+  }
   await db.saveConversation(tenantId, platform, userId, 'assistant', reply);
   memory.learnFromConversation(tenantId, userId, platform).catch(err =>
     console.error('[LEARN] Background error:', err.message));
