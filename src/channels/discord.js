@@ -118,6 +118,27 @@ async function handleCommand(message, command, args, tenant) {
       await enerflo.syncToMemory(tenantId);
       return message.reply(formatted);
     }
+    case '!gmail': {
+      const sub = args[0];
+      const gmail = require('../core/gmail');
+      if (sub === 'auth') {
+        const url = await gmail.getAuthUrl();
+        return message.reply('Authorize here: ' + url);
+      }
+      if (sub === 'code') {
+        const code = args.slice(1).join(' ');
+        await gmail.setAuthCode(code);
+        return message.reply('✅ Gmail authorized!');
+      }
+      if (sub === 'read') {
+        await message.channel.sendTyping();
+        const emails = await gmail.getEmails(5);
+        if (!emails.length) return message.reply('No unread emails.');
+        return message.reply('📧 **Unread:**\n' + emails.map(e => '• ' + e.from + ' — ' + e.subject).join('\n'));
+      }
+      return message.reply('Usage: !gmail auth | !gmail code <code> | !gmail read');
+    }
+  
 
     case '!help': {
       const embed = new EmbedBuilder().setTitle('🤖 Super Jarvis Commands').setColor(0x0099ff)
@@ -131,6 +152,7 @@ async function handleCommand(message, command, args, tenant) {
           { name: '!idea', value: 'Generate a business idea' },
           { name: '!briefing', value: 'Daily briefing now' },
           { name: '!solar', value: 'Pull Enerflo pipeline data' },
+          { name: '!gmail', value: 'Read emails' },
           { name: '!help', value: 'This menu' },
         ).setFooter({ text: 'Super Jarvis v2.0' }).setTimestamp();
       return message.reply({ embeds: [embed] });
