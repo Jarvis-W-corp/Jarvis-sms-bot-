@@ -185,8 +185,14 @@ const userText = message.content.trim();
     if (!tenant) return message.reply("I'm not set up yet. Database needs initialization.");
     if (userText.startsWith('!')) {
       const parts = userText.split(' ');
-      const result = await handleCommand(message, parts[0].toLowerCase(), parts.slice(1), tenant);
-      if (result !== null) return;
+      try {
+        const result = await handleCommand(message, parts[0].toLowerCase(), parts.slice(1), tenant);
+        if (result !== null) return;
+      } catch (err) {
+        console.error('[DISCORD] Command error:', err.message);
+        await message.reply('⚠️ Command failed: ' + err.message);
+        return;
+      }
     }
     try {
       await message.channel.sendTyping();
