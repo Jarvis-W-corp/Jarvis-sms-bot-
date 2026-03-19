@@ -18,6 +18,12 @@ function logToDiscord(channelName, text) {
   }
 }
 
+function sendLongMessage(target, text) {
+  if (text.length <= 2000) return target.reply(text);
+  const chunks = text.match(/.{1,2000}/gs) || [text];
+  return chunks.reduce((p, chunk) => p.then(() => target.reply(chunk)), Promise.resolve());
+}
+
 async function sendBossMessage(text) {
   try {
     const tenant = await db.getDefaultTenant();
@@ -103,14 +109,9 @@ async function handleCommand(message, command, args, tenant) {
       await message.channel.sendTyping();
       const search = require('../core/search');
       const result = await search.searchAndSummarize(query, tenantId);
-      if (result.length > 2000) {
-        const chunks = result.match(/.{1,2000}/gs) || [result];
-        for (const chunk of chunks) await message.reply(chunk);
-      } else {
-        await message.reply(result);
-      }
-      return;
-    }case '!solar': {
+      return sendLongMessage(message, result);
+    }
+    case '!solar': {
       await message.channel.sendTyping();
       const enerflo = require('../core/enerflo');
       const summary = await enerflo.getPipelineSummary();
@@ -138,8 +139,6 @@ async function handleCommand(message, command, args, tenant) {
       }
       return message.reply('Usage: !gmail auth | !gmail code <code> | !gmail read');
     }
-  
-
     case '!help': {
       const embed = new EmbedBuilder().setTitle('🤖 Super Jarvis Commands').setColor(0x0099ff)
         .addFields(
@@ -151,6 +150,7 @@ async function handleCommand(message, command, args, tenant) {
           { name: '!teach <info>', value: 'Teach me something' },
           { name: '!idea', value: 'Generate a business idea' },
           { name: '!briefing', value: 'Daily briefing now' },
+          { name: '!search <query>', value: 'Search the web' },
           { name: '!solar', value: 'Pull Enerflo pipeline data' },
           { name: '!gmail', value: 'Read emails' },
           { name: '!help', value: 'This menu' },
@@ -178,8 +178,8 @@ function initDiscord() {
     if (message.author.bot) return;
     if (['customer-logs', 'memory-log', 'daily-reports'].includes(message.channel?.name)) return;
     const discordId = message.author.id;
-if (message.attachments.size > 0) return message.reply("I can't read files yet — send me text only.");    
-const userText = message.content.trim();
+    if (message.attachments.size > 0) return message.reply("I can't read files yet — send me text only.");
+    const userText = message.content.trim();
     const userName = message.author.displayName || message.author.username;
     const tenant = await tenantManager.resolveTenant(discordId);
     if (!tenant) return message.reply("I'm not set up yet. Database needs initialization.");
@@ -198,12 +198,7 @@ const userText = message.content.trim();
       await message.channel.sendTyping();
       const userId = 'discord_' + discordId;
       const reply = await brain.chat(tenant.id, userId, 'discord', userText, userName);
-      if (reply.length > 2000) {
-        const chunks = reply.match(/.{1,2000}/gs) || [reply];
-        for (const chunk of chunks) await message.reply(chunk);
-      } else {
-        await message.reply(reply);
-      }
+      await sendLongMessage(message, reply);
       const learnResult = await memoryModule.learnFromConversation(tenant.id, userId, 'discord').catch(() => null);
       if (learnResult?.stored > 0) {
         logToDiscord('memory-log', '🧠 **Learned ' + learnResult.stored + ' memories from ' + userName + '**\n' + (learnResult.analysis?.facts || []).map(f => '• ' + f).join('\n'));
@@ -215,13 +210,13 @@ const userText = message.content.trim();
   });
 
   if (process.env.DISCORD_BOT_TOKEN) {
-   console.log('[DISCORD] Attempting login...');
-discord.login(process.env.DISCORD_BOT_TOKEN)
-  .then(() => console.log('[DISCORD] Login successful'))
-  .catch(err => {
-    console.error('[DISCORD] Login failed:', err.message);
-    setTimeout(() => process.exit(1), 1000); // Force Render to restart
-  });
+    console.log('[DISCORD] Attempting login...');
+    discord.login(process.env.DISCORD_BOT_TOKEN)
+      .then(() => console.log('[DISCORD] Login successful'))
+      .catch(err => {
+        console.error('[DISCORD] Login failed:', err.message);
+        setTimeout(() => process.exit(1), 1000);
+      });
   } else {
     console.log('[DISCORD] No token, disabled');
   }

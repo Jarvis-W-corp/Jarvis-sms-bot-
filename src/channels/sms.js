@@ -2,6 +2,16 @@ const brain = require('../core/brain');
 const db = require('../db/queries');
 const { logToDiscord } = require('./discord');
 
+let twilioClient = null;
+
+function getTwilioClient() {
+  if (!twilioClient && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+    const twilio = require('twilio');
+    twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+  }
+  return twilioClient;
+}
+
 function initSMS(app) {
   app.post('/sms', async (req, res) => {
     const from = req.body.From;
@@ -12,9 +22,8 @@ function initSMS(app) {
       const tenant = await db.getDefaultTenant();
       if (!tenant) return res.type('text/xml').send('<Response></Response>');
       const reply = await brain.chat(tenant.id, userId, 'sms', body, null);
-      if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-        const twilio = require('twilio');
-        const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+      const client = getTwilioClient();
+      if (client) {
         await client.messages.create({ body: reply, from: process.env.TWILIO_PHONE_NUMBER, to: from });
       }
       logToDiscord('customer-logs', '💬 **SMS** | ' + from + '\n**User:** ' + body + '\n**Jarvis:** ' + reply);

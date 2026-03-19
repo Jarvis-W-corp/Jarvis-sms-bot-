@@ -27,25 +27,27 @@ async function storeMemory(tenantId, category, content, importance = 5, source =
 
 async function recallMemories(tenantId, query, config = {}) {
   const recallCount = config.memory_recall_count || 15;
+  const [facts, tasks, decisions, embedding] = await Promise.all([
+    db.getFactMemories(tenantId),
+    db.getOpenTasks(tenantId),
+    db.getRecentDecisions(tenantId),
+    createEmbedding(query),
+  ]);
   const context = [];
-  const facts = await db.getFactMemories(tenantId);
   if (facts.length > 0) {
     context.push('**Permanent Facts:**');
     facts.forEach(f => context.push('- ' + f.content));
   }
-  const tasks = await db.getOpenTasks(tenantId);
   if (tasks.length > 0) {
     context.push('\n**Open Tasks:**');
     tasks.forEach(t => context.push('- ' + t.content));
   }
-  const decisions = await db.getRecentDecisions(tenantId);
   if (decisions.length > 0) {
     context.push('\n**Recent Decisions:**');
     decisions.forEach(d => context.push('- ' + d.content));
   }
-  const embedding = await createEmbedding(query);
   if (embedding) {
-    const relevant = await db.searchMemories(tenantId, embedding, recallCount, 0.65);
+    const relevant = await db.searchMemories(tenantId, embedding, recallCount, 0.7);
     if (relevant.length > 0) {
       context.push('\n**Relevant Context:**');
       relevant.forEach(r => {

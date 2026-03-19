@@ -1,4 +1,7 @@
+const Anthropic = require('@anthropic-ai/sdk').default;
 const memory = require('./memory');
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 async function searchWeb(query, count = 5) {
   try {
@@ -21,8 +24,6 @@ async function searchWeb(query, count = 5) {
 async function searchAndSummarize(query, tenantId) {
   const results = await searchWeb(query);
   if (results.length === 0) return 'No results found for: ' + query;
-  const Anthropic = require('@anthropic-ai/sdk').default;
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const context = results.map((r, i) => `[${i+1}] ${r.title}\n${r.snippet}\nURL: ${r.url}`).join('\n\n');
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',

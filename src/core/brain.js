@@ -35,12 +35,11 @@ async function chat(tenantId, userId, platform, userText, userName) {
   const needsSearch = /don't have|don't know|not sure|I cannot|my knowledge cutoff/i.test(reply);
   if (needsSearch) {
     const { searchAndSummarize } = require('./search');
-    const searchResult = await searchAndSummarize(userText);
+    const searchResult = await searchAndSummarize(userText, tenantId);
+    await db.saveConversation(tenantId, platform, userId, 'assistant', searchResult);
     return searchResult;
   }
   await db.saveConversation(tenantId, platform, userId, 'assistant', reply);
-  memory.learnFromConversation(tenantId, userId, platform).catch(err =>
-    console.error('[LEARN] Background error:', err.message));
   return reply;
 }
 

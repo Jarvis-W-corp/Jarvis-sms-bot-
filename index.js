@@ -46,3 +46,12 @@ process.on('SIGINT', () => {
   discord.destroy();
   process.exit(0);
 });
+
+process.on('unhandledRejection', (err) => {
+  console.error('[FATAL] Unhandled rejection:', err);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught exception:', err);
+  setTimeout(() => process.exit(1), 1000);
+});

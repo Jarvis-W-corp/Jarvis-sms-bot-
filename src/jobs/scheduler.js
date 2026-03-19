@@ -13,16 +13,24 @@ async function sendDailyBriefing() {
   } catch (error) { console.error('[SCHEDULER] Briefing error:', error.message); }
 }
 
-function scheduleDailyBriefing() {
+function getNext9amET() {
   const now = new Date();
-  const next9am = new Date();
+  const eastern = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const offset = now.getTime() - eastern.getTime();
+  const next9am = new Date(eastern);
   next9am.setHours(9, 0, 0, 0);
-  if (now > next9am) next9am.setDate(next9am.getDate() + 1);
+  if (eastern >= next9am) next9am.setDate(next9am.getDate() + 1);
+  return new Date(next9am.getTime() + offset);
+}
+
+function scheduleDailyBriefing() {
+  const next9am = getNext9amET();
+  const delay = next9am.getTime() - Date.now();
   setTimeout(() => {
     sendDailyBriefing();
     setInterval(sendDailyBriefing, 24 * 60 * 60 * 1000);
-  }, next9am - now);
-  console.log('[SCHEDULER] Briefing scheduled. Next: ' + next9am.toLocaleString());
+  }, delay);
+  console.log('[SCHEDULER] Briefing scheduled. Next: ' + next9am.toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET');
 }
 
 async function generateAndSendIdea() {

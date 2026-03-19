@@ -128,13 +128,14 @@ async function getMemoryCount(tenantId) {
 
 async function getMemoriesByCategory(tenantId) {
   const categories = ['fact', 'summary', 'conversation', 'task', 'decision', 'training'];
-  const counts = {};
-  for (const cat of categories) {
-    const { count } = await supabase.from('memories')
-      .select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('category', cat);
-    counts[cat] = count || 0;
-  }
-  return counts;
+  const results = await Promise.all(
+    categories.map(cat =>
+      supabase.from('memories').select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId).eq('category', cat)
+        .then(({ count }) => [cat, count || 0])
+    )
+  );
+  return Object.fromEntries(results);
 }
 
 async function getStats(tenantId) {
