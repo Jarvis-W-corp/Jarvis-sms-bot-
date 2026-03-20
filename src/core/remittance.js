@@ -1,10 +1,5 @@
 const { google } = require('googleapis');
-const pdf = require('pdf-parse');
-
-const GMAIL_SCOPES = [
-  'https://www.googleapis.com/auth/gmail.modify',
-  'https://www.googleapis.com/auth/spreadsheets',
-];
+const { PDFParse } = require('pdf-parse');
 
 function getAuth() {
   const clientId = process.env.GMAIL_CLIENT_ID;
@@ -17,12 +12,19 @@ function getAuth() {
   return oAuth2Client;
 }
 
+async function parsePdfBuffer(buf) {
+  const uint8 = new Uint8Array(buf);
+  const parser = new PDFParse(uint8);
+  await parser.load();
+  const result = await parser.getText();
+  return typeof result === 'string' ? result : result.text || '';
+}
+
 // Fetch ION SOLAR PROS remittance emails with PDF attachments
 async function fetchRemittanceEmails(maxResults = 50) {
   const auth = getAuth();
   const gmail = google.gmail({ version: 'v1', auth });
 
-  // Search for ION SOLAR PROS remittance emails (including forwarded ones)
   const query = 'subject:"Remittance Advice from ION SOLAR PROS" has:attachment';
   const res = await gmail.users.messages.list({ userId: 'me', maxResults, q: query });
   const messages = res.data.messages || [];
@@ -35,10 +37,8 @@ async function fetchRemittanceEmails(maxResults = 50) {
       const detail = await gmail.users.messages.get({ userId: 'me', id: msg.id });
       const headers = detail.data.payload.headers;
       const subject = headers.find(h => h.name === 'Subject')?.value || 'No subject';
-      const from = headers.find(h => h.name === 'From')?.value || 'Unknown';
-      const date = headers.find(h => h.name === 'Date')?.value || '';
+      const emailDate = headers.find(h => h.name === 'Date')?.value || '';
 
-      // Find PDF attachments in the message parts
       const pdfParts = findPdfParts(detail.data.payload);
 
       for (const part of pdfParts) {
@@ -49,30 +49,16 @@ async function fetchRemittanceEmails(maxResults = 50) {
         });
 
         const pdfBuffer = Buffer.from(attachment.data.data, 'base64');
-        const parsed = await pdf(pdfBuffer);
-        const extracted = extractRemittanceData(parsed.text, date, subject);
-
-        if (extracted) {
-          results.push(extracted);
-          console.log('[REMITTANCE] Extracted: ' + extracted.date + ' | $' + extracted.amount + ' | Ref: ' + extracted.reference);
-        } else {
-          console.log('[REMITTANCE] Could not parse PDF from: ' + subject);
-          // Still add with raw text for manual review
-          results.push({
-            date: new Date(date).toLocaleDateString('en-US') || date,
-            reference: 'NEEDS REVIEW',
-            amount: 'NEEDS REVIEW',
-            subject,
-            rawText: parsed.text.substring(0, 500),
-          });
-        }
+        const text = await parsePdfBuffer(pdfBuffer);
+        const extracted = extractRemittanceData(text, emailDate, subject);
+        results.push(extracted);
+        console.log('[REMITTANCE] Extracted ' + extracted.lineItems.length + ' line items from: ' + extracted.reference);
       }
     } catch (err) {
       console.error('[REMITTANCE] Error processing message ' + msg.id + ':', err.message);
     }
   }
 
-  // Sort by date
   results.sort((a, b) => new Date(a.date) - new Date(b.date));
   return results;
 }
@@ -85,92 +71,94 @@ function findPdfParts(payload) {
       if (part.mimeType === 'application/pdf' && part.body?.attachmentId) {
         parts.push(part);
       }
-      // Check nested parts (multipart emails)
       if (part.parts) {
         parts.push(...findPdfParts(part));
       }
     }
   }
-  // Single-part PDF
   if (payload.mimeType === 'application/pdf' && payload.body?.attachmentId) {
     parts.push(payload);
   }
   return parts;
 }
 
-// Extract date, reference number, and amount from remittance PDF text
+// Extract structured data from remittance PDF text
 function extractRemittanceData(text, emailDate, subject) {
-  // Try multiple patterns since remittance PDFs vary in format
-  let date = null;
-  let reference = null;
-  let amount = null;
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-  // Date patterns
-  const datePatterns = [
-    /(?:Pay(?:ment)?\s*Date|Date|Check\s*Date|Remit(?:tance)?\s*Date)[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i,
-    /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/,
-  ];
-  for (const pattern of datePatterns) {
-    const match = text.match(pattern);
-    if (match) {
-      date = match[1];
-      break;
-    }
-  }
-  if (!date && emailDate) {
-    try { date = new Date(emailDate).toLocaleDateString('en-US'); } catch (e) { date = emailDate; }
+  // Get remittance date
+  let date = '';
+  const dateMatch = text.match(/Date:\s*(\d{1,2}\/\d{1,2}\/\d{4})/);
+  if (dateMatch) date = dateMatch[1];
+  else if (emailDate) try { date = new Date(emailDate).toLocaleDateString('en-US'); } catch (e) { date = emailDate; }
+
+  // Get reference
+  let reference = '';
+  const refMatch = text.match(/Reference\s*No:\s*(.+)/i);
+  if (refMatch && refMatch[1].trim() && !/^Bill\s+Number/i.test(refMatch[1].trim())) {
+    reference = refMatch[1].trim();
   }
 
-  // Reference / check number patterns
-  const refPatterns = [
-    /(?:Reference|Ref|Check|Chk|Payment|Confirmation|Transaction)\s*(?:#|No\.?|Number)?[:\s]*([A-Z0-9\-]{3,20})/i,
-    /(?:ACH|EFT|Wire)\s*(?:#|No\.?)?[:\s]*([A-Z0-9\-]{3,20})/i,
-    /#\s*([A-Z0-9\-]{3,20})/i,
-  ];
-  for (const pattern of refPatterns) {
-    const match = text.match(pattern);
-    if (match) {
-      reference = match[1];
-      break;
-    }
-  }
+  // Get payment recipient
+  let payTo = '';
+  const payToIdx = lines.findIndex(l => l === 'Payment To');
+  if (payToIdx >= 0 && payToIdx + 1 < lines.length) payTo = lines[payToIdx + 1];
 
-  // Amount patterns - look for total/net amount
-  const amountPatterns = [
-    /(?:Total|Net|Amount|Pay(?:ment)?|Grand\s*Total|Net\s*Pay)[:\s]*\$?([\d,]+\.?\d{0,2})/i,
-    /\$\s*([\d,]+\.\d{2})/g,  // Any dollar amount - we'll take the last one (usually the total)
-  ];
+  // Get subtotal
+  let subtotal = '';
+  const subMatch = text.match(/SubTotal:\s*\$?([\d,]+\.\d{2})/);
+  if (subMatch) subtotal = subMatch[1];
 
-  for (const pattern of amountPatterns) {
-    if (pattern.global) {
-      const matches = [...text.matchAll(pattern)];
-      if (matches.length > 0) {
-        // Take the last dollar amount (typically the total)
-        amount = matches[matches.length - 1][1];
-        break;
-      }
-    } else {
-      const match = text.match(pattern);
-      if (match) {
-        amount = match[1];
-        break;
+  // Parse bill line items (between header row and "Memo:" or "SubTotal")
+  const lineItems = [];
+  const billHeaderIdx = lines.findIndex(l => /^Bill\s+Number\s+Bill\s+Date/i.test(l));
+  if (billHeaderIdx >= 0) {
+    for (let i = billHeaderIdx + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (/^Memo:|^SubTotal:|^Credits\s+Summary/i.test(line)) break;
+      // Line item pattern: Name  MM/DD/YYYY  MM/DD/YYYY  amount  amount  amount
+      const m = line.match(/^(.+?)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}\/\d{2}\/\d{4})\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})$/);
+      if (m) {
+        lineItems.push({
+          type: 'bill',
+          name: m[1].trim(),
+          billDate: m[2],
+          dueDate: m[3],
+          originalAmount: m[4],
+          balance: m[5],
+          payment: m[6],
+        });
       }
     }
   }
 
-  if (!date && !reference && !amount) return null;
+  // Parse credit line items
+  const creditHeaderIdx = lines.findIndex(l => /^Credit\s+Number\s+Credit\s+Date/i.test(l));
+  if (creditHeaderIdx >= 0) {
+    for (let i = creditHeaderIdx + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (/^Total:|^Signature:/i.test(line)) break;
+      // Credit pattern: Name  MM/DD/YYYY  amount  amount  amount
+      const m = line.match(/^(.+?)\s+(\d{2}\/\d{2}\/\d{4})\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})$/);
+      if (m) {
+        lineItems.push({
+          type: 'credit',
+          name: m[1].trim(),
+          creditDate: m[2],
+          originalAmount: m[3],
+          balance: m[4],
+          payment: m[5],
+        });
+      }
+    }
+  }
 
-  return {
-    date: date || 'Unknown',
-    reference: reference || 'N/A',
-    amount: amount ? amount.replace(/,/g, '') : 'Unknown',
-    subject,
-  };
+  return { date, reference, payTo, subtotal, subject, lineItems };
 }
 
 // Write extracted data to Google Sheet
-async function writeToSheet(data, sheetId) {
-  if (!sheetId) throw new Error('GOOGLE_SHEET_ID env var required. Create a Google Sheet and set the ID.');
+async function writeToSheet(remittances, sheetId) {
+  if (!sheetId) throw new Error('GOOGLE_SHEET_ID env var required');
 
   const auth = getAuth();
   const sheets = google.sheets({ version: 'v4', auth });
@@ -180,27 +168,41 @@ async function writeToSheet(data, sheetId) {
   try {
     const existing = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
-      range: 'Sheet1!A1:D1',
+      range: 'Sheet1!A1:I1',
     });
     hasHeaders = existing.data.values && existing.data.values.length > 0;
-  } catch (e) {
-    // Sheet might be empty
-  }
+  } catch (e) {}
 
   const rows = [];
   if (!hasHeaders) {
-    rows.push(['Date', 'Reference #', 'Amount', 'Email Subject']);
+    rows.push(['Remittance Date', 'Reference', 'Type', 'Name', 'Date', 'Original Amount', 'Balance', 'Payment', 'Pay To']);
   }
 
-  for (const entry of data) {
-    rows.push([entry.date, entry.reference, entry.amount, entry.subject]);
+  for (const rem of remittances) {
+    if (rem.lineItems.length === 0) {
+      // No line items parsed — add summary row
+      rows.push([rem.date, rem.reference, 'summary', '—', '—', rem.subtotal || '—', '—', rem.subtotal || '—', rem.payTo]);
+    }
+    for (const item of rem.lineItems) {
+      rows.push([
+        rem.date,
+        rem.reference,
+        item.type,
+        item.name,
+        item.billDate || item.creditDate || '',
+        item.originalAmount,
+        item.balance,
+        item.payment,
+        rem.payTo,
+      ]);
+    }
   }
 
   if (rows.length === 0) return { added: 0 };
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: sheetId,
-    range: 'Sheet1!A:D',
+    range: 'Sheet1!A:I',
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: rows },
   });
@@ -213,7 +215,7 @@ async function writeToSheet(data, sheetId) {
 // Main function: fetch, parse, write
 async function processRemittances() {
   const sheetId = process.env.GOOGLE_SHEET_ID;
-  if (!sheetId) throw new Error('Set GOOGLE_SHEET_ID env var first. Create a Google Sheet and copy the ID from the URL.');
+  if (!sheetId) throw new Error('Set GOOGLE_SHEET_ID env var first');
 
   const data = await fetchRemittanceEmails(50);
   if (data.length === 0) return { found: 0, added: 0, data: [] };

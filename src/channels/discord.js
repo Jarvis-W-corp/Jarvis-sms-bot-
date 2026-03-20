@@ -124,12 +124,17 @@ async function handleCommand(message, command, args, tenant) {
       const remittance = require('../core/remittance');
       const sub = args[0];
       if (sub === 'scan') {
-        // Just scan and show what's found without writing to sheet
         const data = await remittance.fetchRemittanceEmails(50);
         if (data.length === 0) return message.reply('No ION SOLAR PROS remittance emails found.');
-        let response = '📄 **Found ' + data.length + ' Remittance Records:**\n\n';
+        let response = '📄 **Found ' + data.length + ' Remittance PDFs:**\n\n';
         data.forEach((d, i) => {
-          response += (i + 1) + '. **' + d.date + '** — $' + d.amount + ' (Ref: ' + d.reference + ')\n';
+          const ref = d.reference || 'No Ref';
+          response += '**' + (i + 1) + '. ' + d.date + '** — Ref: ' + ref + ' | ' + d.lineItems.length + ' line items\n';
+          d.lineItems.forEach(li => {
+            const type = li.type === 'credit' ? '🔴 Credit' : '🟢 Bill';
+            response += '   ' + type + ': ' + li.name + ' — $' + li.payment + '\n';
+          });
+          response += '\n';
         });
         if (response.length > 2000) response = response.substring(0, 1997) + '...';
         return message.reply(response);
