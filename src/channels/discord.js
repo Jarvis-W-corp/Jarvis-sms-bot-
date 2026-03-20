@@ -119,6 +119,28 @@ async function handleCommand(message, command, args, tenant) {
       await enerflo.syncToMemory(tenantId);
       return message.reply(formatted);
     }
+    case '!remittance': {
+      await message.channel.sendTyping();
+      const remittance = require('../core/remittance');
+      const sub = args[0];
+      if (sub === 'scan') {
+        // Just scan and show what's found without writing to sheet
+        const data = await remittance.fetchRemittanceEmails(50);
+        if (data.length === 0) return message.reply('No ION SOLAR PROS remittance emails found.');
+        let response = '📄 **Found ' + data.length + ' Remittance Records:**\n\n';
+        data.forEach((d, i) => {
+          response += (i + 1) + '. **' + d.date + '** — $' + d.amount + ' (Ref: ' + d.reference + ')\n';
+        });
+        if (response.length > 2000) response = response.substring(0, 1997) + '...';
+        return message.reply(response);
+      }
+      if (sub === 'process') {
+        const result = await remittance.processRemittances();
+        if (result.found === 0) return message.reply('No ION SOLAR PROS remittance emails found.');
+        return message.reply('✅ **Remittance Processing Complete**\nFound: ' + result.found + ' records\nWritten to Google Sheet: ' + result.added + ' rows');
+      }
+      return message.reply('Usage:\n`!remittance scan` — Preview what Jarvis finds\n`!remittance process` — Parse PDFs and write to Google Sheet');
+    }
     case '!gmail': {
       const sub = args[0];
       const gmail = require('../core/gmail');
@@ -152,6 +174,7 @@ async function handleCommand(message, command, args, tenant) {
           { name: '!briefing', value: 'Daily briefing now' },
           { name: '!search <query>', value: 'Search the web' },
           { name: '!solar', value: 'Pull Enerflo pipeline data' },
+          { name: '!remittance', value: 'Parse ION SOLAR pay stubs to spreadsheet' },
           { name: '!gmail', value: 'Read emails' },
           { name: '!help', value: 'This menu' },
         ).setFooter({ text: 'Super Jarvis v2.0' }).setTimestamp();
@@ -210,13 +233,29 @@ function initDiscord() {
   });
 
   if (process.env.DISCORD_BOT_TOKEN) {
-    console.log('[DISCORD] Attempting login...');
-    discord.login(process.env.DISCORD_BOT_TOKEN)
-      .then(() => console.log('[DISCORD] Login successful'))
-      .catch(err => {
-        console.error('[DISCORD] Login failed:', err.message);
-        setTimeout(() => process.exit(1), 1000);
-      });
+    let retries = 0;
+    const maxRetries = 3;
+    const retryDelay = 10000; // 10 seconds between retries
+
+    function attemptLogin() {
+      console.log(`[DISCORD] Attempting login${retries > 0 ? ` (retry ${retries}/${maxRetries})` : ''}...`);
+      discord.login(process.env.DISCORD_BOT_TOKEN)
+        .then(() => console.log('[DISCORD] Login successful'))
+        .catch(err => {
+          console.error('[DISCORD] Login failed:', err.message);
+          if (err.code === 'TokenInvalid') {
+            console.error('[DISCORD] Token is invalid — update DISCORD_BOT_TOKEN in .env');
+            console.log('[DISCORD] Server will keep running without Discord. Dashboard available at /dashboard');
+          } else if (retries < maxRetries) {
+            retries++;
+            console.log(`[DISCORD] Retrying in ${retryDelay / 1000}s...`);
+            setTimeout(attemptLogin, retryDelay);
+          } else {
+            console.error('[DISCORD] Max retries reached. Server continues without Discord.');
+          }
+        });
+    }
+    attemptLogin();
   } else {
     console.log('[DISCORD] No token, disabled');
   }

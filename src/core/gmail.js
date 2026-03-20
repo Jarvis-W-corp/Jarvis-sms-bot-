@@ -1,6 +1,9 @@
 const { google } = require('googleapis');
 
-const SCOPES = ['https://www.googleapis.com/auth/gmail.modify'];
+const SCOPES = [
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/spreadsheets',
+];
 const REDIRECT_URI = 'http://localhost:8091';
 
 function getAuth() {

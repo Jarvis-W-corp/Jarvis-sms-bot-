@@ -16,6 +16,7 @@
     "express": "^5.2.1",
     "googleapis": "^171.4.0",
     "openai": "^4.85.0",
+    "pdf-parse": "^2.4.5",
     "twilio": "^5.12.1"
   }
 }
