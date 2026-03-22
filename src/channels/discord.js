@@ -198,24 +198,115 @@ async function handleCommand(message, command, args, tenant) {
       }
       return message.reply(status);
     }
+    case '!learn': {
+      const url = args[0];
+      if (!url) return message.reply('Usage: !learn <youtube/tiktok/url> [purpose]\nExample: !learn https://youtube.com/watch?v=xyz how to run facebook ads');
+      const purpose = args.slice(1).join(' ') || null;
+      await message.reply('Analyzing content... this may take a moment.');
+      await message.channel.sendTyping();
+      const contentModule = require('../core/content');
+      const result = await contentModule.processContent(url, purpose, tenantId);
+      let response = '**Learned from: ' + (result.source || 'content') + '**\n\n' + result.analysis;
+      if (response.length > 2000) response = response.substring(0, 1997) + '...';
+      return message.reply(response);
+    }
+    case '!research': {
+      const niche = args.join(' ');
+      if (!niche) return message.reply('Usage: !research <niche or market>\nExample: !research streetwear clothing');
+      await message.reply('Researching ' + niche + '...');
+      await message.channel.sendTyping();
+      const biz = require('../core/business');
+      const result = await biz.researchMarket(niche, 'overview');
+      let response = '**Market Research: ' + niche + '**\n\n' + result.analysis;
+      if (response.length > 2000) response = response.substring(0, 1997) + '...';
+      return message.reply(response);
+    }
+    case '!plan': {
+      const idea = args.join(' ');
+      if (!idea) return message.reply('Usage: !plan <business idea>\nExample: !plan dropshipping pet accessories');
+      await message.reply('Building business plan...');
+      await message.channel.sendTyping();
+      const biz = require('../core/business');
+      const plan = await biz.generateBusinessPlan(idea);
+      await sendLongMessage(message, '**Business Plan: ' + idea + '**\n\n' + plan);
+      return;
+    }
+    case '!validate': {
+      const idea = args.join(' ');
+      if (!idea) return message.reply('Usage: !validate <business idea>');
+      await message.reply('Evaluating idea with market data...');
+      await message.channel.sendTyping();
+      const biz = require('../core/business');
+      const result = await biz.validateIdea(idea);
+      await sendLongMessage(message, '**Idea Evaluation: ' + idea + '**\n\n' + result.evaluation);
+      return;
+    }
+    case '!ad': {
+      const product = args.join(' ');
+      if (!product) return message.reply('Usage: !ad <product/service>\nExample: !ad residential solar panels CT');
+      await message.channel.sendTyping();
+      const biz = require('../core/business');
+      const copy = await biz.generateAdCopy(product);
+      await sendLongMessage(message, '**Ad Copy for: ' + product + '**\n\n' + copy);
+      return;
+    }
+    case '!stock': {
+      const symbol = args[0]?.toUpperCase();
+      if (!symbol) return message.reply('Usage: !stock <TICKER>\nExample: !stock TSLA');
+      await message.channel.sendTyping();
+      const tradeModule = require('../core/trading');
+      const result = await tradeModule.analyzeMarket(symbol);
+      await sendLongMessage(message, '**' + symbol + ' Analysis**\n\n' + result.analysis);
+      return;
+    }
+    case '!crypto': {
+      const symbol = args[0]?.toUpperCase();
+      if (!symbol) return message.reply('Usage: !crypto <SYMBOL>\nExample: !crypto BTC');
+      await message.channel.sendTyping();
+      const tradeModule = require('../core/trading');
+      const result = await tradeModule.analyzeCrypto(symbol);
+      await sendLongMessage(message, '**' + symbol + ' Analysis**\n\n' + result.analysis);
+      return;
+    }
+    case '!portfolio': {
+      const tradeModule = require('../core/trading');
+      return message.reply(tradeModule.getPortfolioStatus());
+    }
+    case '!build': {
+      const projectName = args[0];
+      const projectType = args[1] || 'node';
+      if (!projectName) return message.reply('Usage: !build <project-name> [node|express|html]\nExample: !build my-saas express');
+      const coderModule = require('../core/coder');
+      const result = coderModule.createProject(projectName, projectType);
+      return message.reply(result);
+    }
     case '!help': {
-      const embed = new EmbedBuilder().setTitle('🤖 Super Jarvis Commands').setColor(0x0099ff)
+      const embed = new EmbedBuilder().setTitle('Super Jarvis Commands').setColor(0x0099ff)
         .addFields(
+          { name: '--- Core ---', value: '\u200b' },
           { name: '!stats', value: 'System statistics' },
           { name: '!memory', value: 'Everything I remember' },
-          { name: '!users', value: 'All known users' },
-          { name: '!forget <id>', value: 'Wipe a user' },
           { name: '!remember <fact>', value: 'Store a permanent fact' },
           { name: '!teach <info>', value: 'Teach me something' },
-          { name: '!idea', value: 'Generate a business idea' },
-          { name: '!briefing', value: 'Daily briefing now' },
           { name: '!search <query>', value: 'Search the web' },
-          { name: '!solar', value: 'Pull Enerflo pipeline data' },
-          { name: '!remittance', value: 'Parse ION SOLAR pay stubs to spreadsheet' },
+          { name: '--- Business ---', value: '\u200b' },
+          { name: '!learn <url>', value: 'Analyze YouTube/TikTok/article and learn from it' },
+          { name: '!research <niche>', value: 'Deep market research' },
+          { name: '!plan <idea>', value: 'Generate a business plan' },
+          { name: '!validate <idea>', value: 'Evaluate a business idea (GO/NO-GO)' },
+          { name: '!ad <product>', value: 'Generate ad copy' },
+          { name: '!build <name>', value: 'Scaffold a new project' },
+          { name: '--- Trading ---', value: '\u200b' },
+          { name: '!stock <TICKER>', value: 'Analyze a stock' },
+          { name: '!crypto <SYMBOL>', value: 'Analyze a crypto' },
+          { name: '!portfolio', value: 'Paper trading portfolio' },
+          { name: '--- Solar ---', value: '\u200b' },
+          { name: '!solar', value: 'Enerflo pipeline data' },
+          { name: '!remittance', value: 'Parse pay stubs to spreadsheet' },
           { name: '!gmail', value: 'Read emails' },
+          { name: '--- Agent ---', value: '\u200b' },
           { name: '!agent', value: 'Agent status / !agent run / !agent tasks' },
-          { name: '!help', value: 'This menu' },
-        ).setFooter({ text: 'Super Jarvis v2.0' }).setTimestamp();
+        ).setFooter({ text: 'Super Jarvis v2.0 — AI Workforce' }).setTimestamp();
       return message.reply({ embeds: [embed] });
     }
     default: return null;
@@ -239,7 +330,25 @@ function initDiscord() {
     if (message.author.bot) return;
     if (['customer-logs', 'memory-log', 'daily-reports'].includes(message.channel?.name)) return;
     const discordId = message.author.id;
-    if (message.attachments.size > 0) return message.reply("I can't read files yet — send me text only.");
+    if (message.attachments.size > 0) {
+      // Handle file attachments — PDFs, images, etc.
+      const attachment = message.attachments.first();
+      if (attachment.name?.endsWith('.pdf')) {
+        try {
+          await message.channel.sendTyping();
+          const res = await fetch(attachment.url);
+          const buffer = Buffer.from(await res.arrayBuffer());
+          const contentModule = require('../core/content');
+          const result = await contentModule.processContent(buffer, userText || null, tenant.id);
+          let response = '**Analyzed: ' + attachment.name + '**\n\n' + result.analysis;
+          if (response.length > 2000) response = response.substring(0, 1997) + '...';
+          return message.reply(response);
+        } catch (err) {
+          return message.reply('Error reading PDF: ' + err.message);
+        }
+      }
+      // For non-PDF attachments, fall through to brain
+    }
     const userText = message.content.trim();
     const userName = message.author.displayName || message.author.username;
     const tenant = await tenantManager.resolveTenant(discordId);
