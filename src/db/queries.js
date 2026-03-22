@@ -72,9 +72,9 @@ async function getRecentConversations(tenantId, userId, limit = 20) {
 }
 
 async function getRecentRawConversations(tenantId, userId, limit = 20) {
-  const { data } = await supabase.from('conversations').select('*')
-    .eq('tenant_id', tenantId).eq('user_id', userId)
-    .order('created_at', { ascending: true }).limit(limit);
+  let query = supabase.from('conversations').select('*').eq('tenant_id', tenantId);
+  if (userId) query = query.eq('user_id', userId);
+  const { data } = await query.order('created_at', { ascending: false }).limit(limit);
   return data || [];
 }
 
@@ -148,10 +148,58 @@ async function getStats(tenantId) {
   return { users: userCount.count || 0, messages: msgCount, memories: memCount, memoryBreakdown: memCats };
 }
 
+// ── Agent Tasks ──
+
+async function createAgentTask(tenantId, task) {
+  const { data } = await supabase.from('agent_tasks').insert({
+    tenant_id: tenantId,
+    type: task.type || 'general',
+    title: task.title,
+    description: task.description || null,
+    status: task.status || 'pending',
+    priority: task.priority || 5,
+    result: task.result || null,
+    tool_log: task.tool_log || [],
+    parent_task_id: task.parent_task_id || null,
+    cycle_id: task.cycle_id || null,
+    started_at: task.started_at || null,
+    completed_at: task.completed_at || null,
+  }).select().single();
+  return data;
+}
+
+async function updateAgentTask(taskId, updates) {
+  const { data } = await supabase.from('agent_tasks')
+    .update(updates)
+    .eq('id', taskId)
+    .select().single();
+  return data;
+}
+
+async function getAgentTasks(tenantId, status, limit = 10) {
+  let query = supabase.from('agent_tasks').select('*')
+    .eq('tenant_id', tenantId);
+  if (status) query = query.eq('status', status);
+  const { data } = await query
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  return data || [];
+}
+
+async function getRecentAgentCycles(tenantId, limit = 10) {
+  const { data } = await supabase.from('agent_tasks').select('*')
+    .eq('tenant_id', tenantId)
+    .eq('type', 'cycle')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  return data || [];
+}
+
 module.exports = {
   getTenantByDiscordId, getDefaultTenant, getTenantById, getAllActiveTenants,
   getOrCreateUser, getAllUsers, deleteUser,
   saveConversation, getRecentConversations, getRecentRawConversations, getConversationCount,
   saveMemory, getFactMemories, getOpenTasks, getRecentDecisions, searchMemories, getMemoryCount, getMemoriesByCategory,
   getStats,
+  createAgentTask, updateAgentTask, getAgentTasks, getRecentAgentCycles,
 };

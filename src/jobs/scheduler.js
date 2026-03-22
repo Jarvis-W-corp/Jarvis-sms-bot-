@@ -1,6 +1,7 @@
 const brain = require('../core/brain');
 const db = require('../db/queries');
 const { sendBossMessage, logToDiscord } = require('../channels/discord');
+const { runAgentCycle } = require('../core/agent');
 
 async function sendDailyBriefing() {
   try {
@@ -63,10 +64,22 @@ function startAppMonitoring() {
   console.log('[MONITOR] App monitoring started');
 }
 
+function scheduleAgentCycle() {
+  // First run 30 min after startup, then every 3 hours
+  setTimeout(() => {
+    runAgentCycle().catch(err => console.error('[AGENT] Cycle error:', err.message));
+    setInterval(() => {
+      runAgentCycle().catch(err => console.error('[AGENT] Cycle error:', err.message));
+    }, 3 * 60 * 60 * 1000);
+  }, 30 * 60 * 1000);
+  console.log('[SCHEDULER] Agent cycle scheduled (every 3h, first in 30m)');
+}
+
 function startAllJobs() {
   scheduleDailyBriefing();
   scheduleIdeas();
   startAppMonitoring();
+  scheduleAgentCycle();
   console.log('[SCHEDULER] All jobs started');
 }
 

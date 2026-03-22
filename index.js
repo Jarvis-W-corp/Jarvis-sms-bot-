@@ -6,6 +6,10 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Dashboard
+const dashboard = require('./src/dashboard/routes');
+app.use(dashboard);
+
 app.get('/', async (req, res) => {
   try {
     const tenant = await db.getDefaultTenant();

@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jarvis — Mission Control</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d0d0d; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 60px; background: #111; border-right: 1px solid #222; display: flex; flex-direction: column; align-items: center;
+    padding: 16px 0; gap: 8px; flex-shrink: 0;
+  }
+  .sidebar .logo { font-size: 24px; margin-bottom: 20px; }
+  .nav-btn {
+    width: 42px; height: 42px; border-radius: 10px; border: none; background: transparent;
+    color: #666; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .nav-btn:hover { background: #1a1a2e; color: #aaa; }
+  .nav-btn.active { background: #1a1a2e; color: #a78bfa; }
+  .sidebar-spacer { flex: 1; }
+  .nav-btn.bottom { color: #555; font-size: 14px; }
+
+  /* Main area */
+  .main { flex: 1; overflow-y: auto; padding: 24px 28px; }
+  .main::-webkit-scrollbar { width: 6px; }
+  .main::-webkit-scrollbar-track { background: transparent; }
+  .main::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+  /* Header */
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header h1 span { color: #a78bfa; }
+  .header-meta { display: flex; align-items: center; gap: 12px; font-size: 13px; color: #666; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .status-dot.online { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+  .status-dot.offline { background: #ef4444; }
+  .refresh-btn {
+    background: #1a1a2e; border: 1px solid #2a2a4a; color: #888; padding: 5px 12px;
+    border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s;
+  }
+  .refresh-btn:hover { background: #2a2a4a; color: #ccc; }
+
+  /* Sections */
+  .section { display: none; }
+  .section.active { display: block; }
+  .section-title { font-size: 14px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
+
+  /* Cards */
+  .card {
+    background: #141414; border: 1px solid #222; border-radius: 12px; padding: 20px;
+  }
+
+  /* System Health Grid */
+  .health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .health-card {
+    background: #141414; border: 1px solid #222; border-radius: 12px; padding: 18px; position: relative; overflow: hidden;
+  }
+  .health-card .label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .health-card .value { font-size: 28px; font-weight: 700; }
+  .health-card .sub { font-size: 11px; color: #555; margin-top: 4px; }
+  .health-card .bar { position: absolute; bottom: 0; left: 0; height: 3px; border-radius: 0 0 12px 12px; transition: width 0.6s; }
+  .purple { color: #a78bfa; }
+  .orange { color: #f97316; }
+  .green { color: #22c55e; }
+  .blue { color: #60a5fa; }
+  .red { color: #ef4444; }
+  .bar.purple-bg { background: #a78bfa; }
+  .bar.orange-bg { background: #f97316; }
+  .bar.green-bg { background: #22c55e; }
+  .bar.blue-bg { background: #60a5fa; }
+
+  /* Activity Feed */
+  .feed-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  @media (max-width: 900px) { .feed-grid { grid-template-columns: 1fr; } }
+  .feed-card { background: #141414; border: 1px solid #222; border-radius: 12px; padding: 18px; max-height: 400px; overflow-y: auto; }
+  .feed-card::-webkit-scrollbar { width: 4px; }
+  .feed-card::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+  .feed-card h3 { font-size: 13px; color: #888; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 1px; }
+  .feed-item {
+    padding: 10px 0; border-bottom: 1px solid #1a1a1a; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  }
+  .feed-item:last-child { border-bottom: none; }
+  .feed-sender { font-size: 13px; font-weight: 500; color: #ccc; }
+  .feed-subject { font-size: 12px; color: #666; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; }
+  .feed-time { font-size: 11px; color: #555; white-space: nowrap; flex-shrink: 0; }
+  .feed-empty { color: #444; font-style: italic; font-size: 13px; padding: 16px 0; }
+
+  /* Pipeline Stats */
+  .pipeline-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .pipeline-card {
+    background: #141414; border: 1px solid #222; border-radius: 12px; padding: 22px; text-align: center;
+  }
+  .pipeline-card .big-num { font-size: 42px; font-weight: 800; }
+  .pipeline-card .pipe-label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-top: 6px; }
+  .pipeline-sub { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 16px; }
+  .pipeline-sub-card {
+    background: #141414; border: 1px solid #222; border-radius: 10px; padding: 16px; text-align: center;
+  }
+  .pipeline-sub-card .num { font-size: 24px; font-weight: 700; color: #a78bfa; }
+  .pipeline-sub-card .lbl { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+
+  /* Log Stream */
+  .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .log-header h3 { font-size: 14px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+  .clear-btn {
+    background: #1a1a1a; border: 1px solid #333; color: #666; padding: 4px 12px;
+    border-radius: 6px; cursor: pointer; font-size: 11px; transition: all 0.2s;
+  }
+  .clear-btn:hover { background: #2a2a2a; color: #aaa; }
+  .log-container {
+    background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 10px; padding: 16px;
+    max-height: 500px; overflow-y: auto; font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 12px;
+  }
+  .log-container::-webkit-scrollbar { width: 4px; }
+  .log-container::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+  .log-entry { padding: 4px 0; display: flex; gap: 12px; border-bottom: 1px solid #111; }
+  .log-entry:last-child { border-bottom: none; }
+  .log-time { color: #555; flex-shrink: 0; }
+  .log-tenant { color: #a78bfa; flex-shrink: 0; min-width: 60px; }
+  .log-platform { font-size: 10px; padding: 1px 6px; border-radius: 4px; flex-shrink: 0; }
+  .log-platform.discord { background: #1a1a3e; color: #7289da; }
+  .log-platform.sms { background: #1a2e1a; color: #22c55e; }
+  .log-platform.email { background: #2e1a1a; color: #f97316; }
+  .log-msg { color: #999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Agent section */
+  .agent-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .agent-stat {
+    background: #141414; border: 1px solid #222; border-radius: 12px; padding: 18px; text-align: center;
+  }
+  .agent-stat .val { font-size: 28px; font-weight: 700; }
+  .agent-stat .lbl { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+  .cycle-card {
+    background: #141414; border: 1px solid #222; border-radius: 12px; padding: 18px; margin-bottom: 12px;
+  }
+  .cycle-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .cycle-time { font-size: 14px; font-weight: 600; color: #ccc; }
+  .cycle-tools { font-size: 11px; color: #666; }
+  .tool-log-item {
+    padding: 8px 12px; margin: 4px 0; background: #0a0a0a; border-radius: 8px; border-left: 3px solid #a78bfa;
+    font-size: 12px;
+  }
+  .tool-log-item .tool-name { color: #a78bfa; font-weight: 600; }
+  .tool-log-item .tool-input { color: #888; margin-top: 2px; }
+  .tool-log-item .tool-output { color: #666; margin-top: 2px; font-style: italic; }
+  .task-table { width: 100%; border-collapse: collapse; }
+  .task-table th {
+    text-align: left; font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px;
+    padding: 8px 12px; border-bottom: 1px solid #222;
+  }
+  .task-table td { padding: 8px 12px; font-size: 13px; border-bottom: 1px solid #1a1a1a; }
+  .task-table .priority { color: #f97316; font-weight: 700; }
+  .task-table .type-badge {
+    font-size: 10px; padding: 2px 8px; border-radius: 4px; background: #1a1a2e; color: #a78bfa;
+    text-transform: uppercase;
+  }
+  .agent-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  @media (max-width: 900px) { .agent-grid { grid-template-columns: 1fr; } }
+  .agent-panel { background: #141414; border: 1px solid #222; border-radius: 12px; padding: 18px; max-height: 500px; overflow-y: auto; }
+  .agent-panel::-webkit-scrollbar { width: 4px; }
+  .agent-panel::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+  .agent-panel h3 { font-size: 13px; color: #888; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* Progress section */
+  .progress-section { margin-bottom: 24px; }
+  .overall-bar { background: linear-gradient(135deg, #1a1a2e, #141414); border: 1px solid #2a2a4a; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 20px; }
+  .overall-pct { font-size: 52px; font-weight: 800; background: linear-gradient(135deg, #a78bfa, #f97316); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .overall-sub { color: #555; font-size: 13px; margin-top: 4px; }
+  .phase { background: #141414; border: 1px solid #222; border-radius: 12px; padding: 20px; margin-bottom: 14px; }
+  .phase-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .phase-name { font-size: 14px; font-weight: 600; }
+  .phase-badge { font-size: 10px; padding: 3px 10px; border-radius: 999px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .phase-badge.complete { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+  .phase-badge.in-progress { background: #1a1a3e; color: #a78bfa; border: 1px solid #3730a3; }
+  .phase-badge.planned { background: #1a1a1a; color: #666; border: 1px solid #333; }
+  .prog-bar { height: 4px; background: #1a1a1a; border-radius: 2px; margin-bottom: 14px; overflow: hidden; }
+  .prog-fill { height: 100%; border-radius: 2px; transition: width 0.6s; }
+  .prog-fill.green-bg { background: linear-gradient(90deg, #22c55e, #4ade80); }
+  .prog-fill.purple-bg { background: linear-gradient(90deg, #6366f1, #a78bfa); }
+  .prog-fill.gray-bg { background: #333; }
+  .feature-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 20px; }
+  .feature { font-size: 12px; padding: 3px 0; display: flex; align-items: center; gap: 8px; }
+  .feature .icon { width: 16px; text-align: center; flex-shrink: 0; }
+  .feature .note { color: #f59e0b; font-size: 10px; margin-left: 4px; }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="logo">⚡</div>
+  <button class="nav-btn active" onclick="showSection('health')" title="System Health">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+  </button>
+  <button class="nav-btn" onclick="showSection('activity')" title="Activity Feed">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+  </button>
+  <button class="nav-btn" onclick="showSection('pipeline')" title="Pipeline Stats">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+  </button>
+  <button class="nav-btn" onclick="showSection('logs')" title="Log Stream">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+  </button>
+  <button class="nav-btn" onclick="showSection('agent')" title="Agent Activity">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+  </button>
+  <button class="nav-btn" onclick="showSection('progress')" title="Build Progress">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-16"/></svg>
+  </button>
+  <div class="sidebar-spacer"></div>
+  <button class="nav-btn bottom" title="Jarvis v2.0">J</button>
+</nav>
+
+<!-- Main Content -->
+<div class="main">
+  <div class="header">
+    <h1>Jarvis <span>Mission Control</span></h1>
+    <div class="header-meta">
+      <span class="status-dot online" id="statusDot"></span>
+      <span id="statusText">Online</span>
+      <span>Uptime: <span id="uptime">—</span></span>
+      <button class="refresh-btn" onclick="loadAll()">Refresh</button>
+    </div>
+  </div>
+
+  <!-- System Health -->
+  <div class="section active" id="sec-health">
+    <div class="section-title">System Health</div>
+    <div class="health-grid">
+      <div class="health-card">
+        <div class="label">CPU Usage</div>
+        <div class="value purple" id="hCpu">—%</div>
+        <div class="sub" id="hCpuSub">—</div>
+        <div class="bar purple-bg" id="hCpuBar" style="width:0%"></div>
+      </div>
+      <div class="health-card">
+        <div class="label">Memory</div>
+        <div class="value orange" id="hMem">—%</div>
+        <div class="sub" id="hMemSub">—</div>
+        <div class="bar orange-bg" id="hMemBar" style="width:0%"></div>
+      </div>
+      <div class="health-card">
+        <div class="label">Heap Used</div>
+        <div class="value green" id="hHeap">— MB</div>
+        <div class="sub" id="hHeapSub">—</div>
+        <div class="bar green-bg" id="hHeapBar" style="width:0%"></div>
+      </div>
+      <div class="health-card">
+        <div class="label">Uptime</div>
+        <div class="value blue" id="hUptime">—</div>
+        <div class="sub">Process uptime</div>
+      </div>
+      <div class="health-card">
+        <div class="label">Users</div>
+        <div class="value purple" id="hUsers">—</div>
+        <div class="sub">Registered</div>
+      </div>
+      <div class="health-card">
+        <div class="label">Messages</div>
+        <div class="value orange" id="hMessages">—</div>
+        <div class="sub">All time</div>
+      </div>
+      <div class="health-card">
+        <div class="label">Memories</div>
+        <div class="value green" id="hMemories">—</div>
+        <div class="sub" id="hMemBreakdown">—</div>
+      </div>
+      <div class="health-card">
+        <div class="label">Open Tasks</div>
+        <div class="value blue" id="hTasks">—</div>
+        <div class="sub">In memory system</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Activity Feed -->
+  <div class="section" id="sec-activity">
+    <div class="section-title">Activity Feed</div>
+    <div class="feed-grid">
+      <div class="feed-card">
+        <h3>📥 Received</h3>
+        <div id="feedReceived"><div class="feed-empty">Loading...</div></div>
+      </div>
+      <div class="feed-card">
+        <h3>📤 Sent by Jarvis</h3>
+        <div id="feedSent"><div class="feed-empty">Loading...</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pipeline Stats -->
+  <div class="section" id="sec-pipeline">
+    <div class="section-title">Enerflo Pipeline</div>
+    <div class="pipeline-grid">
+      <div class="pipeline-card">
+        <div class="big-num purple" id="pLeads">—</div>
+        <div class="pipe-label">Total Leads</div>
+      </div>
+      <div class="pipeline-card">
+        <div class="big-num orange" id="pDeals">—</div>
+        <div class="pipe-label">Total Deals</div>
+      </div>
+      <div class="pipeline-card">
+        <div class="big-num green" id="pInstalls">—</div>
+        <div class="pipe-label">Total Installs</div>
+      </div>
+    </div>
+    <div class="section-title" style="margin-top:8px">Recent Activity</div>
+    <div class="pipeline-sub" id="pipelineRecent">
+      <div class="feed-empty">Loading...</div>
+    </div>
+  </div>
+
+  <!-- Log Stream -->
+  <div class="section" id="sec-logs">
+    <div class="log-header">
+      <h3>Log Stream</h3>
+      <button class="clear-btn" onclick="clearLogs()">Clear</button>
+    </div>
+    <div class="log-container" id="logContainer">
+      <div class="feed-empty">Loading...</div>
+    </div>
+  </div>
+
+  <!-- Agent Activity -->
+  <div class="section" id="sec-agent">
+    <div class="section-title">Agent Activity</div>
+    <div class="agent-stats">
+      <div class="agent-stat">
+        <div class="val purple" id="aCycles">--</div>
+        <div class="lbl">Cycles Run</div>
+      </div>
+      <div class="agent-stat">
+        <div class="val orange" id="aPending">--</div>
+        <div class="lbl">Pending Tasks</div>
+      </div>
+      <div class="agent-stat">
+        <div class="val green" id="aCompleted">--</div>
+        <div class="lbl">Completed</div>
+      </div>
+      <div class="agent-stat">
+        <div class="val blue" id="aLastCycle">--</div>
+        <div class="lbl">Last Cycle</div>
+      </div>
+    </div>
+
+    <div class="agent-grid">
+      <div class="agent-panel">
+        <h3>Recent Cycles</h3>
+        <div id="agentCycles"><div class="feed-empty">Loading...</div></div>
+      </div>
+      <div class="agent-panel">
+        <h3>Task Queue</h3>
+        <div id="agentTasks"><div class="feed-empty">Loading...</div></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 24px">
+      <h3 style="font-size:13px; color:#888; text-transform:uppercase; letter-spacing:1px; margin-bottom:14px">Completed Tasks</h3>
+      <div id="agentCompleted"><div class="feed-empty">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- Build Progress -->
+  <div class="section" id="sec-progress">
+    <div class="section-title">Build Progress</div>
+    <div class="overall-bar">
+      <div class="overall-pct" id="overallPct">—%</div>
+      <div class="overall-sub">Overall Build Progress</div>
+    </div>
+    <div id="phases"></div>
+  </div>
+</div>
+
+<script>
+// Navigation
+function showSection(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('sec-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// Formatters
+function fmt(n) { return n != null ? n.toLocaleString() : '—'; }
+function fmtMB(bytes) { return (bytes / 1024 / 1024).toFixed(1); }
+function fmtUptime(s) {
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  if (d > 0) return d + 'd ' + h + 'h';
+  if (h > 0) return h + 'h ' + m + 'm';
+  return m + 'm ' + (s % 60) + 's';
+}
+function timeAgo(iso) {
+  if (!iso) return '—';
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return Math.floor(diff / 86400) + 'd ago';
+}
+function fmtTime(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// Load System Health + Stats
+async function loadHealth() {
+  try {
+    const r = await fetch('/dashboard/api/health');
+    const d = await r.json();
+    if (d.error) { setOffline(); return; }
+
+    // System
+    document.getElementById('hCpu').textContent = d.cpu.percent + '%';
+    document.getElementById('hCpuSub').textContent = d.cpu.cores + ' cores';
+    document.getElementById('hCpuBar').style.width = d.cpu.percent + '%';
+
+    document.getElementById('hMem').textContent = d.memory.usedPercent + '%';
+    document.getElementById('hMemSub').textContent = fmtMB(d.memory.used * 1024 * 1024) + ' / ' + fmtMB(d.memory.total * 1024 * 1024) + ' MB';
+    document.getElementById('hMemBar').style.width = d.memory.usedPercent + '%';
+
+    document.getElementById('hHeap').textContent = fmtMB(d.heap.used) + ' MB';
+    document.getElementById('hHeapSub').textContent = 'of ' + fmtMB(d.heap.total) + ' MB allocated';
+    document.getElementById('hHeapBar').style.width = Math.round((d.heap.used / d.heap.total) * 100) + '%';
+
+    document.getElementById('hUptime').textContent = fmtUptime(d.uptime);
+    document.getElementById('uptime').textContent = fmtUptime(d.uptime);
+
+    // DB stats
+    document.getElementById('hUsers').textContent = fmt(d.stats?.users);
+    document.getElementById('hMessages').textContent = fmt(d.stats?.messages);
+    document.getElementById('hMemories').textContent = fmt(d.stats?.memories);
+    document.getElementById('hTasks').textContent = fmt(d.tasks);
+
+    const bd = d.stats?.memoryBreakdown;
+    if (bd) {
+      document.getElementById('hMemBreakdown').textContent =
+        (bd.fact || 0) + ' facts, ' + (bd.task || 0) + ' tasks, ' + (bd.decision || 0) + ' decisions';
+    }
+
+    document.getElementById('statusDot').className = 'status-dot online';
+    document.getElementById('statusText').textContent = 'Online';
+  } catch (e) {
+    setOffline();
+  }
+}
+
+function setOffline() {
+  document.getElementById('statusDot').className = 'status-dot offline';
+  document.getElementById('statusText').textContent = 'Offline';
+}
+
+// Load Activity Feed
+async function loadActivity() {
+  try {
+    const r = await fetch('/dashboard/api/activity');
+    const d = await r.json();
+
+    const recv = document.getElementById('feedReceived');
+    if (!d.received?.length) {
+      recv.innerHTML = '<div class="feed-empty">No recent emails</div>';
+    } else {
+      recv.innerHTML = d.received.map(e =>
+        '<div class="feed-item"><div><div class="feed-sender">' + esc(e.from) + '</div><div class="feed-subject">' + esc(e.subject) + '</div></div><div class="feed-time">' + esc(e.time) + '</div></div>'
+      ).join('');
+    }
+
+    const sent = document.getElementById('feedSent');
+    if (!d.sent?.length) {
+      sent.innerHTML = '<div class="feed-empty">No recent messages</div>';
+    } else {
+      sent.innerHTML = d.sent.map(e =>
+        '<div class="feed-item"><div><div class="feed-sender">' + esc(e.user) + '</div><div class="feed-subject">' + esc(e.preview) + '</div></div><div class="feed-time">' + esc(e.time) + '</div></div>'
+      ).join('');
+    }
+  } catch (e) {
+    document.getElementById('feedReceived').innerHTML = '<div class="feed-empty">Could not load</div>';
+    document.getElementById('feedSent').innerHTML = '<div class="feed-empty">Could not load</div>';
+  }
+}
+
+// Load Pipeline
+async function loadPipeline() {
+  try {
+    const r = await fetch('/dashboard/api/pipeline');
+    const d = await r.json();
+
+    document.getElementById('pLeads').textContent = fmt(d.totalLeads);
+    document.getElementById('pDeals').textContent = fmt(d.totalDeals);
+    document.getElementById('pInstalls').textContent = fmt(d.totalInstalls);
+
+    const rc = document.getElementById('pipelineRecent');
+    let html = '';
+    if (d.recentLeads?.length) {
+      html += d.recentLeads.map(l => '<div class="pipeline-sub-card"><div class="num" style="color:#a78bfa;font-size:16px">' + esc(l.name || 'Lead #' + l.id) + '</div><div class="lbl">' + esc(l.status || 'new') + '</div></div>').join('');
+    }
+    if (d.recentDeals?.length) {
+      html += d.recentDeals.map(l => '<div class="pipeline-sub-card"><div class="num" style="color:#f97316;font-size:16px">' + esc(l.name || 'Deal #' + l.id) + '</div><div class="lbl">' + esc(l.status || '—') + (l.value ? ' · $' + fmt(l.value) : '') + '</div></div>').join('');
+    }
+    rc.innerHTML = html || '<div class="feed-empty">No recent pipeline data</div>';
+  } catch (e) {
+    document.getElementById('pLeads').textContent = '—';
+    document.getElementById('pDeals').textContent = '—';
+    document.getElementById('pInstalls').textContent = '—';
+    document.getElementById('pipelineRecent').innerHTML = '<div class="feed-empty">Could not load pipeline data</div>';
+  }
+}
+
+// Load Logs
+async function loadLogs() {
+  try {
+    const r = await fetch('/dashboard/api/logs');
+    const d = await r.json();
+    renderLogs(d.logs || []);
+  } catch (e) {
+    document.getElementById('logContainer').innerHTML = '<div class="feed-empty">Could not load logs</div>';
+  }
+}
+
+function renderLogs(logs) {
+  const el = document.getElementById('logContainer');
+  if (!logs.length) { el.innerHTML = '<div class="feed-empty">No log entries</div>'; return; }
+  el.innerHTML = logs.map(l =>
+    '<div class="log-entry">' +
+      '<span class="log-time">' + esc(fmtTime(l.created_at)) + '</span>' +
+      '<span class="log-platform ' + (l.platform || '') + '">' + esc(l.platform || '—') + '</span>' +
+      '<span class="log-tenant">' + esc(l.user || '—') + '</span>' +
+      '<span class="log-msg">' + esc(l.message || '') + '</span>' +
+    '</div>'
+  ).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function clearLogs() {
+  document.getElementById('logContainer').innerHTML = '<div class="feed-empty">Cleared</div>';
+}
+
+// Load Progress
+async function loadProgress() {
+  try {
+    const r = await fetch('/dashboard/api/progress');
+    const d = await r.json();
+    let total = 0, done = 0, partial = 0;
+    d.phases.forEach(p => p.features.forEach(f => { total++; if (f.status === 'done') done++; if (f.status === 'partial') partial += 0.5; }));
+    document.getElementById('overallPct').textContent = Math.round(((done + partial) / total) * 100) + '%';
+
+    document.getElementById('phases').innerHTML = d.phases.map(p => {
+      const dn = p.features.filter(f => f.status === 'done').length;
+      const pt = p.features.filter(f => f.status === 'partial').length;
+      const tot = p.features.length;
+      const pct = Math.round(((dn + pt * 0.5) / tot) * 100);
+      const cls = p.status === 'complete' ? 'green-bg' : p.status === 'in-progress' ? 'purple-bg' : 'gray-bg';
+      return '<div class="phase"><div class="phase-header"><span class="phase-name">' + p.name + '</span><span class="phase-badge ' + p.status + '">' + p.status.replace('-', ' ') + '</span></div>' +
+        '<div class="prog-bar"><div class="prog-fill ' + cls + '" style="width:' + pct + '%"></div></div>' +
+        '<div class="feature-list">' + p.features.map(f =>
+          '<div class="feature"><span class="icon">' + (f.status === 'done' ? '<span style="color:#22c55e">✓</span>' : f.status === 'partial' ? '<span style="color:#f59e0b">◐</span>' : '<span style="color:#444">○</span>') + '</span>' + f.name + (f.note ? '<span class="note">(' + f.note + ')</span>' : '') + '</div>'
+        ).join('') + '</div></div>';
+    }).join('');
+  } catch (e) {}
+}
+
+// Load Agent Activity
+async function loadAgent() {
+  try {
+    const r = await fetch('/dashboard/api/agent');
+    const d = await r.json();
+
+    // Stats
+    document.getElementById('aCycles').textContent = fmt(d.stats?.total_cycles);
+    document.getElementById('aPending').textContent = fmt(d.stats?.pending_tasks);
+    document.getElementById('aCompleted').textContent = fmt(d.stats?.completed_tasks);
+    document.getElementById('aLastCycle').textContent = d.stats?.last_cycle ? timeAgo(d.stats.last_cycle) : 'never';
+
+    // Recent Cycles
+    const cyclesEl = document.getElementById('agentCycles');
+    if (!d.cycles?.length) {
+      cyclesEl.innerHTML = '<div class="feed-empty">No cycles yet. Run !agent run in Discord to start.</div>';
+    } else {
+      cyclesEl.innerHTML = d.cycles.map(c => {
+        let resultInfo = '';
+        try { const r = JSON.parse(c.result); resultInfo = r.tools_used?.join(', ') || ''; } catch(e) {}
+        const toolHtml = (c.tool_log || []).map(t =>
+          '<div class="tool-log-item">' +
+            '<div class="tool-name">' + esc(t.tool) + '</div>' +
+            '<div class="tool-input">' + esc(JSON.stringify(t.input || {}).substring(0, 120)) + '</div>' +
+            '<div class="tool-output">' + esc((t.output || '').substring(0, 200)) + '</div>' +
+          '</div>'
+        ).join('');
+        return '<div class="cycle-card">' +
+          '<div class="cycle-header">' +
+            '<span class="cycle-time">' + esc(fmtTime(c.created_at)) + ' ' + timeAgo(c.created_at) + '</span>' +
+            '<span class="cycle-tools">' + (c.tool_log?.length || 0) + ' tools used</span>' +
+          '</div>' +
+          (toolHtml || '<div class="feed-empty" style="padding:4px 0">No tools used</div>') +
+        '</div>';
+      }).join('');
+    }
+
+    // Task Queue (pending + running)
+    const tasksEl = document.getElementById('agentTasks');
+    const allTasks = [...(d.tasks?.running || []), ...(d.tasks?.pending || [])];
+    if (!allTasks.length) {
+      tasksEl.innerHTML = '<div class="feed-empty">No pending tasks</div>';
+    } else {
+      tasksEl.innerHTML = '<table class="task-table"><thead><tr><th>P</th><th>Type</th><th>Task</th><th>Created</th></tr></thead><tbody>' +
+        allTasks.map(t =>
+          '<tr>' +
+            '<td class="priority">' + (t.priority || 5) + '</td>' +
+            '<td><span class="type-badge">' + esc(t.type || 'general') + '</span></td>' +
+            '<td>' + esc(t.title) + '</td>' +
+            '<td style="color:#555;font-size:11px">' + timeAgo(t.created_at) + '</td>' +
+          '</tr>'
+        ).join('') +
+      '</tbody></table>';
+    }
+
+    // Completed Tasks
+    const compEl = document.getElementById('agentCompleted');
+    if (!d.tasks?.completed?.length) {
+      compEl.innerHTML = '<div class="feed-empty">No completed tasks yet</div>';
+    } else {
+      compEl.innerHTML = '<table class="task-table"><thead><tr><th>Type</th><th>Task</th><th>Result</th><th>Done</th></tr></thead><tbody>' +
+        d.tasks.completed.map(t =>
+          '<tr>' +
+            '<td><span class="type-badge">' + esc(t.type || 'general') + '</span></td>' +
+            '<td>' + esc(t.title) + '</td>' +
+            '<td style="color:#888;font-size:12px">' + esc((t.result || '').substring(0, 100)) + '</td>' +
+            '<td style="color:#555;font-size:11px">' + timeAgo(t.completed_at) + '</td>' +
+          '</tr>'
+        ).join('') +
+      '</tbody></table>';
+    }
+  } catch (e) {
+    document.getElementById('agentCycles').innerHTML = '<div class="feed-empty">Could not load agent data</div>';
+  }
+}
+
+function loadAll() { loadHealth(); loadActivity(); loadPipeline(); loadLogs(); loadProgress(); loadAgent(); }
+loadAll();
+setInterval(loadHealth, 15000);
+setInterval(loadLogs, 10000);
+setInterval(loadAgent, 15000);
+</script>
+</body>
+</html>

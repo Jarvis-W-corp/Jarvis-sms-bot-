@@ -166,6 +166,38 @@ async function handleCommand(message, command, args, tenant) {
       }
       return message.reply('Usage: !gmail auth | !gmail code <code> | !gmail read');
     }
+    case '!agent': {
+      const sub = args[0];
+      if (sub === 'run') {
+        await message.reply('🤖 Starting agent cycle...');
+        await message.channel.sendTyping();
+        const { runAgentCycle } = require('../core/agent');
+        const result = await runAgentCycle();
+        return message.reply('🤖 Agent cycle complete. Tools used: ' + (result?.toolLog?.length || 0) + '. Check dashboard for details.');
+      }
+      if (sub === 'tasks') {
+        const pending = await db.getAgentTasks(tenantId, 'pending', 15);
+        if (!pending.length) return message.reply('🤖 No pending agent tasks.');
+        return message.reply('🤖 **Pending Agent Tasks:**\n' + pending.map((t, i) => (i + 1) + '. [P' + t.priority + '] ' + t.title).join('\n'));
+      }
+      // Default: show status
+      const cycles = await db.getRecentAgentCycles(tenantId, 1);
+      const pending = await db.getAgentTasks(tenantId, 'pending', 20);
+      const completed = await db.getAgentTasks(tenantId, 'completed', 5);
+      let status = '🤖 **Agent Status**\n';
+      status += 'Pending tasks: ' + pending.length + '\n';
+      status += 'Completed tasks: ' + completed.length + '\n';
+      if (cycles[0]) {
+        const lastTime = new Date(cycles[0].created_at).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        status += 'Last cycle: ' + lastTime + ' ET\n';
+        if (cycles[0].tool_log?.length) {
+          status += 'Tools used: ' + cycles[0].tool_log.map(t => t.tool).join(', ');
+        }
+      } else {
+        status += 'Last cycle: never (run `!agent run` to start)';
+      }
+      return message.reply(status);
+    }
     case '!help': {
       const embed = new EmbedBuilder().setTitle('🤖 Super Jarvis Commands').setColor(0x0099ff)
         .addFields(
@@ -181,6 +213,7 @@ async function handleCommand(message, command, args, tenant) {
           { name: '!solar', value: 'Pull Enerflo pipeline data' },
           { name: '!remittance', value: 'Parse ION SOLAR pay stubs to spreadsheet' },
           { name: '!gmail', value: 'Read emails' },
+          { name: '!agent', value: 'Agent status / !agent run / !agent tasks' },
           { name: '!help', value: 'This menu' },
         ).setFooter({ text: 'Super Jarvis v2.0' }).setTimestamp();
       return message.reply({ embeds: [embed] });
