@@ -10,6 +10,10 @@ app.use(express.urlencoded({ extended: true }));
 const dashboard = require('./src/dashboard/routes');
 app.use(dashboard);
 
+// Sales Tracker
+const sales = require('./src/sales/routes');
+app.use(sales);
+
 app.get('/', async (req, res) => {
   try {
     const tenant = await db.getDefaultTenant();

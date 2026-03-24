@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>HC Daily Tracker</title>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+input,select,textarea,button{font-family:inherit}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+(function(){
+'use strict';
+
+var BASE = window.location.origin + '/sales/api';
+var e = React.createElement;
+var useState = React.useState;
+var useEffect = React.useEffect;
+var useMemo = React.useMemo;
+var useRef = React.useRef;
+var useCallback = React.useCallback;
+
+// API helper — talks to our Express/Supabase backend
+function api(method, endpoint, data) {
+  var url = BASE + endpoint;
+  var opts = { method: method, headers: { 'Content-Type': 'application/json' } };
+  if (data && method !== 'GET') opts.body = JSON.stringify(data);
+
+  return fetch(url, opts)
+    .then(function(res) { return res.json(); })
+    .catch(function(err) {
+      console.error('API Error:', err);
+      return { success: false, error: err.message };
+    });
+}
+
+function getToday() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function normalizeRole(r) {
+  if (!r) return 'Sales Rep';
+  var s = String(r).toLowerCase().trim();
+  if (s === 'admin') return 'Admin';
+  if (s.indexOf('manager') !== -1) return 'Team Manager';
+  return 'Sales Rep';
+}
+
+function daysBetween(d1, d2) {
+  var date1 = new Date(d1);
+  var date2 = new Date(d2 || getToday());
+  return Math.floor((date2 - date1) / (1000 * 60 * 60 * 24));
+}
+
+function getWeekStart() {
+  var d = new Date();
+  d.setDate(d.getDate() - d.getDay());
+  return d.toISOString().split('T')[0];
+}
+
+function getMonthStart() {
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-01';
+}
+
+function App() {
+  var _dark = useState(true);
+  var dark = _dark[0], setDark = _dark[1];
+
+  var C = dark ? {
+    bg: '#0d0d0d', card: '#1a1a1a', cardHover: '#222', input: '#2a2a2a',
+    border: '#333', text: '#fff', textDim: '#888',
+    primary: '#7B5EA7', success: '#22c55e', warning: '#f59e0b', danger: '#ef4444'
+  } : {
+    bg: '#f5f5f5', card: '#fff', cardHover: '#fafafa', input: '#f0f0f0',
+    border: '#ddd', text: '#111', textDim: '#666',
+    primary: '#7B5EA7', success: '#22c55e', warning: '#f59e0b', danger: '#ef4444'
+  };
+
+  // Auth
+  var _loggedIn = useState(false);
+  var loggedIn = _loggedIn[0], setLoggedIn = _loggedIn[1];
+  var _authMode = useState('login');
+  var authMode = _authMode[0], setAuthMode = _authMode[1];
+  var _authForm = useState({ username: '', password: '', name: '' });
+  var authForm = _authForm[0], setAuthForm = _authForm[1];
+  var _authError = useState('');
+  var authError = _authError[0], setAuthError = _authError[1];
+  var _currentUser = useState(null);
+  var currentUser = _currentUser[0], setCurrentUser = _currentUser[1];
+
+  // App
+  var _loading = useState(true);
+  var loading = _loading[0], setLoading = _loading[1];
+  var _saving = useState(false);
+  var saving = _saving[0], setSaving = _saving[1];
+  var _tab = useState('dashboard');
+  var tab = _tab[0], setTab = _tab[1];
+  var _sidebar = useState(false);
+  var sidebar = _sidebar[0], setSidebar = _sidebar[1];
+  var _toast = useState('');
+  var toast = _toast[0], setToast = _toast[1];
+  var _dashFilter = useState('today');
+  var dashFilter = _dashFilter[0], setDashFilter = _dashFilter[1];
+
+  // Data
+  var _users = useState([]);
+  var users = _users[0], setUsers = _users[1];
+  var _teams = useState([]);
+  var teams = _teams[0], setTeams = _teams[1];
+  var _entries = useState([]);
+  var entries = _entries[0], setEntries = _entries[1];
+  var _chat = useState([]);
+  var chat = _chat[0], setChat = _chat[1];
+  var _goals = useState([]);
+  var goals = _goals[0], setGoals = _goals[1];
+  var _roofing = useState([]);
+  var roofing = _roofing[0], setRoofing = _roofing[1];
+
+  // Refs
+  var chatEndRef = useRef(null);
+
+  // Forms
+  var _kpiForm = useState({ name: '', date: getToday(), doorsKnocked: '', doorConvos: '', doorAppts: '', callsMade: '', callConvos: '', callAppts: '', recruitAttempts: '', interviews: '', onboarded: '', notes: '', revenue: '' });
+  var kpiForm = _kpiForm[0], setKpiForm = _kpiForm[1];
+
+  var _roofForm = useState({ name: '', address: '', email: '', phone: '', type: 'retail', status: 'new', notes: '' });
+  var roofForm = _roofForm[0], setRoofForm = _roofForm[1];
+
+  var _myGoals = useState({ weeklyDoors: 100, weeklyCalls: 150, weeklyAppts: 20, weeklyRevenue: 5000, monthlyDoors: 400, monthlyCalls: 600, monthlyAppts: 80, monthlyRevenue: 20000 });
+  var myGoals = _myGoals[0], setMyGoals = _myGoals[1];
+
+  var _chatMsg = useState('');
+  var chatMsg = _chatMsg[0], setChatMsg = _chatMsg[1];
+
+  function showToast(msg) {
+    setToast(msg);
+    setTimeout(function() { setToast(''); }, 3000);
+  }
+
+  // Load all data from Supabase via our API
+  var loadAllData = useCallback(function() {
+    return Promise.all([
+      api('GET', '/users'),
+      api('GET', '/teams'),
+      api('GET', '/entries'),
+      api('GET', '/chat'),
+      api('GET', '/goals'),
+      api('GET', '/roofing')
+    ]).then(function(results) {
+      if (results[0].success) setUsers(results[0].data || []);
+      if (results[1].success) setTeams(results[1].data || []);
+      if (results[2].success) setEntries(results[2].data || []);
+      if (results[3].success) setChat(results[3].data || []);
+      if (results[4].success) setGoals(results[4].data || []);
+      if (results[5].success) setRoofing(results[5].data || []);
+      setLoading(false);
+    }).catch(function() {
+      setLoading(false);
+    });
+  }, []);
+
+  // Initial load
+  useEffect(function() {
+    loadAllData();
+  }, [loadAllData]);
+
+  // Auto-refresh every 30 seconds
+  useEffect(function() {
+    var interval = setInterval(function() {
+      loadAllData();
+    }, 30000);
+    return function() { clearInterval(interval); };
+  }, [loadAllData]);
+
+  // Auto-scroll chat
+  useEffect(function() {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chat]);
+
+  // Load user goals when logged in
+  useEffect(function() {
+    if (currentUser && goals.length > 0) {
+      var myG = goals.find(function(g) { return String(g.userId) === String(currentUser.id); });
+      if (myG) {
+        setMyGoals({
+          weeklyDoors: parseInt(myG.weeklyDoors) || 100,
+          weeklyCalls: parseInt(myG.weeklyCalls) || 150,
+          weeklyAppts: parseInt(myG.weeklyAppts) || 20,
+          weeklyRevenue: parseInt(myG.weeklyRevenue) || 5000,
+          monthlyDoors: parseInt(myG.monthlyDoors) || 400,
+          monthlyCalls: parseInt(myG.monthlyCalls) || 600,
+          monthlyAppts: parseInt(myG.monthlyAppts) || 80,
+          monthlyRevenue: parseInt(myG.monthlyRevenue) || 20000
+        });
+      }
+    }
+  }, [currentUser, goals]);
+
+  // Computed
+  var isAdmin = currentUser && normalizeRole(currentUser.role) === 'Admin';
+  var isManager = currentUser && normalizeRole(currentUser.role) === 'Team Manager';
+  var myName = currentUser ? (currentUser.name || '').trim().split(' ')[0] : '';
+
+  // Filter entries by user visibility
+  var visibleEntries = useMemo(function() {
+    if (!currentUser) return [];
+    if (isAdmin) return entries;
+    if (isManager) {
+      var myTeam = teams.find(function(t) { return String(t.managerId) === String(currentUser.id); });
+      if (myTeam) {
+        var teamUserIds = users.filter(function(u) { return String(u.teamId) === String(myTeam.id); }).map(function(u) { return u.id; });
+        return entries.filter(function(e) { return teamUserIds.indexOf(e.userId) !== -1 || e.name === myName; });
+      }
+    }
+    return entries.filter(function(e) { return e.userId === currentUser.id || e.name === myName; });
+  }, [entries, currentUser, isAdmin, isManager, teams, users, myName]);
+
+  // Dashboard filtered entries
+  var dashEntries = useMemo(function() {
+    var today = getToday();
+    var weekStart = getWeekStart();
+    var monthStart = getMonthStart();
+    return visibleEntries.filter(function(e) {
+      if (dashFilter === 'today') return e.date === today;
+      if (dashFilter === 'week') return e.date >= weekStart;
+      if (dashFilter === 'month') return e.date >= monthStart;
+      return true;
+    });
+  }, [visibleEntries, dashFilter]);
+
+  // Dashboard totals
+  var totals = useMemo(function() {
+    var t = { dk: 0, dc: 0, da: 0, cm: 0, cc: 0, ca: 0, ra: 0, iv: 0, ob: 0, rev: 0 };
+    dashEntries.forEach(function(e) {
+      t.dk += parseInt(e.doorsKnocked) || 0;
+      t.dc += parseInt(e.doorConvos) || 0;
+      t.da += parseInt(e.doorAppts) || 0;
+      t.cm += parseInt(e.callsMade) || 0;
+      t.cc += parseInt(e.callConvos) || 0;
+      t.ca += parseInt(e.callAppts) || 0;
+      t.ra += parseInt(e.recruitAttempts) || 0;
+      t.iv += parseInt(e.interviews) || 0;
+      t.ob += parseInt(e.onboarded) || 0;
+      t.rev += parseInt(e.revenue) || 0;
+    });
+    return t;
+  }, [dashEntries]);
+
+  // My weekly stats
+  var myWeeklyStats = useMemo(function() {
+    if (!currentUser) return { dk: 0, cm: 0, appts: 0, rev: 0 };
+    var weekStart = getWeekStart();
+    var myEntries = entries.filter(function(e) {
+      return (e.userId === currentUser.id || e.name === myName) && e.date >= weekStart;
+    });
+    var stats = { dk: 0, cm: 0, appts: 0, rev: 0 };
+    myEntries.forEach(function(e) {
+      stats.dk += parseInt(e.doorsKnocked) || 0;
+      stats.cm += parseInt(e.callsMade) || 0;
+      stats.appts += (parseInt(e.doorAppts) || 0) + (parseInt(e.callAppts) || 0);
+      stats.rev += parseInt(e.revenue) || 0;
+    });
+    return stats;
+  }, [entries, currentUser, myName]);
+
+  // My monthly stats
+  var myMonthlyStats = useMemo(function() {
+    if (!currentUser) return { dk: 0, cm: 0, appts: 0, rev: 0 };
+    var monthStart = getMonthStart();
+    var myEntries = entries.filter(function(e) {
+      return (e.userId === currentUser.id || e.name === myName) && e.date >= monthStart;
+    });
+    var stats = { dk: 0, cm: 0, appts: 0, rev: 0 };
+    myEntries.forEach(function(e) {
+      stats.dk += parseInt(e.doorsKnocked) || 0;
+      stats.cm += parseInt(e.callsMade) || 0;
+      stats.appts += (parseInt(e.doorAppts) || 0) + (parseInt(e.callAppts) || 0);
+      stats.rev += parseInt(e.revenue) || 0;
+    });
+    return stats;
+  }, [entries, currentUser, myName]);
+
+  // Leaderboard
+  var leaderboard = useMemo(function() {
+    var stats = {};
+    dashEntries.forEach(function(e) {
+      var n = e.name || 'Unknown';
+      if (!stats[n]) stats[n] = { name: n, doors: 0, calls: 0, appts: 0, rev: 0 };
+      stats[n].doors += parseInt(e.doorsKnocked) || 0;
+      stats[n].calls += parseInt(e.callsMade) || 0;
+      stats[n].appts += (parseInt(e.doorAppts) || 0) + (parseInt(e.callAppts) || 0);
+      stats[n].rev += parseInt(e.revenue) || 0;
+    });
+    return Object.values(stats).sort(function(a, b) { return b.appts - a.appts; });
+  }, [dashEntries]);
+
+  // My roofing leads
+  var myRoofingLeads = useMemo(function() {
+    if (!currentUser) return [];
+    return roofing.filter(function(l) {
+      return String(l.assignedTo) === String(currentUser.id) || String(l.createdBy) === String(currentUser.id);
+    });
+  }, [roofing, currentUser]);
+
+  // Stale leads
+  var staleLeads = useMemo(function() {
+    return roofing.filter(function(l) {
+      if (l.status === 'sold' || l.status === 'closed') return false;
+      var lastDate = l.lastContact || l.createdAt;
+      if (!lastDate) return true;
+      return daysBetween(lastDate, getToday()) >= 10;
+    });
+  }, [roofing]);
+
+  var myStaleLeads = useMemo(function() {
+    if (!currentUser) return [];
+    return staleLeads.filter(function(l) {
+      return String(l.assignedTo) === String(currentUser.id) || String(l.createdBy) === String(currentUser.id);
+    });
+  }, [staleLeads, currentUser]);
+
+  // === AUTH ===
+
+  function handleLogin() {
+    if (!authForm.username.trim()) { setAuthError('Enter your username'); return; }
+    if (!authForm.password) { setAuthError('Enter your password'); return; }
+
+    var user = users.find(function(u) {
+      return String(u.username || '').toLowerCase().trim() === authForm.username.toLowerCase().trim()
+        && String(u.password || '').trim() === authForm.password.trim();
+    });
+
+    if (!user) { setAuthError('Invalid username or password'); return; }
+    if (String(user.status || '').toLowerCase().trim() === 'inactive') { setAuthError('Account is deactivated'); return; }
+
+    var normalizedUser = Object.assign({}, user, { role: normalizeRole(user.role) });
+    setCurrentUser(normalizedUser);
+    setLoggedIn(true);
+    setAuthError('');
+    setAuthForm({ username: '', password: '', name: '' });
+    var firstName = (user.name || '').trim().split(' ')[0];
+    setKpiForm(function(f) { return Object.assign({}, f, { name: firstName }); });
+  }
+
+  function handleSignup() {
+    if (!authForm.username.trim() || authForm.username.trim().length < 3) { setAuthError('Username must be at least 3 characters'); return; }
+    if (!authForm.name.trim()) { setAuthError('Enter your full name'); return; }
+    if (!authForm.password || authForm.password.length < 6) { setAuthError('Password must be at least 6 characters'); return; }
+
+    var exists = users.find(function(u) {
+      return String(u.username || '').toLowerCase().trim() === authForm.username.toLowerCase().trim();
+    });
+    if (exists) { setAuthError('Username already taken'); return; }
+
+    setSaving(true);
+    var newUser = {
+      id: Date.now().toString(),
+      username: authForm.username.trim().toLowerCase(),
+      password: authForm.password,
+      name: authForm.name.trim(),
+      role: 'Sales Rep',
+      teamId: '',
+      status: 'active'
+    };
+
+    api('POST', '/users', newUser).then(function(res) {
+      setSaving(false);
+      if (res.success) {
+        setUsers(users.concat([newUser]));
+        setCurrentUser(newUser);
+        setLoggedIn(true);
+        setAuthError('');
+        setAuthForm({ username: '', password: '', name: '' });
+        showToast('Account created!');
+      } else {
+        setAuthError(res.error || 'Failed to create account');
+      }
+    });
+  }
+
+  function handleLogout() {
+    setCurrentUser(null);
+    setLoggedIn(false);
+    setSidebar(false);
+    setTab('dashboard');
+  }
+
+  // === KPI ===
+
+  function handleSubmitKpi() {
+    if (!kpiForm.name) { showToast('Select a name'); return; }
+
+    setSaving(true);
+    var entry = {
+      id: Date.now().toString(),
+      userId: currentUser.id,
+      name: kpiForm.name,
+      date: kpiForm.date || getToday(),
+      doorsKnocked: kpiForm.doorsKnocked || '0',
+      doorConvos: kpiForm.doorConvos || '0',
+      doorAppts: kpiForm.doorAppts || '0',
+      callsMade: kpiForm.callsMade || '0',
+      callConvos: kpiForm.callConvos || '0',
+      callAppts: kpiForm.callAppts || '0',
+      recruitAttempts: kpiForm.recruitAttempts || '0',
+      interviews: kpiForm.interviews || '0',
+      onboarded: kpiForm.onboarded || '0',
+      notes: kpiForm.notes || '',
+      revenue: kpiForm.revenue || '0'
+    };
+
+    api('POST', '/entries', entry).then(function(res) {
+      setSaving(false);
+      if (res.success) {
+        setEntries(entries.concat([entry]));
+        setKpiForm({ name: myName, date: getToday(), doorsKnocked: '', doorConvos: '', doorAppts: '', callsMade: '', callConvos: '', callAppts: '', recruitAttempts: '', interviews: '', onboarded: '', notes: '', revenue: '' });
+        showToast('KPI logged!');
+      } else {
+        showToast('Failed to save');
+      }
+    });
+  }
+
+  function handleQuickLog(field, amount) {
+    var todayEntry = entries.find(function(e) {
+      return (e.userId === currentUser.id || e.name === myName) && e.date === getToday();
+    });
+
+    setSaving(true);
+
+    if (todayEntry) {
+      var updated = Object.assign({}, todayEntry);
+      updated[field] = String((parseInt(todayEntry[field]) || 0) + amount);
+
+      api('PUT', '/entries/' + updated.id, updated).then(function(res) {
+        setSaving(false);
+        if (res.success) {
+          setEntries(entries.map(function(e) {
+            return String(e.id) === String(updated.id) ? updated : e;
+          }));
+          showToast('+' + amount + ' added!');
+        } else { showToast('Failed to save'); }
+      });
+    } else {
+      var newEntry = {
+        id: Date.now().toString(),
+        userId: currentUser.id,
+        name: myName,
+        date: getToday(),
+        doorsKnocked: '0', doorConvos: '0', doorAppts: '0',
+        callsMade: '0', callConvos: '0', callAppts: '0',
+        recruitAttempts: '0', interviews: '0', onboarded: '0',
+        notes: '', revenue: '0'
+      };
+      newEntry[field] = String(amount);
+
+      api('POST', '/entries', newEntry).then(function(res) {
+        setSaving(false);
+        if (res.success) {
+          setEntries(entries.concat([newEntry]));
+          showToast('+' + amount + ' added!');
+        } else { showToast('Failed to save'); }
+      });
+    }
+  }
+
+  // === GOALS (FIXED: was broken with duplicate odessa key) ===
+
+  function handleSaveGoals() {
+    setSaving(true);
+
+    var goalData = {
+      id: Date.now().toString(),
+      userId: currentUser.id,
+      weeklyDoors: myGoals.weeklyDoors,
+      weeklyCalls: myGoals.weeklyCalls,
+      weeklyAppts: myGoals.weeklyAppts,
+      weeklyRevenue: myGoals.weeklyRevenue,
+      monthlyDoors: myGoals.monthlyDoors,
+      monthlyCalls: myGoals.monthlyCalls,
+      monthlyAppts: myGoals.monthlyAppts,
+      monthlyRevenue: myGoals.monthlyRevenue
+    };
+
+    api('POST', '/goals', goalData).then(function(res) {
+      setSaving(false);
+      if (res.success) {
+        // Update local state
+        var existing = goals.findIndex(function(g) { return String(g.userId) === String(currentUser.id); });
+        if (existing !== -1) {
+          setGoals(goals.map(function(g, i) { return i === existing ? goalData : g; }));
+        } else {
+          setGoals(goals.concat([goalData]));
+        }
+        showToast('Goals saved!');
+      } else { showToast('Failed to save goals'); }
+    });
+  }
+
+  // === ROOFING ===
+
+  function handleSubmitRoofLead() {
+    if (!roofForm.name.trim() || !roofForm.phone.trim()) { showToast('Name and phone required'); return; }
+
+    setSaving(true);
+    var lead = {
+      id: Date.now().toString(),
+      name: roofForm.name.trim(),
+      address: roofForm.address.trim(),
+      email: roofForm.email.trim(),
+      phone: roofForm.phone.trim(),
+      type: roofForm.type,
+      status: 'new',
+      assignedTo: currentUser.id,
+      assignedName: currentUser.name,
+      createdBy: currentUser.id,
+      createdAt: getToday(),
+      lastContact: '',
+      notes: roofForm.notes.trim()
+    };
+
+    api('POST', '/roofing', lead).then(function(res) {
+      setSaving(false);
+      if (res.success) {
+        setRoofing(roofing.concat([lead]));
+        setRoofForm({ name: '', address: '', email: '', phone: '', type: 'retail', status: 'new', notes: '' });
+        showToast('Lead added!');
+      } else { showToast('Failed to add lead'); }
+    });
+  }
+
+  function handleMarkContacted(lead) {
+    setSaving(true);
+    var updated = Object.assign({}, lead, { lastContact: getToday(), status: lead.status === 'new' ? 'contacted' : lead.status });
+
+    api('PUT', '/roofing/' + lead.id, updated).then(function(res) {
+      setSaving(false);
+      if (res.success) {
+        setRoofing(roofing.map(function(l) { return String(l.id) === String(lead.id) ? updated : l; }));
+        showToast('Marked as contacted!');
+      }
+    });
+  }
+
+  function handleUpdateLeadStatus(lead, newStatus) {
+    setSaving(true);
+    var updated = Object.assign({}, lead, { status: newStatus });
+    api('PUT', '/roofing/' + lead.id, updated).then(function(res) {
+      setSaving(false);
+      if (res.success) {
+        setRoofing(roofing.map(function(l) { return String(l.id) === String(lead.id) ? updated : l; }));
+        showToast('Status updated!');
+      }
+    });
+  }
+
+  function handleDeleteLead(lead) {
+    if (!confirm('Delete this lead?')) return;
+    setSaving(true);
+    api('DELETE', '/roofing/' + lead.id).then(function(res) {
+      setSaving(false);
+      if (res.success) {
+        setRoofing(roofing.filter(function(l) { return String(l.id) !== String(lead.id); }));
+        showToast('Lead deleted');
+      }
+    });
+  }
+
+  function handleAssignLead(lead, userId) {
+    setSaving(true);
+    var assignedUser = users.find(function(u) { return String(u.id) === String(userId); });
+    var updated = Object.assign({}, lead, { assignedTo: userId, assignedName: assignedUser ? assignedUser.name : '' });
+    api('PUT', '/roofing/' + lead.id, updated).then(function(res) {
+      setSaving(false);
+      if (res.success) {
+        setRoofing(roofing.map(function(l) { return String(l.id) === String(lead.id) ? updated : l; }));
+        showToast('Lead reassigned!');
+      }
+    });
+  }
+
+  // === CHAT ===
+
+  function handleSendChat() {
+    if (!chatMsg.trim()) return;
+    setSaving(true);
+    var msg = {
+      id: Date.now().toString(),
+      user: myName,
+      text: chatMsg.trim(),
+      time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+      teamId: currentUser.teamId || ''
+    };
+
+    api('POST', '/chat', msg).then(function(res) {
+      setSaving(false);
+      if (res.success) {
+        setChat(chat.concat([msg]));
+        setChatMsg('');
+      }
+    });
+  }
+
+  // === ADMIN ===
+
+  function handleUpdateUser(user, field, value) {
+    setSaving(true);
+    var updated = Object.assign({}, user);
+    updated[field] = value;
+    api('PUT', '/users/' + user.id, updated).then(function(res) {
+      setSaving(false);
+      if (res.success) {
+        setUsers(users.map(function(u) { return String(u.id) === String(user.id) ? updated : u; }));
+        showToast('User updated!');
+      }
+    });
+  }
+
+  function handleAddTeam() {
+    var name = prompt('Enter team name:');
+    if (!name || !name.trim()) return;
+    setSaving(true);
+    var team = { id: Date.now().toString(), name: name.trim(), managerId: '' };
+    api('POST', '/teams', team).then(function(res) {
+      setSaving(false);
+      if (res.success) {
+        setTeams(teams.concat([team]));
+        showToast('Team added!');
+      }
+    });
+  }
+
+  function handleUpdateTeam(team, field, value) {
+    setSaving(true);
+    var updated = Object.assign({}, team);
+    updated[field] = value;
+    api('PUT', '/teams/' + team.id, updated).then(function(res) {
+      setSaving(false);
+      if (res.success) {
+        setTeams(teams.map(function(t) { return String(t.id) === String(team.id) ? updated : t; }));
+        showToast('Team updated!');
+      }
+    });
+  }
+
+  function handleDeleteTeam(team) {
+    if (!confirm('Delete team "' + team.name + '"?')) return;
+    setSaving(true);
+    api('DELETE', '/teams/' + team.id).then(function(res) {
+      setSaving(false);
+      if (res.success) {
+        setTeams(teams.filter(function(t) { return String(t.id) !== String(team.id); }));
+        showToast('Team deleted');
+      }
+    });
+  }
+
+  // === STYLES ===
+
+  var styles = {
+    input: { width: '100%', padding: '12px', fontSize: '16px', backgroundColor: C.input, border: '1px solid ' + C.border, borderRadius: '8px', color: C.text, outline: 'none' },
+    btn: { padding: '12px 20px', fontSize: '14px', fontWeight: '600', border: 'none', borderRadius: '8px', cursor: 'pointer' },
+    btnPrimary: { backgroundColor: C.primary, color: '#fff' },
+    btnDanger: { backgroundColor: C.danger, color: '#fff' },
+    btnGhost: { backgroundColor: 'transparent', color: C.textDim, border: '1px solid ' + C.border },
+    card: { backgroundColor: C.card, borderRadius: '12px', padding: '20px', border: '1px solid ' + C.border },
+    label: { display: 'block', fontSize: '12px', fontWeight: '500', color: C.textDim, marginBottom: '6px' }
+  };
+
+  // === RENDER ===
+
+  if (loading) {
+    return e('div', { style: { minHeight: '100vh', backgroundColor: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px' } },
+      e('div', { className: 'spin', style: { width: '40px', height: '40px', border: '3px solid ' + C.border, borderTopColor: C.primary, borderRadius: '50%' } }),
+      e('p', { style: { color: C.textDim } }, 'Loading...')
+    );
+  }
+
+  // Login screen
+  if (!loggedIn) {
+    return e('div', { style: { minHeight: '100vh', backgroundColor: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' } },
+      e('div', { style: Object.assign({}, styles.card, { maxWidth: '400px', width: '100%' }) },
+        e('div', { style: { textAlign: 'center', marginBottom: '24px' } },
+          e('h1', { style: { fontSize: '28px', fontWeight: '700', color: C.text, margin: '0 0 8px' } },
+            e('span', { style: { color: C.primary } }, 'HC'),
+            ' Daily Tracker'
+          ),
+          e('p', { style: { color: C.textDim, margin: 0 } }, authMode === 'signup' ? 'Create your account' : 'Welcome back')
+        ),
+
+        authError && e('div', { style: { backgroundColor: C.danger + '20', border: '1px solid ' + C.danger, borderRadius: '8px', padding: '12px', marginBottom: '16px' } },
+          e('p', { style: { color: C.danger, margin: 0, fontSize: '14px', textAlign: 'center' } }, authError)
+        ),
+
+        authMode === 'signup' && e('div', { style: { marginBottom: '16px' } },
+          e('label', { style: styles.label }, 'Full Name'),
+          e('input', { type: 'text', value: authForm.name, onChange: function(ev) { setAuthForm(Object.assign({}, authForm, { name: ev.target.value })); }, placeholder: 'Your name', style: styles.input })
+        ),
+
+        e('div', { style: { marginBottom: '16px' } },
+          e('label', { style: styles.label }, 'Username'),
+          e('input', { type: 'text', value: authForm.username, onChange: function(ev) { setAuthForm(Object.assign({}, authForm, { username: ev.target.value.toLowerCase() })); }, placeholder: 'username', style: styles.input })
+        ),
+
+        e('div', { style: { marginBottom: '24px' } },
+          e('label', { style: styles.label }, 'Password'),
+          e('input', { type: 'password', value: authForm.password, onChange: function(ev) { setAuthForm(Object.assign({}, authForm, { password: ev.target.value })); }, placeholder: 'password', style: styles.input })
+        ),
+
+        e('button', { onClick: authMode === 'login' ? handleLogin : handleSignup, disabled: saving, style: Object.assign({}, styles.btn, styles.btnPrimary, { width: '100%', opacity: saving ? 0.7 : 1 }) },
+          saving ? 'Please wait...' : (authMode === 'signup' ? 'Create Account' : 'Sign In')
+        ),
+
+        e('div', { style: { textAlign: 'center', marginTop: '16px' } },
+          e('button', { onClick: function() { setAuthMode(authMode === 'signup' ? 'login' : 'signup'); setAuthError(''); }, style: { background: 'none', border: 'none', color: C.primary, cursor: 'pointer', fontWeight: '600' } },
+            authMode === 'signup' ? 'Already have an account? Sign In' : 'Create Account'
+          )
+        ),
+
+        authMode === 'login' && e('div', { style: { marginTop: '20px', padding: '12px', backgroundColor: C.input, borderRadius: '8px', textAlign: 'center' } },
+          e('p', { style: { color: C.textDim, fontSize: '12px', margin: 0 } }, 'Demo: admin / admin123')
+        )
+      )
+    );
+  }
+
+  // Nav items
+  var navItems = [
+    { id: 'dashboard', label: 'Dashboard', roles: ['Admin', 'Team Manager', 'Sales Rep'] },
+    { id: 'kpi', label: 'Log KPIs', roles: ['Admin', 'Team Manager', 'Sales Rep'] },
+    { id: 'quick', label: 'Quick Log', roles: ['Admin', 'Team Manager', 'Sales Rep'] },
+    { id: 'goals', label: 'My Goals', roles: ['Admin', 'Team Manager', 'Sales Rep'] },
+    { id: 'leaderboard', label: 'Leaderboard', roles: ['Admin', 'Team Manager', 'Sales Rep'] },
+    { id: 'chat', label: 'Team Chat', roles: ['Admin', 'Team Manager', 'Sales Rep'] },
+    { id: 'roofing', label: 'Roofing Leads', roles: ['Admin', 'Team Manager', 'Sales Rep'] },
+    { id: 'allleads', label: 'All Leads', roles: ['Admin'] },
+    { id: 'recruiting', label: 'Recruiting', roles: ['Admin', 'Team Manager'] },
+    { id: 'admin', label: 'Admin', roles: ['Admin'] }
+  ];
+
+  var myRole = normalizeRole(currentUser.role);
+  var visibleNav = navItems.filter(function(n) { return n.roles.indexOf(myRole) !== -1; });
+
+  // Main app
+  return e('div', { style: { minHeight: '100vh', backgroundColor: C.bg } },
+
+    saving && e('div', { style: { position: 'fixed', top: 0, left: 0, right: 0, height: '3px', backgroundColor: C.primary, zIndex: 9999 } }),
+
+    toast && e('div', { style: { position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', backgroundColor: C.primary, color: '#fff', padding: '12px 24px', borderRadius: '25px', fontSize: '14px', fontWeight: '500', zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' } }, toast),
+
+    sidebar && e('div', { onClick: function() { setSidebar(false); }, style: { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 200 } }),
+
+    // Sidebar
+    e('div', { style: { position: 'fixed', top: 0, left: 0, bottom: 0, width: '280px', backgroundColor: C.card, zIndex: 300, transform: sidebar ? 'translateX(0)' : 'translateX(-100%)', transition: 'transform 0.3s', borderRight: '1px solid ' + C.border, display: 'flex', flexDirection: 'column' } },
+      e('div', { style: { padding: '20px', borderBottom: '1px solid ' + C.border, display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        e('span', { style: { fontWeight: '700', color: C.text, fontSize: '18px' } }, e('span', { style: { color: C.primary } }, 'HC'), ' Tracker'),
+        e('button', { onClick: function() { setSidebar(false); }, style: { background: 'none', border: 'none', color: C.textDim, fontSize: '24px', cursor: 'pointer' } }, String.fromCharCode(215))
+      ),
+      e('div', { style: { padding: '16px 20px', borderBottom: '1px solid ' + C.border } },
+        e('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
+          e('div', { style: { width: '40px', height: '40px', borderRadius: '50%', backgroundColor: C.primary, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600' } }, myName[0] || '?'),
+          e('div', null,
+            e('p', { style: { color: C.text, fontWeight: '600', margin: 0 } }, currentUser.name),
+            e('p', { style: { color: C.textDim, fontSize: '12px', margin: 0 } }, myRole)
+          )
+        )
+      ),
+      e('nav', { style: { padding: '12px', flex: 1, overflowY: 'auto' } },
+        visibleNav.map(function(n) {
+          return e('button', { key: n.id, onClick: function() { setTab(n.id); setSidebar(false); }, style: { width: '100%', padding: '12px 16px', marginBottom: '4px', border: 'none', borderRadius: '8px', backgroundColor: tab === n.id ? C.primary + '20' : 'transparent', color: tab === n.id ? C.primary : C.text, fontSize: '14px', fontWeight: '500', cursor: 'pointer', textAlign: 'left' } }, n.label);
+        })
+      ),
+      e('div', { style: { padding: '16px 20px', borderTop: '1px solid ' + C.border } },
+        e('button', { onClick: function() { setDark(!dark); }, style: Object.assign({}, styles.btn, styles.btnGhost, { width: '100%', marginBottom: '8px' }) }, dark ? 'Light Mode' : 'Dark Mode'),
+        e('button', { onClick: function() { loadAllData(); showToast('Refreshed!'); }, style: Object.assign({}, styles.btn, styles.btnGhost, { width: '100%', marginBottom: '8px' }) }, 'Refresh Data'),
+        e('button', { onClick: handleLogout, style: Object.assign({}, styles.btn, { width: '100%', backgroundColor: C.danger + '20', color: C.danger }) }, 'Sign Out')
+      )
+    ),
+
+    // Header
+    e('header', { style: { backgroundColor: C.card, borderBottom: '1px solid ' + C.border, position: 'sticky', top: 0, zIndex: 100 } },
+      e('div', { style: { maxWidth: '1200px', margin: '0 auto', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        e('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
+          e('button', { onClick: function() { setSidebar(true); }, style: { background: 'none', border: 'none', cursor: 'pointer', padding: '8px' } },
+            e('div', { style: { width: '20px', height: '2px', backgroundColor: C.primary, marginBottom: '5px' } }),
+            e('div', { style: { width: '20px', height: '2px', backgroundColor: C.primary, marginBottom: '5px' } }),
+            e('div', { style: { width: '20px', height: '2px', backgroundColor: C.primary } })
+          ),
+          e('h1', { style: { fontSize: '18px', fontWeight: '700', color: C.text, margin: 0 } }, e('span', { style: { color: C.primary } }, 'HC'), ' Tracker')
+        ),
+        e('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+          myStaleLeads.length > 0 && e('div', { style: { backgroundColor: C.danger + '20', color: C.danger, padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' } }, myStaleLeads.length + ' stale'),
+          e('div', { style: { width: '32px', height: '32px', borderRadius: '50%', backgroundColor: C.primary, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '14px' } }, myName[0] || '?')
+        )
+      )
+    ),
+
+    // Main content
+    e('main', { style: { maxWidth: '1200px', margin: '0 auto', padding: '20px' } },
+
+      // Dashboard
+      tab === 'dashboard' && e('div', null,
+        e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' } },
+          e('h2', { style: { fontSize: '24px', fontWeight: '700', color: C.text } }, 'Dashboard'),
+          e('div', { style: { display: 'flex', gap: '8px' } },
+            ['today', 'week', 'month', 'all'].map(function(f) {
+              return e('button', { key: f, onClick: function() { setDashFilter(f); }, style: Object.assign({}, styles.btn, { padding: '8px 16px', fontSize: '13px', backgroundColor: dashFilter === f ? C.primary : C.input, color: dashFilter === f ? '#fff' : C.textDim, border: '1px solid ' + (dashFilter === f ? C.primary : C.border) }) }, f.charAt(0).toUpperCase() + f.slice(1));
+            })
+          )
+        ),
+        e('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '24px' } },
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'Doors'), e('p', { style: { fontSize: '28px', fontWeight: '700', color: C.text, margin: 0 } }, totals.dk)),
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'Door Appts'), e('p', { style: { fontSize: '28px', fontWeight: '700', color: C.text, margin: 0 } }, totals.da)),
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'Calls'), e('p', { style: { fontSize: '28px', fontWeight: '700', color: C.text, margin: 0 } }, totals.cm)),
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'Call Appts'), e('p', { style: { fontSize: '28px', fontWeight: '700', color: C.text, margin: 0 } }, totals.ca)),
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'Total Appts'), e('p', { style: { fontSize: '28px', fontWeight: '700', color: C.success, margin: 0 } }, totals.da + totals.ca)),
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'Revenue'), e('p', { style: { fontSize: '28px', fontWeight: '700', color: C.success, margin: 0 } }, '$' + totals.rev.toLocaleString()))
+        ),
+
+        // Conversion rates
+        e('div', { style: Object.assign({}, styles.card, { marginBottom: '24px' }) },
+          e('h3', { style: { color: C.text, margin: '0 0 16px', fontSize: '16px' } }, 'Conversion Rates'),
+          e('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' } },
+            e('div', null,
+              e('p', { style: { color: C.textDim, fontSize: '13px', margin: '0 0 4px' } }, 'Door Convos / Doors Knocked'),
+              e('p', { style: { fontSize: '20px', fontWeight: '700', color: C.primary, margin: 0 } }, totals.dk > 0 ? ((totals.dc / totals.dk) * 100).toFixed(1) + '%' : '0%')
+            ),
+            e('div', null,
+              e('p', { style: { color: C.textDim, fontSize: '13px', margin: '0 0 4px' } }, 'Door Appts / Door Convos'),
+              e('p', { style: { fontSize: '20px', fontWeight: '700', color: C.primary, margin: 0 } }, totals.dc > 0 ? ((totals.da / totals.dc) * 100).toFixed(1) + '%' : '0%')
+            ),
+            e('div', null,
+              e('p', { style: { color: C.textDim, fontSize: '13px', margin: '0 0 4px' } }, 'Call Appts / Calls Made'),
+              e('p', { style: { fontSize: '20px', fontWeight: '700', color: C.primary, margin: 0 } }, totals.cm > 0 ? ((totals.ca / totals.cm) * 100).toFixed(1) + '%' : '0%')
+            )
+          )
+        )
+      ),
+
+      // Log KPIs
+      tab === 'kpi' && e('div', { style: { maxWidth: '600px' } },
+        e('h2', { style: { fontSize: '24px', fontWeight: '700', color: C.text, marginBottom: '20px' } }, 'Log KPIs'),
+        e('div', { style: styles.card },
+          e('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' } },
+            e('div', null,
+              e('label', { style: styles.label }, 'Name'),
+              isAdmin || isManager ?
+                e('select', { value: kpiForm.name, onChange: function(ev) { setKpiForm(Object.assign({}, kpiForm, { name: ev.target.value })); }, style: Object.assign({}, styles.input, { cursor: 'pointer' }) },
+                  e('option', { value: '' }, 'Select...'),
+                  users.filter(function(u) { return String(u.status || '').toLowerCase() === 'active'; }).map(function(u) {
+                    var firstName = (u.name || '').trim().split(' ')[0] || u.username;
+                    return e('option', { key: u.id, value: firstName }, u.name || u.username);
+                  })
+                ) :
+                e('input', { type: 'text', value: myName, readOnly: true, style: Object.assign({}, styles.input, { opacity: 0.7 }) })
+            ),
+            e('div', null,
+              e('label', { style: styles.label }, 'Date'),
+              e('input', { type: 'date', value: kpiForm.date, onChange: function(ev) { setKpiForm(Object.assign({}, kpiForm, { date: ev.target.value })); }, style: styles.input })
+            )
+          ),
+          e('p', { style: { fontSize: '12px', fontWeight: '600', color: C.textDim, margin: '0 0 8px' } }, 'DOOR KNOCKING'),
+          e('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' } },
+            e('div', null, e('label', { style: styles.label }, 'Doors'), e('input', { type: 'number', value: kpiForm.doorsKnocked, onChange: function(ev) { setKpiForm(Object.assign({}, kpiForm, { doorsKnocked: ev.target.value })); }, placeholder: '0', style: styles.input })),
+            e('div', null, e('label', { style: styles.label }, 'Convos'), e('input', { type: 'number', value: kpiForm.doorConvos, onChange: function(ev) { setKpiForm(Object.assign({}, kpiForm, { doorConvos: ev.target.value })); }, placeholder: '0', style: styles.input })),
+            e('div', null, e('label', { style: styles.label }, 'Appts'), e('input', { type: 'number', value: kpiForm.doorAppts, onChange: function(ev) { setKpiForm(Object.assign({}, kpiForm, { doorAppts: ev.target.value })); }, placeholder: '0', style: styles.input }))
+          ),
+          e('p', { style: { fontSize: '12px', fontWeight: '600', color: C.textDim, margin: '0 0 8px' } }, 'PHONE CALLS'),
+          e('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' } },
+            e('div', null, e('label', { style: styles.label }, 'Calls'), e('input', { type: 'number', value: kpiForm.callsMade, onChange: function(ev) { setKpiForm(Object.assign({}, kpiForm, { callsMade: ev.target.value })); }, placeholder: '0', style: styles.input })),
+            e('div', null, e('label', { style: styles.label }, 'Convos'), e('input', { type: 'number', value: kpiForm.callConvos, onChange: function(ev) { setKpiForm(Object.assign({}, kpiForm, { callConvos: ev.target.value })); }, placeholder: '0', style: styles.input })),
+            e('div', null, e('label', { style: styles.label }, 'Appts'), e('input', { type: 'number', value: kpiForm.callAppts, onChange: function(ev) { setKpiForm(Object.assign({}, kpiForm, { callAppts: ev.target.value })); }, placeholder: '0', style: styles.input }))
+          ),
+          e('p', { style: { fontSize: '12px', fontWeight: '600', color: C.textDim, margin: '0 0 8px' } }, 'REVENUE'),
+          e('div', { style: { marginBottom: '16px' } },
+            e('input', { type: 'number', value: kpiForm.revenue, onChange: function(ev) { setKpiForm(Object.assign({}, kpiForm, { revenue: ev.target.value })); }, placeholder: '0', style: styles.input })
+          ),
+          (isAdmin || isManager) && e('div', null,
+            e('p', { style: { fontSize: '12px', fontWeight: '600', color: C.textDim, margin: '0 0 8px' } }, 'RECRUITING'),
+            e('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' } },
+              e('div', null, e('label', { style: styles.label }, 'Attempts'), e('input', { type: 'number', value: kpiForm.recruitAttempts, onChange: function(ev) { setKpiForm(Object.assign({}, kpiForm, { recruitAttempts: ev.target.value })); }, placeholder: '0', style: styles.input })),
+              e('div', null, e('label', { style: styles.label }, 'Interviews'), e('input', { type: 'number', value: kpiForm.interviews, onChange: function(ev) { setKpiForm(Object.assign({}, kpiForm, { interviews: ev.target.value })); }, placeholder: '0', style: styles.input })),
+              e('div', null, e('label', { style: styles.label }, 'Onboarded'), e('input', { type: 'number', value: kpiForm.onboarded, onChange: function(ev) { setKpiForm(Object.assign({}, kpiForm, { onboarded: ev.target.value })); }, placeholder: '0', style: styles.input }))
+            )
+          ),
+          e('p', { style: { fontSize: '12px', fontWeight: '600', color: C.textDim, margin: '0 0 8px' } }, 'NOTES'),
+          e('textarea', { value: kpiForm.notes, onChange: function(ev) { setKpiForm(Object.assign({}, kpiForm, { notes: ev.target.value })); }, placeholder: 'Add notes...', style: Object.assign({}, styles.input, { minHeight: '80px', resize: 'vertical' }) }),
+          e('button', { onClick: handleSubmitKpi, disabled: saving || !kpiForm.name, style: Object.assign({}, styles.btn, styles.btnPrimary, { width: '100%', marginTop: '16px', opacity: (saving || !kpiForm.name) ? 0.5 : 1 }) }, saving ? 'Saving...' : 'Submit')
+        )
+      ),
+
+      // Quick Log
+      tab === 'quick' && e('div', null,
+        e('h2', { style: { fontSize: '24px', fontWeight: '700', color: C.text, marginBottom: '20px' } }, 'Quick Log'),
+        e('p', { style: { color: C.textDim, marginBottom: '20px' } }, 'Tap to add to today\'s numbers'),
+        e('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' } },
+          [
+            ['doorsKnocked', 1, '+1 Door'],
+            ['doorsKnocked', 5, '+5 Doors'],
+            ['callsMade', 1, '+1 Call'],
+            ['callsMade', 5, '+5 Calls'],
+            ['doorAppts', 1, '+1 Door Appt'],
+            ['callAppts', 1, '+1 Call Appt']
+          ].map(function(item) {
+            return e('button', { key: item[2], onClick: function() { handleQuickLog(item[0], item[1]); }, disabled: saving, style: Object.assign({}, styles.card, { cursor: 'pointer', textAlign: 'center', border: '1px solid ' + C.border, opacity: saving ? 0.7 : 1 }) },
+              e('span', { style: { color: C.text, fontSize: '16px', fontWeight: '600' } }, item[2])
+            );
+          })
+        )
+      ),
+
+      // My Goals
+      tab === 'goals' && e('div', null,
+        e('h2', { style: { fontSize: '24px', fontWeight: '700', color: C.text, marginBottom: '20px' } }, 'My Goals'),
+
+        e('div', { style: Object.assign({}, styles.card, { marginBottom: '16px' }) },
+          e('h3', { style: { color: C.text, margin: '0 0 16px', fontSize: '18px' } }, 'Weekly Progress'),
+          e('div', { style: { display: 'grid', gap: '12px' } },
+            [
+              ['Doors', myWeeklyStats.dk, myGoals.weeklyDoors],
+              ['Calls', myWeeklyStats.cm, myGoals.weeklyCalls],
+              ['Appts', myWeeklyStats.appts, myGoals.weeklyAppts],
+              ['Revenue', myWeeklyStats.rev, myGoals.weeklyRevenue]
+            ].map(function(item) {
+              var pct = item[2] > 0 ? Math.min(100, (item[1] / item[2]) * 100) : 0;
+              return e('div', { key: item[0] },
+                e('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' } },
+                  e('span', { style: { color: C.textDim, fontSize: '13px' } }, item[0] + ' (' + item[1] + '/' + item[2] + ')'),
+                  e('span', { style: { color: pct >= 100 ? C.success : C.text, fontSize: '13px', fontWeight: '600' } }, pct.toFixed(0) + '%')
+                ),
+                e('div', { style: { width: '100%', height: '8px', backgroundColor: C.input, borderRadius: '4px', overflow: 'hidden' } },
+                  e('div', { style: { width: pct + '%', height: '100%', backgroundColor: pct >= 100 ? C.success : C.primary, transition: 'width 0.3s' } })
+                )
+              );
+            })
+          )
+        ),
+
+        e('div', { style: Object.assign({}, styles.card, { marginBottom: '16px' }) },
+          e('h3', { style: { color: C.text, margin: '0 0 16px', fontSize: '18px' } }, 'Monthly Progress'),
+          e('div', { style: { display: 'grid', gap: '12px' } },
+            [
+              ['Doors', myMonthlyStats.dk, myGoals.monthlyDoors],
+              ['Calls', myMonthlyStats.cm, myGoals.monthlyCalls],
+              ['Appts', myMonthlyStats.appts, myGoals.monthlyAppts],
+              ['Revenue', myMonthlyStats.rev, myGoals.monthlyRevenue]
+            ].map(function(item) {
+              var pct = item[2] > 0 ? Math.min(100, (item[1] / item[2]) * 100) : 0;
+              return e('div', { key: item[0] },
+                e('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' } },
+                  e('span', { style: { color: C.textDim, fontSize: '13px' } }, item[0] + ' (' + item[1] + '/' + item[2] + ')'),
+                  e('span', { style: { color: pct >= 100 ? C.success : C.text, fontSize: '13px', fontWeight: '600' } }, pct.toFixed(0) + '%')
+                ),
+                e('div', { style: { width: '100%', height: '8px', backgroundColor: C.input, borderRadius: '4px', overflow: 'hidden' } },
+                  e('div', { style: { width: pct + '%', height: '100%', backgroundColor: pct >= 100 ? C.success : C.primary, transition: 'width 0.3s' } })
+                )
+              );
+            })
+          )
+        ),
+
+        e('div', { style: styles.card },
+          e('h3', { style: { color: C.text, margin: '0 0 16px', fontSize: '18px' } }, 'Set My Goals'),
+          e('p', { style: { color: C.textDim, fontSize: '14px', margin: '0 0 12px' } }, 'Weekly Goals'),
+          e('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px', marginBottom: '16px' } },
+            e('div', null, e('label', { style: styles.label }, 'Doors'), e('input', { type: 'number', value: myGoals.weeklyDoors, onChange: function(ev) { setMyGoals(Object.assign({}, myGoals, { weeklyDoors: parseInt(ev.target.value) || 0 })); }, style: styles.input })),
+            e('div', null, e('label', { style: styles.label }, 'Calls'), e('input', { type: 'number', value: myGoals.weeklyCalls, onChange: function(ev) { setMyGoals(Object.assign({}, myGoals, { weeklyCalls: parseInt(ev.target.value) || 0 })); }, style: styles.input })),
+            e('div', null, e('label', { style: styles.label }, 'Appts'), e('input', { type: 'number', value: myGoals.weeklyAppts, onChange: function(ev) { setMyGoals(Object.assign({}, myGoals, { weeklyAppts: parseInt(ev.target.value) || 0 })); }, style: styles.input })),
+            e('div', null, e('label', { style: styles.label }, 'Revenue'), e('input', { type: 'number', value: myGoals.weeklyRevenue, onChange: function(ev) { setMyGoals(Object.assign({}, myGoals, { weeklyRevenue: parseInt(ev.target.value) || 0 })); }, style: styles.input }))
+          ),
+          e('p', { style: { color: C.textDim, fontSize: '14px', margin: '0 0 12px' } }, 'Monthly Goals'),
+          e('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px', marginBottom: '16px' } },
+            e('div', null, e('label', { style: styles.label }, 'Doors'), e('input', { type: 'number', value: myGoals.monthlyDoors, onChange: function(ev) { setMyGoals(Object.assign({}, myGoals, { monthlyDoors: parseInt(ev.target.value) || 0 })); }, style: styles.input })),
+            e('div', null, e('label', { style: styles.label }, 'Calls'), e('input', { type: 'number', value: myGoals.monthlyCalls, onChange: function(ev) { setMyGoals(Object.assign({}, myGoals, { monthlyCalls: parseInt(ev.target.value) || 0 })); }, style: styles.input })),
+            e('div', null, e('label', { style: styles.label }, 'Appts'), e('input', { type: 'number', value: myGoals.monthlyAppts, onChange: function(ev) { setMyGoals(Object.assign({}, myGoals, { monthlyAppts: parseInt(ev.target.value) || 0 })); }, style: styles.input })),
+            e('div', null, e('label', { style: styles.label }, 'Revenue'), e('input', { type: 'number', value: myGoals.monthlyRevenue, onChange: function(ev) { setMyGoals(Object.assign({}, myGoals, { monthlyRevenue: parseInt(ev.target.value) || 0 })); }, style: styles.input }))
+          ),
+          e('button', { onClick: handleSaveGoals, disabled: saving, style: Object.assign({}, styles.btn, styles.btnPrimary, { opacity: saving ? 0.7 : 1 }) }, saving ? 'Saving...' : 'Save My Goals')
+        )
+      ),
+
+      // Leaderboard
+      tab === 'leaderboard' && e('div', null,
+        e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' } },
+          e('h2', { style: { fontSize: '24px', fontWeight: '700', color: C.text } }, 'Leaderboard'),
+          e('div', { style: { display: 'flex', gap: '8px' } },
+            ['today', 'week', 'month', 'all'].map(function(f) {
+              return e('button', { key: f, onClick: function() { setDashFilter(f); }, style: Object.assign({}, styles.btn, { padding: '8px 16px', fontSize: '13px', backgroundColor: dashFilter === f ? C.primary : C.input, color: dashFilter === f ? '#fff' : C.textDim, border: '1px solid ' + (dashFilter === f ? C.primary : C.border) }) }, f.charAt(0).toUpperCase() + f.slice(1));
+            })
+          )
+        ),
+        leaderboard.length === 0 ?
+          e('div', { style: Object.assign({}, styles.card, { textAlign: 'center', color: C.textDim }) }, 'No data yet') :
+          e('div', { style: styles.card },
+            e('div', { style: { display: 'grid', gridTemplateColumns: '50px 2fr 1fr 1fr 1fr 1fr', gap: '10px', padding: '12px', backgroundColor: C.input, borderRadius: '8px', marginBottom: '8px', fontSize: '12px', fontWeight: '600', color: C.textDim } },
+              e('span', null, '#'), e('span', null, 'Name'), e('span', null, 'Doors'), e('span', null, 'Calls'), e('span', null, 'Appts'), e('span', null, 'Revenue')
+            ),
+            leaderboard.map(function(p, i) {
+              return e('div', { key: p.name, style: { display: 'grid', gridTemplateColumns: '50px 2fr 1fr 1fr 1fr 1fr', gap: '10px', padding: '12px', borderBottom: '1px solid ' + C.border, alignItems: 'center' } },
+                e('span', { style: { fontWeight: '700', color: i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : C.text } }, '#' + (i + 1)),
+                e('span', { style: { color: C.text, fontWeight: '500' } }, p.name),
+                e('span', { style: { color: C.text } }, p.doors),
+                e('span', { style: { color: C.text } }, p.calls),
+                e('span', { style: { color: C.success, fontWeight: '600' } }, p.appts),
+                e('span', { style: { color: C.success, fontWeight: '600' } }, '$' + p.rev.toLocaleString())
+              );
+            })
+          )
+      ),
+
+      // Team Chat
+      tab === 'chat' && e('div', { style: { maxWidth: '700px' } },
+        e('h2', { style: { fontSize: '24px', fontWeight: '700', color: C.text, marginBottom: '20px' } }, 'Team Chat'),
+        e('div', { style: Object.assign({}, styles.card, { height: '400px', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }) },
+          e('div', { style: { flex: 1, overflowY: 'auto', padding: '16px' } },
+            chat.length === 0 ?
+              e('div', { style: { textAlign: 'center', color: C.textDim, padding: '40px' } }, 'No messages yet') :
+              chat.map(function(m) {
+                var isMe = m.user === myName;
+                return e('div', { key: m.id, style: { display: 'flex', flexDirection: isMe ? 'row-reverse' : 'row', gap: '8px', marginBottom: '12px' } },
+                  !isMe && e('div', { style: { width: '32px', height: '32px', borderRadius: '50%', backgroundColor: C.primary, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '600', flexShrink: 0 } }, (m.user || '?')[0]),
+                  e('div', { style: { maxWidth: '70%', backgroundColor: isMe ? C.primary : C.input, borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px', padding: '10px 14px' } },
+                    !isMe && e('p', { style: { color: C.primary, fontSize: '12px', fontWeight: '600', margin: '0 0 4px' } }, m.user),
+                    e('p', { style: { color: isMe ? '#fff' : C.text, margin: 0, fontSize: '14px' } }, m.text),
+                    e('p', { style: { color: isMe ? 'rgba(255,255,255,0.7)' : C.textDim, fontSize: '11px', margin: '4px 0 0', textAlign: isMe ? 'right' : 'left' } }, m.time)
+                  )
+                );
+              }),
+            e('div', { ref: chatEndRef })
+          ),
+          e('div', { style: { padding: '12px', borderTop: '1px solid ' + C.border, display: 'flex', gap: '8px' } },
+            e('input', { type: 'text', value: chatMsg, onChange: function(ev) { setChatMsg(ev.target.value); }, onKeyDown: function(ev) { if (ev.key === 'Enter') handleSendChat(); }, placeholder: 'Type a message...', style: Object.assign({}, styles.input, { flex: 1, borderRadius: '20px' }) }),
+            e('button', { onClick: handleSendChat, disabled: saving, style: Object.assign({}, styles.btn, styles.btnPrimary, { borderRadius: '50%', width: '44px', height: '44px', padding: 0 }) }, String.fromCharCode(10148))
+          )
+        )
+      ),
+
+      // Roofing Leads
+      tab === 'roofing' && e('div', null,
+        e('h2', { style: { fontSize: '24px', fontWeight: '700', color: C.text, marginBottom: '20px' } }, 'Roofing Leads'),
+
+        myStaleLeads.length > 0 && e('div', { style: Object.assign({}, styles.card, { borderColor: C.danger, marginBottom: '16px' }) },
+          e('h3', { style: { color: C.danger, margin: '0 0 12px', fontSize: '16px' } }, myStaleLeads.length + ' leads need follow-up (10+ days)'),
+          myStaleLeads.slice(0, 3).map(function(l) {
+            return e('div', { key: l.id, style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px', backgroundColor: C.input, borderRadius: '8px', marginBottom: '8px' } },
+              e('div', null,
+                e('p', { style: { color: C.text, fontWeight: '500', margin: 0 } }, l.name),
+                e('p', { style: { color: C.textDim, fontSize: '12px', margin: 0 } }, l.phone)
+              ),
+              e('button', { onClick: function() { handleMarkContacted(l); }, style: Object.assign({}, styles.btn, { backgroundColor: C.success, color: '#fff', padding: '6px 12px', fontSize: '12px' }) }, 'Mark Contacted')
+            );
+          })
+        ),
+
+        e('div', { style: Object.assign({}, styles.card, { marginBottom: '16px' }) },
+          e('h3', { style: { color: C.text, margin: '0 0 16px', fontSize: '16px' } }, 'Add New Lead'),
+          e('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '12px' } },
+            e('div', null, e('label', { style: styles.label }, 'Name *'), e('input', { type: 'text', value: roofForm.name, onChange: function(ev) { setRoofForm(Object.assign({}, roofForm, { name: ev.target.value })); }, placeholder: 'Customer name', style: styles.input })),
+            e('div', null, e('label', { style: styles.label }, 'Phone *'), e('input', { type: 'tel', value: roofForm.phone, onChange: function(ev) { setRoofForm(Object.assign({}, roofForm, { phone: ev.target.value })); }, placeholder: 'Phone number', style: styles.input })),
+            e('div', null, e('label', { style: styles.label }, 'Email'), e('input', { type: 'email', value: roofForm.email, onChange: function(ev) { setRoofForm(Object.assign({}, roofForm, { email: ev.target.value })); }, placeholder: 'Email', style: styles.input })),
+            e('div', null, e('label', { style: styles.label }, 'Address'), e('input', { type: 'text', value: roofForm.address, onChange: function(ev) { setRoofForm(Object.assign({}, roofForm, { address: ev.target.value })); }, placeholder: 'Address', style: styles.input })),
+            e('div', null, e('label', { style: styles.label }, 'Type'), e('select', { value: roofForm.type, onChange: function(ev) { setRoofForm(Object.assign({}, roofForm, { type: ev.target.value })); }, style: styles.input }, e('option', { value: 'retail' }, 'Retail Roof'), e('option', { value: 'insurance' }, 'Insurance Claim')))
+          ),
+          e('div', { style: { marginBottom: '12px' } },
+            e('label', { style: styles.label }, 'Notes'),
+            e('textarea', { value: roofForm.notes, onChange: function(ev) { setRoofForm(Object.assign({}, roofForm, { notes: ev.target.value })); }, placeholder: 'Notes...', style: Object.assign({}, styles.input, { minHeight: '60px' }) })
+          ),
+          e('button', { onClick: handleSubmitRoofLead, disabled: saving, style: Object.assign({}, styles.btn, styles.btnPrimary, { opacity: saving ? 0.7 : 1 }) }, saving ? 'Saving...' : 'Add Lead')
+        ),
+
+        e('div', { style: styles.card },
+          e('h3', { style: { color: C.text, margin: '0 0 16px', fontSize: '16px' } }, 'My Leads (' + myRoofingLeads.length + ')'),
+          myRoofingLeads.length === 0 ?
+            e('p', { style: { color: C.textDim, textAlign: 'center', padding: '20px' } }, 'No leads yet') :
+            myRoofingLeads.map(function(l) {
+              var days = daysBetween(l.lastContact || l.createdAt, getToday());
+              var isStale = days >= 10 && l.status !== 'sold' && l.status !== 'closed';
+              return e('div', { key: l.id, style: { padding: '12px', borderBottom: '1px solid ' + C.border, backgroundColor: isStale ? C.danger + '10' : 'transparent' } },
+                e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' } },
+                  e('div', null,
+                    e('p', { style: { color: C.text, fontWeight: '600', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
+                      l.name,
+                      e('span', { style: { fontSize: '11px', padding: '2px 8px', backgroundColor: l.type === 'insurance' ? C.warning : C.primary, color: '#fff', borderRadius: '10px' } }, l.type === 'insurance' ? 'Insurance' : 'Retail'),
+                      e('span', { style: { fontSize: '11px', padding: '2px 8px', backgroundColor: l.status === 'sold' ? C.success : l.status === 'contacted' ? C.warning : C.textDim, color: '#fff', borderRadius: '10px' } }, l.status)
+                    ),
+                    e('p', { style: { color: C.textDim, fontSize: '13px', margin: 0 } }, l.phone + (l.email ? ' | ' + l.email : ''))
+                  ),
+                  e('div', { style: { display: 'flex', gap: '8px', flexShrink: 0 } },
+                    e('button', { onClick: function() { handleMarkContacted(l); }, style: { background: 'none', border: 'none', color: C.success, cursor: 'pointer', fontSize: '18px' }, title: 'Mark Contacted' }, String.fromCharCode(10003)),
+                    e('select', { value: l.status, onChange: function(ev) { handleUpdateLeadStatus(l, ev.target.value); }, style: { padding: '4px', fontSize: '11px', backgroundColor: C.input, color: C.text, border: '1px solid ' + C.border, borderRadius: '4px' } },
+                      e('option', { value: 'new' }, 'New'),
+                      e('option', { value: 'contacted' }, 'Contacted'),
+                      e('option', { value: 'quoted' }, 'Quoted'),
+                      e('option', { value: 'sold' }, 'Sold'),
+                      e('option', { value: 'closed' }, 'Closed')
+                    ),
+                    e('button', { onClick: function() { handleDeleteLead(l); }, style: { background: 'none', border: 'none', color: C.danger, cursor: 'pointer', fontSize: '16px' } }, 'X')
+                  )
+                ),
+                l.address && e('p', { style: { color: C.textDim, fontSize: '12px', margin: '0 0 4px' } }, l.address),
+                l.notes && e('p', { style: { color: C.textDim, fontSize: '12px', margin: '0 0 4px', fontStyle: 'italic' } }, l.notes),
+                e('p', { style: { color: isStale ? C.danger : C.textDim, fontSize: '11px', margin: 0 } },
+                  'Created: ' + l.createdAt + (l.lastContact ? ' | Last contact: ' + l.lastContact : '') + (isStale ? ' - ' + days + ' days!' : '')
+                )
+              );
+            })
+        )
+      ),
+
+      // All Leads (Admin)
+      tab === 'allleads' && isAdmin && e('div', null,
+        e('h2', { style: { fontSize: '24px', fontWeight: '700', color: C.text, marginBottom: '20px' } }, 'All Roofing Leads'),
+
+        e('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px', marginBottom: '20px' } },
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'Total'), e('p', { style: { fontSize: '24px', fontWeight: '700', color: C.text, margin: 0 } }, roofing.length)),
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'New'), e('p', { style: { fontSize: '24px', fontWeight: '700', color: C.primary, margin: 0 } }, roofing.filter(function(l) { return l.status === 'new'; }).length)),
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'Contacted'), e('p', { style: { fontSize: '24px', fontWeight: '700', color: C.warning, margin: 0 } }, roofing.filter(function(l) { return l.status === 'contacted'; }).length)),
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'Sold'), e('p', { style: { fontSize: '24px', fontWeight: '700', color: C.success, margin: 0 } }, roofing.filter(function(l) { return l.status === 'sold'; }).length)),
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'Stale'), e('p', { style: { fontSize: '24px', fontWeight: '700', color: C.danger, margin: 0 } }, staleLeads.length))
+        ),
+
+        e('div', { style: Object.assign({}, styles.card, { overflowX: 'auto' }) },
+          e('table', { style: { width: '100%', borderCollapse: 'collapse', fontSize: '13px' } },
+            e('thead', null,
+              e('tr', { style: { backgroundColor: C.input } },
+                e('th', { style: { padding: '12px', textAlign: 'left', color: C.textDim } }, 'Name'),
+                e('th', { style: { padding: '12px', textAlign: 'left', color: C.textDim } }, 'Phone'),
+                e('th', { style: { padding: '12px', textAlign: 'left', color: C.textDim } }, 'Type'),
+                e('th', { style: { padding: '12px', textAlign: 'left', color: C.textDim } }, 'Status'),
+                e('th', { style: { padding: '12px', textAlign: 'left', color: C.textDim } }, 'Assigned To'),
+                e('th', { style: { padding: '12px', textAlign: 'left', color: C.textDim } }, 'Last Contact')
+              )
+            ),
+            e('tbody', null,
+              roofing.map(function(l) {
+                var days = daysBetween(l.lastContact || l.createdAt, getToday());
+                var isStale = days >= 10 && l.status !== 'sold' && l.status !== 'closed';
+                return e('tr', { key: l.id, style: { borderBottom: '1px solid ' + C.border, backgroundColor: isStale ? C.danger + '10' : 'transparent' } },
+                  e('td', { style: { padding: '12px', color: C.text, fontWeight: '500' } }, l.name),
+                  e('td', { style: { padding: '12px', color: C.text } }, l.phone),
+                  e('td', { style: { padding: '12px' } }, e('span', { style: { fontSize: '11px', padding: '2px 8px', backgroundColor: l.type === 'insurance' ? C.warning : C.primary, color: '#fff', borderRadius: '10px' } }, l.type)),
+                  e('td', { style: { padding: '12px' } }, e('span', { style: { fontSize: '11px', padding: '2px 8px', backgroundColor: l.status === 'sold' ? C.success : l.status === 'contacted' ? C.warning : C.textDim, color: '#fff', borderRadius: '10px' } }, l.status)),
+                  e('td', { style: { padding: '12px' } },
+                    e('select', { value: l.assignedTo || '', onChange: function(ev) { handleAssignLead(l, ev.target.value); }, style: { padding: '4px', fontSize: '11px', backgroundColor: C.input, color: C.text, border: '1px solid ' + C.border, borderRadius: '4px' } },
+                      e('option', { value: '' }, 'Unassigned'),
+                      users.filter(function(u) { return String(u.status || '').toLowerCase() === 'active'; }).map(function(u) {
+                        return e('option', { key: u.id, value: u.id }, u.name || u.username);
+                      })
+                    )
+                  ),
+                  e('td', { style: { padding: '12px', color: isStale ? C.danger : C.text } }, (l.lastContact || 'Never') + (isStale ? ' (' + days + 'd)' : ''))
+                );
+              })
+            )
+          )
+        )
+      ),
+
+      // Recruiting
+      tab === 'recruiting' && (isAdmin || isManager) && e('div', null,
+        e('h2', { style: { fontSize: '24px', fontWeight: '700', color: C.text, marginBottom: '20px' } }, 'Recruiting'),
+        e('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' } },
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'Attempts'), e('p', { style: { fontSize: '28px', fontWeight: '700', color: C.text, margin: 0 } }, totals.ra)),
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'Interviews'), e('p', { style: { fontSize: '28px', fontWeight: '700', color: C.text, margin: 0 } }, totals.iv)),
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'Onboarded'), e('p', { style: { fontSize: '28px', fontWeight: '700', color: C.success, margin: 0 } }, totals.ob)),
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'Conversion'), e('p', { style: { fontSize: '28px', fontWeight: '700', color: C.text, margin: 0 } }, totals.iv > 0 ? ((totals.ob / totals.iv) * 100).toFixed(0) + '%' : '0%'))
+        )
+      ),
+
+      // Admin
+      tab === 'admin' && isAdmin && e('div', null,
+        e('h2', { style: { fontSize: '24px', fontWeight: '700', color: C.text, marginBottom: '20px' } }, 'Admin Panel'),
+
+        e('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px', marginBottom: '24px' } },
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'Users'), e('p', { style: { fontSize: '24px', fontWeight: '700', color: C.text, margin: 0 } }, users.length)),
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'Teams'), e('p', { style: { fontSize: '24px', fontWeight: '700', color: C.text, margin: 0 } }, teams.length)),
+          e('div', { style: styles.card }, e('p', { style: { fontSize: '12px', color: C.textDim, margin: '0 0 4px' } }, 'Entries'), e('p', { style: { fontSize: '24px', fontWeight: '700', color: C.text, margin: 0 } }, entries.length))
+        ),
+
+        e('div', { style: Object.assign({}, styles.card, { marginBottom: '16px' }) },
+          e('h3', { style: { color: C.text, margin: '0 0 16px', fontSize: '16px' } }, 'Users'),
+          users.map(function(u) {
+            return e('div', { key: u.id, style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid ' + C.border, flexWrap: 'wrap', gap: '8px' } },
+              e('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } },
+                e('div', { style: { width: '32px', height: '32px', borderRadius: '50%', backgroundColor: C.primary, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '12px' } }, ((u.name || '?')[0] || '?').toUpperCase()),
+                e('div', null,
+                  e('p', { style: { color: C.text, fontWeight: '500', margin: 0, fontSize: '14px' } }, u.name || 'No name'),
+                  e('p', { style: { color: C.textDim, fontSize: '11px', margin: 0 } }, '@' + u.username)
+                )
+              ),
+              e('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } },
+                e('select', { value: normalizeRole(u.role), onChange: function(ev) { handleUpdateUser(u, 'role', ev.target.value); }, style: { padding: '6px', fontSize: '12px', backgroundColor: C.input, color: C.text, border: '1px solid ' + C.border, borderRadius: '6px' } },
+                  e('option', null, 'Sales Rep'),
+                  e('option', null, 'Team Manager'),
+                  e('option', null, 'Admin')
+                ),
+                e('select', { value: u.teamId || '', onChange: function(ev) { handleUpdateUser(u, 'teamId', ev.target.value); }, style: { padding: '6px', fontSize: '12px', backgroundColor: C.input, color: C.text, border: '1px solid ' + C.border, borderRadius: '6px' } },
+                  e('option', { value: '' }, 'No Team'),
+                  teams.map(function(t) { return e('option', { key: t.id, value: t.id }, t.name); })
+                ),
+                e('select', { value: u.status || 'active', onChange: function(ev) { handleUpdateUser(u, 'status', ev.target.value); }, style: { padding: '6px', fontSize: '12px', backgroundColor: C.input, color: C.text, border: '1px solid ' + C.border, borderRadius: '6px' } },
+                  e('option', { value: 'active' }, 'Active'),
+                  e('option', { value: 'inactive' }, 'Inactive')
+                )
+              )
+            );
+          })
+        ),
+
+        e('div', { style: styles.card },
+          e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' } },
+            e('h3', { style: { color: C.text, margin: 0, fontSize: '16px' } }, 'Teams'),
+            e('button', { onClick: handleAddTeam, style: Object.assign({}, styles.btn, styles.btnPrimary, { padding: '8px 16px', fontSize: '12px' }) }, '+ Add Team')
+          ),
+          teams.length === 0 ?
+            e('p', { style: { color: C.textDim, textAlign: 'center', padding: '20px' } }, 'No teams yet') :
+            teams.map(function(t) {
+              var memberCount = users.filter(function(u) { return String(u.teamId) === String(t.id); }).length;
+              return e('div', { key: t.id, style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid ' + C.border } },
+                e('div', null,
+                  e('p', { style: { color: C.text, fontWeight: '500', margin: 0 } }, t.name),
+                  e('p', { style: { color: C.textDim, fontSize: '12px', margin: 0 } }, memberCount + ' member' + (memberCount !== 1 ? 's' : ''))
+                ),
+                e('div', { style: { display: 'flex', gap: '8px' } },
+                  e('select', { value: t.managerId || '', onChange: function(ev) { handleUpdateTeam(t, 'managerId', ev.target.value); }, style: { padding: '6px', fontSize: '12px', backgroundColor: C.input, color: C.text, border: '1px solid ' + C.border, borderRadius: '6px' } },
+                    e('option', { value: '' }, 'No Manager'),
+                    users.filter(function(u) { return normalizeRole(u.role) === 'Team Manager'; }).map(function(u) { return e('option', { key: u.id, value: u.id }, u.name); })
+                  ),
+                  e('button', { onClick: function() { handleDeleteTeam(t); }, style: { background: 'none', border: 'none', color: C.danger, cursor: 'pointer', fontSize: '16px' } }, 'X')
+                )
+              );
+            })
+        )
+      )
+    )
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(e(App));
+})();
+</script>
+</body>
+</html>
