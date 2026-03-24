@@ -399,13 +399,14 @@ function App() {
   // === KPI ===
 
   function handleSubmitKpi() {
-    if (!kpiForm.name) { showToast('Select a name'); return; }
+    var entryName = kpiForm.name || myName;
+    if (!entryName) { showToast('Select a name'); return; }
 
     setSaving(true);
     var entry = {
       id: Date.now().toString(),
       userId: currentUser.id,
-      name: kpiForm.name,
+      name: entryName,
       date: kpiForm.date || getToday(),
       doorsKnocked: kpiForm.doorsKnocked || '0',
       doorConvos: kpiForm.doorConvos || '0',
@@ -855,15 +856,12 @@ function App() {
           e('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' } },
             e('div', null,
               e('label', { style: styles.label }, 'Name'),
-              isAdmin || isManager ?
-                e('select', { value: kpiForm.name, onChange: function(ev) { setKpiForm(Object.assign({}, kpiForm, { name: ev.target.value })); }, style: Object.assign({}, styles.input, { cursor: 'pointer' }) },
-                  e('option', { value: '' }, 'Select...'),
-                  users.filter(function(u) { return String(u.status || '').toLowerCase() === 'active'; }).map(function(u) {
-                    var firstName = (u.name || '').trim().split(' ')[0] || u.username;
-                    return e('option', { key: u.id, value: firstName }, u.name || u.username);
-                  })
-                ) :
-                e('input', { type: 'text', value: myName, readOnly: true, style: Object.assign({}, styles.input, { opacity: 0.7 }) })
+              e('select', { value: kpiForm.name || myName, onChange: function(ev) { setKpiForm(Object.assign({}, kpiForm, { name: ev.target.value })); }, style: Object.assign({}, styles.input, { cursor: 'pointer' }), disabled: !(isAdmin || isManager) },
+                users.filter(function(u) { return String(u.status || '').toLowerCase() === 'active'; }).map(function(u) {
+                  var firstName = (u.name || '').trim().split(' ')[0] || u.username;
+                  return e('option', { key: u.id, value: firstName }, u.name || u.username);
+                })
+              )
             ),
             e('div', null,
               e('label', { style: styles.label }, 'Date'),
@@ -896,7 +894,7 @@ function App() {
           ),
           e('p', { style: { fontSize: '12px', fontWeight: '600', color: C.textDim, margin: '0 0 8px' } }, 'NOTES'),
           e('textarea', { value: kpiForm.notes, onChange: function(ev) { setKpiForm(Object.assign({}, kpiForm, { notes: ev.target.value })); }, placeholder: 'Add notes...', style: Object.assign({}, styles.input, { minHeight: '80px', resize: 'vertical' }) }),
-          e('button', { onClick: handleSubmitKpi, disabled: saving || !kpiForm.name, style: Object.assign({}, styles.btn, styles.btnPrimary, { width: '100%', marginTop: '16px', opacity: (saving || !kpiForm.name) ? 0.5 : 1 }) }, saving ? 'Saving...' : 'Submit')
+          e('button', { onClick: handleSubmitKpi, disabled: saving, style: Object.assign({}, styles.btn, styles.btnPrimary, { width: '100%', marginTop: '16px', opacity: saving ? 0.5 : 1 }) }, saving ? 'Saving...' : 'Submit')
         )
       ),
 
