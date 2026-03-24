@@ -40,6 +40,12 @@ router.put('/sales/api/users/:id', async (req, res) => {
   res.json({ success: true });
 });
 
+router.delete('/sales/api/users/:id', async (req, res) => {
+  const { error } = await supabase.from('hc_users').delete().eq('id', req.params.id);
+  if (error) return res.json({ success: false, error: error.message });
+  res.json({ success: true });
+});
+
 // === TEAMS ===
 
 router.get('/sales/api/teams', async (req, res) => {
