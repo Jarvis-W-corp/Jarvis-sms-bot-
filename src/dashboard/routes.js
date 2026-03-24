@@ -90,9 +90,20 @@ router.get('/dashboard/api/pipeline', async (req, res) => {
   try {
     const enerflo = require('../core/enerflo');
     const summary = await enerflo.getPipelineSummary();
-    res.json(summary);
+    res.json(summary || { total: 0, error: 'No data' });
   } catch (error) {
-    res.json({ totalLeads: 0, totalDeals: 0, totalInstalls: 0, recentLeads: [], recentDeals: [], recentInstalls: [], error: error.message });
+    res.json({ total: 0, error: error.message });
+  }
+});
+
+// API: drip campaign stats
+router.get('/dashboard/api/drip', async (req, res) => {
+  try {
+    const drip = require('../core/drip');
+    const stats = await drip.getDripStats();
+    res.json(stats);
+  } catch (error) {
+    res.json({ active: 0, completed: 0, converted: 0, totalSent: 0, campaigns: [], error: error.message });
   }
 });
 
@@ -185,21 +196,25 @@ router.get('/dashboard/api/progress', (req, res) => {
           { name: 'Ideas engine (8h cycle)', status: 'done' },
           { name: 'App monitor (keep-alive)', status: 'done' },
           { name: 'Gmail integration', status: 'done' },
-          { name: 'Enerflo solar CRM', status: 'partial', note: 'API returns 0 data' },
+          { name: 'Enerflo solar CRM (v3 API)', status: 'done' },
         ],
       },
       {
-        name: 'Phase 3 — Voice & Appointments',
+        name: 'Phase 3 — Autonomy & Revenue',
         status: 'in-progress',
         features: [
           { name: 'Mission Control dashboard', status: 'done' },
-          { name: 'Autonomous agent loop', status: 'done' },
-          { name: 'Agent tool system', status: 'done' },
-          { name: 'Agent dashboard + monitoring', status: 'done' },
-          { name: 'Voice calls (Twilio)', status: 'planned' },
-          { name: 'Appointment booking', status: 'planned' },
-          { name: 'Calendar integration', status: 'planned' },
-          { name: 'Lead qualification flow', status: 'planned' },
+          { name: 'Autonomous agent loop (22 tools)', status: 'done' },
+          { name: 'Content ingestion (YouTube/TikTok/PDF)', status: 'done' },
+          { name: 'Code execution (read/write/shell)', status: 'done' },
+          { name: 'Business ops (research/plans/ads)', status: 'done' },
+          { name: 'Trading engine (stocks/crypto)', status: 'done' },
+          { name: 'Enerflo pipeline dashboard', status: 'done' },
+          { name: 'Remittance PDF parser', status: 'done' },
+          { name: 'Meta/Google Ads API', status: 'planned' },
+          { name: 'Alpaca broker API', status: 'planned' },
+          { name: 'Voice calls (Twilio + ElevenLabs)', status: 'planned' },
+          { name: 'Calendar + appointments', status: 'planned' },
         ],
       },
       {

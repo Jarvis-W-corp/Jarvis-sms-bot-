@@ -119,6 +119,28 @@ async function handleCommand(message, command, args, tenant) {
       await enerflo.syncToMemory(tenantId);
       return message.reply(formatted);
     }
+    case '!drip': {
+      await message.channel.sendTyping();
+      const drip = require('../core/drip');
+      const sub = args[0];
+      if (sub === 'run') {
+        await drip.ensureTable().catch(() => {});
+        await drip.monitorPipeline();
+        return message.reply('Pipeline monitor ran. Check alerts for results.');
+      }
+      const stats = await drip.getDripStats();
+      let msg = '**Drip Campaigns**\n\n';
+      msg += '**Active:** ' + stats.active + ' | **Converted:** ' + stats.converted + ' | **Completed:** ' + stats.completed + ' | **Msgs Sent:** ' + stats.totalSent + '\n\n';
+      if (stats.campaigns.length > 0) {
+        msg += '**Active Campaigns:**\n';
+        msg += stats.campaigns.slice(0, 10).map(c =>
+          '> **' + c.name + '** — ' + c.milestone + ' | Stage ' + c.stage + '/' + c.totalStages + ' | ' + c.messagesSent + ' sent'
+        ).join('\n');
+      } else {
+        msg += 'No active drip campaigns. Run `!drip run` to start monitoring.';
+      }
+      return message.reply(msg);
+    }
     case '!remittance': {
       await message.channel.sendTyping();
       const remittance = require('../core/remittance');
@@ -302,6 +324,7 @@ async function handleCommand(message, command, args, tenant) {
           { name: '!portfolio', value: 'Paper trading portfolio' },
           { name: '--- Solar ---', value: '\u200b' },
           { name: '!solar', value: 'Enerflo pipeline data' },
+          { name: '!drip', value: 'Drip campaign status (run: !drip run)' },
           { name: '!remittance', value: 'Parse pay stubs to spreadsheet' },
           { name: '!gmail', value: 'Read emails' },
           { name: '--- Agent ---', value: '\u200b' },

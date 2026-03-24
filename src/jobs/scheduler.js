@@ -2,6 +2,7 @@ const brain = require('../core/brain');
 const db = require('../db/queries');
 const { sendBossMessage, logToDiscord } = require('../channels/discord');
 const { runAgentCycle } = require('../core/agent');
+const drip = require('../core/drip');
 
 async function sendDailyBriefing() {
   try {
@@ -75,11 +76,24 @@ function scheduleAgentCycle() {
   console.log('[SCHEDULER] Agent cycle scheduled (every 3h, first in 30m)');
 }
 
+function schedulePipelineMonitor() {
+  // Run pipeline monitor every 2 hours, first run 5 min after startup
+  setTimeout(async () => {
+    try { await drip.ensureTable(); } catch (e) { console.error('[DRIP] Table setup error:', e.message); }
+    drip.monitorPipeline().catch(err => console.error('[DRIP] Monitor error:', err.message));
+    setInterval(() => {
+      drip.monitorPipeline().catch(err => console.error('[DRIP] Monitor error:', err.message));
+    }, 2 * 60 * 60 * 1000);
+  }, 5 * 60 * 1000);
+  console.log('[SCHEDULER] Pipeline monitor scheduled (every 2h, first in 5m)');
+}
+
 function startAllJobs() {
   scheduleDailyBriefing();
   scheduleIdeas();
   startAppMonitoring();
   scheduleAgentCycle();
+  schedulePipelineMonitor();
   console.log('[SCHEDULER] All jobs started');
 }
 
