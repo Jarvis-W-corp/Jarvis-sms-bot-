@@ -62,12 +62,28 @@ async function apiCall(endpoint) {
 
 async function getAllInstalls() {
   if (cachedInstalls && (Date.now() - cacheTime) < CACHE_TTL) return cachedInstalls;
-  const data = await apiCall('/v3/installs?per_page=200');
-  if (!data || !data.results) return [];
-  cachedInstalls = data.results;
-  cacheTime = Date.now();
-  console.log('[ENERFLO] Fetched ' + data.total + ' installs');
-  return data.results;
+
+  // Paginate to avoid 500 errors on large responses
+  let all = [];
+  let page = 1;
+  let total = null;
+  while (true) {
+    const data = await apiCall('/v3/installs?per_page=50&page=' + page);
+    if (!data || !data.results) break;
+    if (total === null) total = data.total;
+    all = all.concat(data.results);
+    if (all.length >= total || data.results.length < 50) break;
+    page++;
+    // Small delay between pages to avoid rate limits
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  if (all.length > 0) {
+    cachedInstalls = all;
+    cacheTime = Date.now();
+    console.log('[ENERFLO] Fetched ' + all.length + '/' + (total || '?') + ' installs');
+  }
+  return all;
 }
 
 function parseInstall(r) {
@@ -89,7 +105,9 @@ function parseInstall(r) {
     state: cust.state || '',
     zip: cust.zip || '',
     leadSource: cust.lead_source || '',
-    milestone: cm.title || 'Unknown',
+    milestone: cm.title || (r.last_completed_milestone ? r.last_completed_milestone.title : 'Unknown'),
+    currentMilestone: cm.title || null,
+    lastCompletedMilestone: r.last_completed_milestone ? r.last_completed_milestone.title : null,
     milestoneAssigned: cm.assigned_user ? cm.assigned_user.name : '',
     progress: r.progress || 0,
     projectAge: r.project_age || 0,

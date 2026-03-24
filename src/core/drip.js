@@ -12,7 +12,10 @@ const DRIP_STAGES = [
 ];
 
 // Milestones that mean the deal is still early / needs nurturing
-const EARLY_MILESTONES = ['Site Survey', 'New Project', 'Document Review', 'Unknown'];
+const EARLY_MILESTONES = ['Site Survey', 'New Project', 'Document Review'];
+
+// Milestones that mean the deal is done — DO NOT drip
+const DONE_MILESTONES = ['Install Complete', 'System Energized - Monitoring', 'PTO', 'Warranty - Pearl Registration', 'Inspection', 'Installation', 'Ready to Schedule'];
 
 // Templates — personalized with customer name + city
 const TEMPLATES = {
@@ -112,8 +115,16 @@ async function monitorPipeline() {
     for (const install of installs) {
       // Only drip on active deals in early milestones
       if (install.status !== 'Active') continue;
-      if (!EARLY_MILESTONES.includes(install.milestone)) continue;
       if (!install.customerPhone && !install.customerEmail) continue;
+
+      // Skip deals that are already installed/completed
+      if (install.progress > 70) continue;
+      if (DONE_MILESTONES.includes(install.lastCompletedMilestone)) continue;
+      if (DONE_MILESTONES.includes(install.milestone)) continue;
+
+      // Must be in an early milestone to qualify for drip
+      const effectiveMilestone = install.currentMilestone || install.lastCompletedMilestone || install.milestone;
+      if (!EARLY_MILESTONES.includes(effectiveMilestone)) continue;
 
       const existing = await getDripState(install.id);
 
@@ -140,13 +151,14 @@ async function monitorPipeline() {
       if (existing.opted_out || existing.status !== 'active') continue;
 
       // Update milestone if changed
-      if (existing.milestone !== install.milestone) {
+      const currentMs = install.currentMilestone || install.lastCompletedMilestone || install.milestone;
+      if (existing.milestone !== currentMs) {
         // Deal progressed past early stage — pause drip
-        if (!EARLY_MILESTONES.includes(install.milestone)) {
+        if (!EARLY_MILESTONES.includes(currentMs) || install.progress > 70 || DONE_MILESTONES.includes(install.lastCompletedMilestone)) {
           await upsertDripState({
             ...existing,
             status: 'converted',
-            milestone: install.milestone,
+            milestone: currentMs,
             updated_at: now.toISOString(),
           });
           alertMessages.push('**' + install.customerName + '** advanced to **' + install.milestone + '** — drip paused');
@@ -154,7 +166,7 @@ async function monitorPipeline() {
         }
         await upsertDripState({
           ...existing,
-          milestone: install.milestone,
+          milestone: currentMs,
           updated_at: now.toISOString(),
         });
       }
