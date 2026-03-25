@@ -241,6 +241,9 @@
   <button class="nav-btn" onclick="showSection('agent')" title="Agent Activity">
     <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
   </button>
+  <button class="nav-btn" onclick="showSection('crew')" title="AI Employees">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+  </button>
   <button class="nav-btn" onclick="showSection('progress')" title="Build Progress">
     <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-16"/></svg>
   </button>
@@ -470,6 +473,41 @@
     <div class="card" style="margin-bottom: 24px">
       <h3 style="font-size:13px; color:#888; text-transform:uppercase; letter-spacing:1px; margin-bottom:14px">Completed Tasks</h3>
       <div id="agentCompleted"><div class="feed-empty">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- AI Employees (Crew) -->
+  <div class="section" id="sec-crew">
+    <div class="section-title">AI Employees</div>
+    <div class="health-grid" id="crewWorkers"></div>
+    <div class="feed-grid">
+      <div class="feed-card">
+        <h3>Job Queue</h3>
+        <div class="agent-stats" style="margin-bottom:16px">
+          <div class="agent-stat"><div class="val orange" id="crewPending">0</div><div class="lbl">Pending</div></div>
+          <div class="agent-stat"><div class="val blue" id="crewRunning">0</div><div class="lbl">Running</div></div>
+          <div class="agent-stat"><div class="val green" id="crewCompleted">0</div><div class="lbl">Done</div></div>
+          <div class="agent-stat"><div class="val red" id="crewFailed">0</div><div class="lbl">Failed</div></div>
+        </div>
+      </div>
+      <div class="feed-card">
+        <h3>Quick Delegate</h3>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <select id="crewWorkerSelect" style="background:#1a1a1a;border:1px solid #333;color:#ccc;padding:8px;border-radius:6px;font-size:13px">
+            <option value="research">Research Agent</option>
+            <option value="marketing">Marketing Agent</option>
+            <option value="ops">Ops Agent</option>
+          </select>
+          <input id="crewJobTitle" placeholder="Job title..." style="background:#1a1a1a;border:1px solid #333;color:#ccc;padding:8px;border-radius:6px;font-size:13px" />
+          <textarea id="crewJobDesc" placeholder="What should they do..." style="background:#1a1a1a;border:1px solid #333;color:#ccc;padding:8px;border-radius:6px;font-size:13px;min-height:60px;resize:vertical"></textarea>
+          <button onclick="createCrewJob()" style="background:#a78bfa;color:#fff;border:none;padding:10px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px">Delegate Job</button>
+          <button onclick="runCrewNow()" style="background:#1a1a2e;color:#a78bfa;border:1px solid #2a2a4a;padding:8px;border-radius:6px;cursor:pointer;font-size:12px">Process Queue Now</button>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:24px">
+      <h3 style="font-size:13px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px">Recent Jobs</h3>
+      <div id="crewJobs"><div class="feed-empty">No jobs yet</div></div>
     </div>
   </div>
 
@@ -861,11 +899,98 @@ async function loadDrip() {
   } catch (e) {}
 }
 
-function loadAll() { loadHealth(); loadActivity(); loadPipeline(); loadDrip(); loadLogs(); loadProgress(); loadAgent(); }
+// Load Crew (AI Employees)
+async function loadCrew() {
+  try {
+    const r = await fetch('/dashboard/api/crew');
+    const d = await r.json();
+
+    // Job stats
+    document.getElementById('crewPending').textContent = d.jobs?.pending || 0;
+    document.getElementById('crewRunning').textContent = d.jobs?.running || 0;
+    document.getElementById('crewCompleted').textContent = d.jobs?.completed || 0;
+    document.getElementById('crewFailed').textContent = d.jobs?.failed || 0;
+
+    // Worker cards
+    const wEl = document.getElementById('crewWorkers');
+    if (d.workers?.length) {
+      wEl.innerHTML = d.workers.map(w => {
+        const color = w.type === 'research' ? '#60a5fa' : w.type === 'marketing' ? '#a78bfa' : '#22c55e';
+        return '<div class="health-card">' +
+          '<div class="label">' + esc(w.name) + '</div>' +
+          '<div class="value" style="color:' + color + '">' + w.completed + '</div>' +
+          '<div class="sub">tasks done &middot; ' + w.successRate + '% success</div>' +
+          '<div class="bar" style="width:' + Math.min(100, w.completed * 10) + '%;background:' + color + '"></div>' +
+        '</div>';
+      }).join('');
+    }
+
+    // Recent jobs
+    const jEl = document.getElementById('crewJobs');
+    if (!d.recentJobs?.length) {
+      jEl.innerHTML = '<div class="feed-empty">No jobs yet. Delegate a task above or wait for Jarvis to assign work.</div>';
+    } else {
+      jEl.innerHTML = d.recentJobs.map(j => {
+        var statusColor = j.status === 'completed' ? '#22c55e' : j.status === 'running' ? '#60a5fa' : j.status === 'failed' ? '#ef4444' : '#f59e0b';
+        return '<div class="deal-row">' +
+          '<div>' +
+            '<div class="deal-name">' + esc(j.title) + '</div>' +
+            '<div class="deal-detail" style="display:flex;gap:8px;align-items:center">' +
+              '<span class="milestone-badge" style="background:' + statusColor + '20;color:' + statusColor + '">' + j.status + '</span>' +
+              '<span>' + esc(j.worker) + '</span>' +
+              (j.completed ? '<span>' + timeAgo(j.completed) + '</span>' : '') +
+            '</div>' +
+            (j.result ? '<div style="color:#888;font-size:12px;margin-top:4px;max-height:80px;overflow:hidden">' + esc(j.result) + '</div>' : '') +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+  } catch (e) {
+    document.getElementById('crewWorkers').innerHTML = '<div class="feed-empty">Could not load crew data</div>';
+  }
+}
+
+async function createCrewJob() {
+  var worker = document.getElementById('crewWorkerSelect').value;
+  var title = document.getElementById('crewJobTitle').value;
+  var desc = document.getElementById('crewJobDesc').value;
+  if (!title || !desc) { alert('Enter a title and description'); return; }
+  try {
+    var r = await fetch('/sales/api/crew/job', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ worker: worker, title: title, description: desc, priority: 7 })
+    });
+    var d = await r.json();
+    if (d.success) {
+      document.getElementById('crewJobTitle').value = '';
+      document.getElementById('crewJobDesc').value = '';
+      loadCrew();
+      alert('Job delegated to ' + worker + '!');
+    } else {
+      alert('Failed: ' + (d.error || 'unknown'));
+    }
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+async function runCrewNow() {
+  try {
+    var r = await fetch('/sales/api/crew/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    var d = await r.json();
+    if (d.success) {
+      alert('Queue processed! ' + (d.results?.length || 0) + ' jobs run.');
+      loadCrew();
+    } else {
+      alert('Failed: ' + (d.error || 'unknown'));
+    }
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+function loadAll() { loadHealth(); loadActivity(); loadPipeline(); loadDrip(); loadLogs(); loadProgress(); loadAgent(); loadCrew(); }
 loadAll();
 setInterval(loadHealth, 15000);
 setInterval(loadLogs, 10000);
 setInterval(loadAgent, 15000);
+setInterval(loadCrew, 15000);
 setInterval(loadPipeline, 300000); // refresh pipeline every 5 min
 </script>
 </body>
