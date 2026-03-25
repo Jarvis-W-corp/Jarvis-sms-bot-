@@ -4,7 +4,6 @@ const { supabase } = require('../db/supabase');
 
 const router = express.Router();
 
-// Serve the sales tracker app
 router.get('/sales', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -110,6 +109,12 @@ router.put('/sales/api/entries/:id', async (req, res) => {
   res.json({ success: true });
 });
 
+router.delete('/sales/api/entries/:id', async (req, res) => {
+  const { error } = await supabase.from('hc_entries').delete().eq('id', req.params.id);
+  if (error) return res.json({ success: false, error: error.message });
+  res.json({ success: true });
+});
+
 // === GOALS ===
 
 router.get('/sales/api/goals', async (req, res) => {
@@ -163,7 +168,8 @@ router.post('/sales/api/roofing', async (req, res) => {
     id: l.id, name: l.name, address: l.address || '', email: l.email || '', phone: l.phone,
     type: l.type || 'retail', status: l.status || 'new',
     assigned_to: l.assignedTo || '', assigned_name: l.assignedName || '',
-    created_by: l.createdBy || '', created_at: l.createdAt, last_contact: l.lastContact || '', notes: l.notes || ''
+    created_by: l.createdBy || '', created_at: l.createdAt, last_contact: l.lastContact || '', notes: l.notes || '',
+    commission: 0, revenue: 0, outcome: ''
   });
   if (error) return res.json({ success: false, error: error.message });
   res.json({ success: true });
@@ -177,6 +183,9 @@ router.put('/sales/api/roofing/:id', async (req, res) => {
   if (l.assignedTo !== undefined) update.assigned_to = l.assignedTo;
   if (l.assignedName !== undefined) update.assigned_name = l.assignedName;
   if (l.notes !== undefined) update.notes = l.notes;
+  if (l.commission !== undefined) update.commission = parseFloat(l.commission) || 0;
+  if (l.revenue !== undefined) update.revenue = parseFloat(l.revenue) || 0;
+  if (l.outcome !== undefined) update.outcome = l.outcome;
   update.updated_at = new Date().toISOString();
   const { error } = await supabase.from('hc_roofing').update(update).eq('id', req.params.id);
   if (error) return res.json({ success: false, error: error.message });
@@ -185,6 +194,30 @@ router.put('/sales/api/roofing/:id', async (req, res) => {
 
 router.delete('/sales/api/roofing/:id', async (req, res) => {
   const { error } = await supabase.from('hc_roofing').delete().eq('id', req.params.id);
+  if (error) return res.json({ success: false, error: error.message });
+  res.json({ success: true });
+});
+
+// === NOTIFICATIONS ===
+
+router.get('/sales/api/notifications/:userId', async (req, res) => {
+  const { data, error } = await supabase.from('hc_notifications').select('*')
+    .eq('user_id', req.params.userId).order('created_at', { ascending: false }).limit(50);
+  if (error) return res.json({ success: false, error: error.message });
+  res.json({ success: true, data: data.map(mapNotification) });
+});
+
+router.post('/sales/api/notifications', async (req, res) => {
+  const n = req.body;
+  const { error } = await supabase.from('hc_notifications').insert({
+    id: n.id, user_id: n.userId, message: n.message, lead_id: n.leadId || '', read: false
+  });
+  if (error) return res.json({ success: false, error: error.message });
+  res.json({ success: true });
+});
+
+router.put('/sales/api/notifications/read/:userId', async (req, res) => {
+  const { error } = await supabase.from('hc_notifications').update({ read: true }).eq('user_id', req.params.userId).eq('read', false);
   if (error) return res.json({ success: false, error: error.message });
   res.json({ success: true });
 });
@@ -222,8 +255,12 @@ function mapRoof(r) {
   return {
     id: r.id, name: r.name, address: r.address, email: r.email, phone: r.phone,
     type: r.type, status: r.status, assignedTo: r.assigned_to, assignedName: r.assigned_name,
-    createdBy: r.created_by, createdAt: r.created_at, lastContact: r.last_contact, notes: r.notes
+    createdBy: r.created_by, createdAt: r.created_at, lastContact: r.last_contact, notes: r.notes,
+    commission: r.commission || 0, revenue: r.revenue || 0, outcome: r.outcome || ''
   };
+}
+function mapNotification(r) {
+  return { id: r.id, userId: r.user_id, message: r.message, leadId: r.lead_id, read: r.read, createdAt: r.created_at };
 }
 
 module.exports = router;
