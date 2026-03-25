@@ -332,6 +332,24 @@ async function handleCommand(message, command, args, tenant) {
         ).setFooter({ text: 'Super Jarvis v2.0 — AI Workforce' }).setTimestamp();
       return message.reply({ embeds: [embed] });
     }
+    case '!sales': {
+      const url = (process.env.RENDER_EXTERNAL_URL || 'https://jarvis-sms-bot.onrender.com') + '/sales';
+      const embed = new EmbedBuilder().setTitle('HC Daily Tracker').setColor(0x7B5EA7)
+        .setDescription('**[Open Sales Dashboard](' + url + ')**\n\nTrack KPIs, roofing leads, goals, and leaderboards.')
+        .setFooter({ text: 'HC Daily Tracker' }).setTimestamp();
+      return message.reply({ embeds: [embed] });
+    }
+    case '!dashboard': {
+      const dUrl = (process.env.RENDER_EXTERNAL_URL || 'https://jarvis-sms-bot.onrender.com') + '/dashboard';
+      const sUrl = (process.env.RENDER_EXTERNAL_URL || 'https://jarvis-sms-bot.onrender.com') + '/sales';
+      const embed = new EmbedBuilder().setTitle('Jarvis Dashboards').setColor(0xa78bfa)
+        .addFields(
+          { name: 'Mission Control', value: '[Open](' + dUrl + ')', inline: true },
+          { name: 'Sales Tracker', value: '[Open](' + sUrl + ')', inline: true }
+        )
+        .setFooter({ text: 'Super Jarvis v2.0' }).setTimestamp();
+      return message.reply({ embeds: [embed] });
+    }
     default: return null;
   }
 }
