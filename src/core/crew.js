@@ -254,7 +254,7 @@ async function getCrewStatus() {
     jobs: { pending, running, completed, failed, total: recentJobs.length },
     recentJobs: recentJobs.slice(0, 10).map(j => ({
       id: j.id, worker: j.worker_id, title: j.title, status: j.status,
-      result: j.output?.result ? String(j.output.result).substring(0, 200) : '',
+      result: j.output?.result ? String(j.output.result) : '',
       created: j.created_at, completed: j.completed_at,
     })),
   };
