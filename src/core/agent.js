@@ -7,6 +7,7 @@ const coder = require('./coder');
 const content = require('./content');
 const business = require('./business');
 const trading = require('./trading');
+const crew = require('./crew');
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -223,6 +224,36 @@ const tools = {
     execute: async ({ description }, tenantId) => {
       const result = await trading.learnStrategy(description, tenantId);
       return result.strategy;
+    },
+  },
+
+  // ── Sub-Agent Delegation ──
+  delegate_task: {
+    description: 'Delegate a task to one of your AI employees. They work independently and report back. Workers: "research" (market/competitor research), "marketing" (ad copy, content, strategies), "ops" (monitoring, reports, alerts). Input: { "worker": "research", "title": "Research pet product market", "description": "Find top 5 trending pet products on Amazon, analyze pricing and margins", "priority": 1-10 }',
+    execute: async ({ worker, title, description, priority, input }) => {
+      const jobId = await crew.createJob(worker, title, description, input || {}, priority || 5);
+      if (!jobId) return 'Failed to create job. Check worker name: research, marketing, ops';
+      return 'Job delegated to ' + worker + ' agent: ' + title + ' (ID: ' + jobId + '). Will be processed next crew cycle.';
+    },
+  },
+
+  check_crew: {
+    description: 'Check the status of your AI employees and their completed work. Input: {}',
+    execute: async () => {
+      const status = await crew.getCrewStatus();
+      let report = 'CREW STATUS:\n';
+      report += 'Jobs: ' + status.jobs.pending + ' pending, ' + status.jobs.running + ' running, ' + status.jobs.completed + ' completed, ' + status.jobs.failed + ' failed\n\n';
+      report += 'WORKERS:\n';
+      status.workers.forEach(w => {
+        report += '- ' + w.name + ': ' + w.completed + ' done, ' + w.failed + ' failed (' + w.successRate + '% success)\n';
+      });
+      if (status.recentJobs.length) {
+        report += '\nRECENT JOBS:\n';
+        status.recentJobs.forEach(j => {
+          report += '- [' + j.status + '] ' + j.title + (j.result ? ': ' + j.result.substring(0, 100) : '') + '\n';
+        });
+      }
+      return report;
     },
   },
 

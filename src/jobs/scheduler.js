@@ -3,6 +3,7 @@ const db = require('../db/queries');
 const { sendBossMessage, logToDiscord } = require('../channels/discord');
 const { runAgentCycle } = require('../core/agent');
 const drip = require('../core/drip');
+const crew = require('../core/crew');
 
 async function sendDailyBriefing() {
   try {
@@ -88,12 +89,24 @@ function schedulePipelineMonitor() {
   console.log('[SCHEDULER] Pipeline monitor scheduled (every 2h, first in 5m)');
 }
 
+function scheduleCrewProcessing() {
+  // Process crew job queue every 30 minutes, first run 2 min after startup
+  setTimeout(() => {
+    crew.processQueue().catch(err => console.error('[CREW] Queue error:', err.message));
+    setInterval(() => {
+      crew.processQueue().catch(err => console.error('[CREW] Queue error:', err.message));
+    }, 30 * 60 * 1000);
+  }, 2 * 60 * 1000);
+  console.log('[SCHEDULER] Crew processing scheduled (every 30m, first in 2m)');
+}
+
 function startAllJobs() {
   scheduleDailyBriefing();
   scheduleIdeas();
   startAppMonitoring();
   scheduleAgentCycle();
   schedulePipelineMonitor();
+  scheduleCrewProcessing();
   console.log('[SCHEDULER] All jobs started');
 }
 

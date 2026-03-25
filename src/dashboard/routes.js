@@ -168,6 +168,17 @@ router.get('/dashboard/api/agent', async (req, res) => {
   }
 });
 
+// API: crew (sub-agent) status
+router.get('/dashboard/api/crew', async (req, res) => {
+  try {
+    const crew = require('../core/crew');
+    const status = await crew.getCrewStatus();
+    res.json(status);
+  } catch (error) {
+    res.json({ workers: [], jobs: { pending: 0, running: 0, completed: 0, failed: 0, total: 0 }, recentJobs: [], error: error.message });
+  }
+});
+
 // API: feature progress (static manifest)
 router.get('/dashboard/api/progress', (req, res) => {
   res.json({
@@ -227,9 +238,9 @@ router.get('/dashboard/api/progress', (req, res) => {
         name: 'Phase 4 — Sub-Agent System (AI Employees)',
         status: 'planned',
         features: [
-          { name: 'Sub-agent task queue + orchestrator', status: 'planned' },
-          { name: 'Research Agent (market scanning, opportunities)', status: 'planned' },
-          { name: 'Marketing Agent (ad copy, content, social)', status: 'planned' },
+          { name: 'Sub-agent task queue + orchestrator', status: 'done' },
+          { name: 'Research Agent (market scanning, opportunities)', status: 'done' },
+          { name: 'Marketing Agent (ad copy, content, social)', status: 'done' },
           { name: 'Ads Agent (campaign creation, A/B test, optimize)', status: 'planned' },
           { name: 'Commerce Agent (Shopify stores, product sourcing)', status: 'planned' },
           { name: 'Ops Agent (revenue tracking, P&L, alerts)', status: 'planned' },
