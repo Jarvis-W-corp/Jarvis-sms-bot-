@@ -3,6 +3,7 @@ const path = require('path');
 const { supabase } = require('../db/supabase');
 
 const router = express.Router();
+console.log('[SALES] Routes loaded v2');
 
 router.get('/sales', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
