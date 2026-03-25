@@ -222,6 +222,39 @@ router.put('/sales/api/notifications/read/:userId', async (req, res) => {
   res.json({ success: true });
 });
 
+// === CREW (sub-agent jobs) ===
+
+router.post('/sales/api/crew/job', async (req, res) => {
+  try {
+    const crew = require('../core/crew');
+    const { worker, title, description, input, priority } = req.body;
+    const jobId = await crew.createJob(worker, title, description, input || {}, priority || 5);
+    res.json({ success: true, jobId });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+router.post('/sales/api/crew/run', async (req, res) => {
+  try {
+    const crew = require('../core/crew');
+    const results = await crew.processQueue();
+    res.json({ success: true, results });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+router.get('/sales/api/crew', async (req, res) => {
+  try {
+    const crew = require('../core/crew');
+    const status = await crew.getCrewStatus();
+    res.json(status);
+  } catch (error) {
+    res.json({ workers: [], jobs: {}, recentJobs: [], error: error.message });
+  }
+});
+
 // === HELPERS ===
 
 function int(v) { return parseInt(v) || 0; }
