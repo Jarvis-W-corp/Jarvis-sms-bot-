@@ -4,30 +4,32 @@ const { sendBossMessage, logToDiscord } = require('../channels/discord');
 const { runAgentCycle } = require('../core/agent');
 const drip = require('../core/drip');
 const crew = require('../core/crew');
+const proactive = require('./proactive');
 
 async function sendDailyBriefing() {
   try {
     const tenant = await db.getDefaultTenant();
     if (!tenant) return;
     const briefing = await brain.generateBriefing(tenant.id);
-    await sendBossMessage('☀️ **Morning Briefing**\n\n' + briefing);
-    logToDiscord('daily-reports', '☀️ **Morning Briefing**\n\n' + briefing);
+    await sendBossMessage('**Morning Briefing**\n\n' + briefing);
+    logToDiscord('daily-reports', '**Morning Briefing**\n\n' + briefing);
     console.log('[SCHEDULER] Briefing sent');
   } catch (error) { console.error('[SCHEDULER] Briefing error:', error.message); }
 }
 
-function getNext9amET() {
+// Get next occurrence of a specific hour in ET
+function getNextETHour(hour) {
   const now = new Date();
   const eastern = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
   const offset = now.getTime() - eastern.getTime();
-  const next9am = new Date(eastern);
-  next9am.setHours(9, 0, 0, 0);
-  if (eastern >= next9am) next9am.setDate(next9am.getDate() + 1);
-  return new Date(next9am.getTime() + offset);
+  const target = new Date(eastern);
+  target.setHours(hour, 0, 0, 0);
+  if (eastern >= target) target.setDate(target.getDate() + 1);
+  return new Date(target.getTime() + offset);
 }
 
 function scheduleDailyBriefing() {
-  const next9am = getNext9amET();
+  const next9am = getNextETHour(9);
   const delay = next9am.getTime() - Date.now();
   setTimeout(() => {
     sendDailyBriefing();
@@ -41,7 +43,7 @@ async function generateAndSendIdea() {
     const tenant = await db.getDefaultTenant();
     if (!tenant) return;
     const idea = await brain.generateIdea(tenant.id);
-    await sendBossMessage('💡 **Idea from Jarvis:**\n\n' + idea);
+    await sendBossMessage('**Idea from Jarvis:**\n\n' + idea);
     console.log('[SCHEDULER] Idea sent');
   } catch (error) { console.error('[SCHEDULER] Idea error:', error.message); }
 }
@@ -58,8 +60,8 @@ function startAppMonitoring() {
     for (const app of apps) {
       try {
         const res = await fetch(app.url, { signal: AbortSignal.timeout(10000) });
-        if (!res.ok) await sendBossMessage('🚨 **Alert:** ' + app.name + ' returned status ' + res.status);
-      } catch (error) { await sendBossMessage('🚨 **Alert:** ' + app.name + ' is DOWN: ' + error.message); }
+        if (!res.ok) await sendBossMessage('**Alert:** ' + app.name + ' returned status ' + res.status);
+      } catch (error) { await sendBossMessage('**Alert:** ' + app.name + ' is DOWN: ' + error.message); }
     }
   };
   setInterval(checkApps, 5 * 60 * 1000);
@@ -67,7 +69,6 @@ function startAppMonitoring() {
 }
 
 function scheduleAgentCycle() {
-  // First run 30 min after startup, then every 3 hours
   setTimeout(() => {
     runAgentCycle().catch(err => console.error('[AGENT] Cycle error:', err.message));
     setInterval(() => {
@@ -78,7 +79,6 @@ function scheduleAgentCycle() {
 }
 
 function schedulePipelineMonitor() {
-  // Run pipeline monitor every 2 hours, first run 5 min after startup
   setTimeout(async () => {
     try { await drip.ensureTable(); } catch (e) { console.error('[DRIP] Table setup error:', e.message); }
     drip.monitorPipeline().catch(err => console.error('[DRIP] Monitor error:', err.message));
@@ -90,7 +90,6 @@ function schedulePipelineMonitor() {
 }
 
 function scheduleCrewProcessing() {
-  // Process crew job queue every 30 minutes, first run 2 min after startup
   setTimeout(() => {
     crew.processQueue().catch(err => console.error('[CREW] Queue error:', err.message));
     setInterval(() => {
@@ -100,6 +99,63 @@ function scheduleCrewProcessing() {
   console.log('[SCHEDULER] Crew processing scheduled (every 30m, first in 2m)');
 }
 
+// ══════════════════════════════════════════════
+// PROACTIVE SCHEDULE
+// ══════════════════════════════════════════════
+
+function scheduleProactive() {
+  // Morning Game Plan — 8 AM ET
+  const next8am = getNextETHour(8);
+  setTimeout(() => {
+    proactive.morningGamePlan();
+    setInterval(proactive.morningGamePlan, 24 * 60 * 60 * 1000);
+  }, next8am.getTime() - Date.now());
+  console.log('[PROACTIVE] Morning game plan: ' + next8am.toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET');
+
+  // No-Log Reminder — 4 PM ET
+  const next4pm = getNextETHour(16);
+  setTimeout(() => {
+    proactive.noLogReminder();
+    setInterval(proactive.noLogReminder, 24 * 60 * 60 * 1000);
+  }, next4pm.getTime() - Date.now());
+  console.log('[PROACTIVE] No-log reminder: ' + next4pm.toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET');
+
+  // End of Day Recap — 6 PM ET
+  const next6pm = getNextETHour(18);
+  setTimeout(() => {
+    proactive.endOfDayRecap();
+    proactive.checkGoalAchievements();
+    setInterval(() => {
+      proactive.endOfDayRecap();
+      proactive.checkGoalAchievements();
+    }, 24 * 60 * 60 * 1000);
+  }, next6pm.getTime() - Date.now());
+  console.log('[PROACTIVE] EOD recap: ' + next6pm.toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET');
+
+  // Stale Lead Alert — 10 AM ET daily
+  const next10am = getNextETHour(10);
+  setTimeout(() => {
+    proactive.staleLeadAlert();
+    setInterval(proactive.staleLeadAlert, 24 * 60 * 60 * 1000);
+  }, next10am.getTime() - Date.now());
+  console.log('[PROACTIVE] Stale lead alerts: ' + next10am.toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET');
+
+  // Weekly Report — check every hour, fire on Friday 5 PM ET
+  setInterval(async () => {
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    if (now.getDay() === 5 && now.getHours() === 17 && now.getMinutes() < 5) {
+      await proactive.weeklyReport();
+    }
+  }, 5 * 60 * 1000);
+  console.log('[PROACTIVE] Weekly report: Fridays 5 PM ET');
+
+  // Auto-delegate to crew — every 2 hours
+  setInterval(() => {
+    proactive.autoDelegate().catch(err => console.error('[PROACTIVE] Auto-delegate error:', err.message));
+  }, 2 * 60 * 60 * 1000);
+  console.log('[PROACTIVE] Auto-delegate: every 2 hours');
+}
+
 function startAllJobs() {
   scheduleDailyBriefing();
   scheduleIdeas();
@@ -107,6 +163,7 @@ function startAllJobs() {
   scheduleAgentCycle();
   schedulePipelineMonitor();
   scheduleCrewProcessing();
+  scheduleProactive();
   console.log('[SCHEDULER] All jobs started');
 }
 
