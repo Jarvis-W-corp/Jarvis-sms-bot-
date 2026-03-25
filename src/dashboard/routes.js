@@ -179,6 +179,29 @@ router.get('/dashboard/api/crew', async (req, res) => {
   }
 });
 
+// API: create crew job
+router.post('/dashboard/api/crew/job', async (req, res) => {
+  try {
+    const crew = require('../core/crew');
+    const { worker, title, description, input, priority } = req.body;
+    const jobId = await crew.createJob(worker, title, description, input || {}, priority || 5);
+    res.json({ success: true, jobId });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// API: trigger crew queue processing
+router.post('/dashboard/api/crew/run', async (req, res) => {
+  try {
+    const crew = require('../core/crew');
+    const results = await crew.processQueue();
+    res.json({ success: true, results });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // API: feature progress (static manifest)
 router.get('/dashboard/api/progress', (req, res) => {
   res.json({
