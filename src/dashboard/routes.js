@@ -179,7 +179,7 @@ router.get('/dashboard/api/crew', async (req, res) => {
   }
 });
 
-// API: create crew job
+// API: create crew job (POST)
 router.post('/dashboard/api/crew/job', async (req, res) => {
   try {
     const crew = require('../core/crew');
