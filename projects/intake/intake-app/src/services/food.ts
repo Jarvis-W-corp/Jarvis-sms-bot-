@@ -55,7 +55,7 @@ export async function scanFoodWithAI(imageBase64: string): Promise<{
   confidence: number;
   serving_size?: string;
 }> {
-  const res = await fetch(`${API_URL}/api/bitelens/scan-food`, {
+  const res = await fetch(`${API_URL}/api/snackai/scan-food`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ image: imageBase64 }),
@@ -73,7 +73,7 @@ export async function parseFoodWithAI(text: string): Promise<{
   confidence: number;
   serving_size?: string;
 }> {
-  const res = await fetch(`${API_URL}/api/bitelens/parse-food`, {
+  const res = await fetch(`${API_URL}/api/snackai/parse-food`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text }),

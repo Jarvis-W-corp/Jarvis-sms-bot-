@@ -1,4 +1,4 @@
-# BiteLens App Store Launch Checklist
+# Snack AI App Store Launch Checklist
 
 Everything code-side is done. These are the account/deploy steps.
 
@@ -38,8 +38,8 @@ curl -X POST https://YOUR_PROJECT.supabase.co/functions/v1/parse-food \
 ## Step 2: RevenueCat Setup (20 min)
 
 1. Go to https://www.revenuecat.com and sign up
-2. Create a new project called "BiteLens"
-3. Add iOS app → paste your Apple bundle ID: `com.bitelens.app`
+2. Create a new project called "Snack AI"
+3. Add iOS app → paste your Apple bundle ID: `com.markpalmiero.snackai`
 4. Get your iOS API key (starts with `appl_`)
 5. Add to `.env` file:
    ```
@@ -80,9 +80,9 @@ npx eas build --platform ios --profile production
 
 1. Login to https://appstoreconnect.apple.com
 2. Create new app:
-   - Name: BiteLens
-   - Bundle ID: com.bitelens.app
-   - SKU: bitelens
+   - Name: Snack AI
+   - Bundle ID: com.markpalmiero.snackai
+   - SKU: snackai
 3. Fill in:
    - Description: "AI-powered food scanner and nutrition tracker"
    - Category: Health & Fitness

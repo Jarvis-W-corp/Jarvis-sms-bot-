@@ -7,13 +7,13 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// BiteLens privacy policy (live URL for App Store)
+// Snack AI privacy policy (live URL for App Store)
 app.get('/privacy', (req, res) => {
   res.sendFile(path.join(__dirname, 'projects/intake/intake-app/privacy-policy.html'));
 });
 
-// ── BiteLens API (food scanning for the Intake app) ──
-app.use('/api/bitelens', require('./src/api/bitelens'));
+// ── Snack AI API (food scanning for the app) ──
+app.use('/api/snackai', require('./src/api/bitelens'));
 
 // Dashboard
 const dashboard = require('./src/dashboard/routes');

@@ -276,7 +276,7 @@ const tools = {
   },
 
   manage_venture: {
-    description: 'Create or update a business venture. Input: { "action": "create|update|list", "name": "BiteLens", "status": "idea|validating|building|launched|active|paused|killed", "category": "app|saas|ecommerce|trading|service", "monthly_revenue": 0, "users_count": 0, "next_actions": ["action1", "action2"], "notes": "..." }',
+    description: 'Create or update a business venture. Input: { "action": "create|update|list", "name": "Snack AI", "status": "idea|validating|building|launched|active|paused|killed", "category": "app|saas|ecommerce|trading|service", "monthly_revenue": 0, "users_count": 0, "next_actions": ["action1", "action2"], "notes": "..." }',
     execute: async ({ action, name, status, category, monthly_revenue, users_count, next_actions, notes }) => {
       if (action === 'list') {
         const all = await ventures.getVentures();
@@ -303,7 +303,7 @@ const tools = {
   },
 
   make_decision: {
-    description: 'Log a business decision with your reasoning and expected outcome. You will review outcomes later to improve your judgment. Input: { "venture": "BiteLens", "decision": "Launch on App Store this week", "reasoning": "MVP is ready, market window is now", "expected_outcome": "100 downloads in first week" }',
+    description: 'Log a business decision with your reasoning and expected outcome. You will review outcomes later to improve your judgment. Input: { "venture": "Snack AI", "decision": "Launch on App Store this week", "reasoning": "MVP is ready, market window is now", "expected_outcome": "100 downloads in first week" }',
     execute: async ({ venture, decision, reasoning, expected_outcome }) => {
       let ventureId = null;
       if (venture) {
@@ -324,7 +324,7 @@ const tools = {
   },
 
   log_revenue: {
-    description: 'Log revenue or costs for a venture. Input: { "venture": "BiteLens", "amount": 49.99, "type": "revenue|cost", "source": "App Store subscription", "notes": "First paying customer!" }',
+    description: 'Log revenue or costs for a venture. Input: { "venture": "Snack AI", "amount": 49.99, "type": "revenue|cost", "source": "App Store subscription", "notes": "First paying customer!" }',
     execute: async ({ venture, amount, type, source, notes }) => {
       const v = await ventures.getVenture(venture);
       if (!v) return 'Venture not found: ' + venture;
@@ -409,7 +409,7 @@ YOUR ROLE AS CEO:
 6. End every cycle by creating tasks for next cycle
 
 YOUR BUSINESS VENTURES:
-- BiteLens (fitness app) — #1 PRIORITY, needs App Store launch + ads
+- Snack AI (fitness app) — #1 PRIORITY, needs App Store launch + ads
 - HC Daily Tracker (solar sales) — live at /sales, 11 users
 - Custom Business Bots (SaaS) — sell AI bots to companies
 - AI Dialer — appointment setting via AI phone calls
