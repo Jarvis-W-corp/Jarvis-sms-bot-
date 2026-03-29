@@ -5,6 +5,7 @@ const { runAgentCycle } = require('../core/agent');
 const drip = require('../core/drip');
 const crew = require('../core/crew');
 const proactive = require('./proactive');
+const hustle = require('../core/hustle');
 
 async function sendDailyBriefing() {
   try {
@@ -69,13 +70,44 @@ function startAppMonitoring() {
 }
 
 function scheduleAgentCycle() {
+  // Full agent cycle — every 1 hour (was 3h — CEO needs to think faster)
   setTimeout(() => {
     runAgentCycle().catch(err => console.error('[AGENT] Cycle error:', err.message));
     setInterval(() => {
       runAgentCycle().catch(err => console.error('[AGENT] Cycle error:', err.message));
-    }, 3 * 60 * 60 * 1000);
-  }, 30 * 60 * 1000);
-  console.log('[SCHEDULER] Agent cycle scheduled (every 3h, first in 30m)');
+    }, 60 * 60 * 1000); // every 1 hour
+  }, 15 * 60 * 1000); // first in 15 min
+  console.log('[SCHEDULER] Agent cycle scheduled (every 1h, first in 15m)');
+}
+
+function scheduleHustleEngine() {
+  // Quick revenue check — every 15 minutes
+  setTimeout(() => {
+    hustle.quickCheck().catch(err => console.error('[HUSTLE] Quick check error:', err.message));
+    setInterval(() => {
+      hustle.quickCheck().catch(err => console.error('[HUSTLE] Quick check error:', err.message));
+    }, 15 * 60 * 1000);
+  }, 5 * 60 * 1000); // first in 5 min
+  console.log('[HUSTLE] Quick revenue checks: every 15 min');
+
+  // Opportunity scanner — every 2 hours
+  setTimeout(() => {
+    hustle.opportunityScan().catch(err => console.error('[HUSTLE] Scan error:', err.message));
+    setInterval(() => {
+      hustle.opportunityScan().catch(err => console.error('[HUSTLE] Scan error:', err.message));
+    }, 2 * 60 * 60 * 1000);
+  }, 20 * 60 * 1000); // first in 20 min
+  console.log('[HUSTLE] Opportunity scanner: every 2 hours');
+
+  // Self-improvement — daily at 11 PM ET
+  const next11pm = getNextETHour(23);
+  setTimeout(() => {
+    hustle.selfImprove().catch(err => console.error('[HUSTLE] Self-improve error:', err.message));
+    setInterval(() => {
+      hustle.selfImprove().catch(err => console.error('[HUSTLE] Self-improve error:', err.message));
+    }, 24 * 60 * 60 * 1000);
+  }, next11pm.getTime() - Date.now());
+  console.log('[HUSTLE] Self-improvement: daily 11 PM ET');
 }
 
 function schedulePipelineMonitor() {
@@ -164,7 +196,8 @@ function startAllJobs() {
   schedulePipelineMonitor();
   scheduleCrewProcessing();
   scheduleProactive();
-  console.log('[SCHEDULER] All jobs started');
+  scheduleHustleEngine();
+  console.log('[SCHEDULER] All jobs started — Jarvis is ALWAYS thinking');
 }
 
 module.exports = { startAllJobs, sendDailyBriefing, generateAndSendIdea };

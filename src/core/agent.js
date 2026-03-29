@@ -55,10 +55,19 @@ const tools = {
   },
 
   message_boss: {
-    description: 'Send a Discord DM to Mark (the boss). Only use for genuinely useful updates, ideas, or findings. Input: { "message": "..." }',
+    description: 'Send Mark a message via Discord DM. Use for important updates, opportunities, questions that need his input. Input: { "message": "..." }',
     execute: async ({ message }) => {
       await sendBossMessage(message);
-      return 'Message sent to boss.';
+      return 'Discord message sent to boss.';
+    },
+  },
+
+  text_boss: {
+    description: 'Send Mark a TEXT MESSAGE (SMS) to his phone. Use this for urgent, high-value updates that he needs to see immediately — revenue milestones, hot opportunities, critical decisions. More personal than Discord. Input: { "message": "..." }',
+    execute: async ({ message }) => {
+      const hustle = require('./hustle');
+      await hustle.textBoss(message);
+      return 'Text sent to boss phone.';
     },
   },
 
@@ -345,7 +354,7 @@ const tools = {
 
 // ── Agent Cycle ──
 
-const MAX_ITERATIONS = 15;
+const MAX_ITERATIONS = 20;
 
 async function runAgentCycle() {
   const tenant = await db.getDefaultTenant();
