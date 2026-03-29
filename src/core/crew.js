@@ -45,6 +45,47 @@ const workerTools = {
     else await logToDiscord('daily-reports', message);
     return 'Alert sent';
   },
+
+  generate_ad: async ({ product, platform, audience }) => {
+    const res = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      system: 'You are a top-tier performance marketer. Create 3 ad variations with hooks, body copy, and CTAs. Include image/video direction. Format for ' + (platform || 'Facebook') + '.',
+      messages: [{ role: 'user', content: 'Product: ' + product + '\nAudience: ' + (audience || 'broad') + '\n\nCreate 3 high-converting ad variations.' }],
+    });
+    return res.content[0].text;
+  },
+
+  competitor_analysis: async ({ company, focus }) => {
+    const results = await searchWeb(company + ' ' + (focus || 'review pricing features'));
+    const res = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1500,
+      system: 'You are a competitive intelligence analyst. Break down: pricing, features, weaknesses, market position, and how to beat them.',
+      messages: [{ role: 'user', content: 'Analyze competitor: ' + company + '\n\nResearch:\n' + results.map(r => r.title + ': ' + r.snippet).join('\n') }],
+    });
+    return res.content[0].text;
+  },
+
+  write_landing_page: async ({ product, headline, audience }) => {
+    const res = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 3000,
+      system: 'You are a conversion copywriter. Write a complete landing page with: hero section, problem/solution, features, social proof, pricing, FAQ, and CTA. Output clean HTML with inline Tailwind CSS classes.',
+      messages: [{ role: 'user', content: 'Product: ' + product + '\nHeadline: ' + (headline || 'auto-generate') + '\nAudience: ' + (audience || 'broad') }],
+    });
+    return res.content[0].text;
+  },
+
+  store_finding: async ({ category, content, importance }) => {
+    const memory = require('./memory');
+    const { supabase: db } = require('../db/supabase');
+    const { data: tenant } = await db.from('tenants').select('id').eq('plan', 'owner').single();
+    if (tenant) {
+      await memory.storeMemory(tenant.id, category || 'fact', content, importance || 7, 'crew');
+    }
+    return 'Finding stored: ' + content.substring(0, 80);
+  },
 };
 
 // ── Get Workers ──

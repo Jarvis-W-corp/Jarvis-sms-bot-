@@ -8,6 +8,7 @@ const content = require('./content');
 const business = require('./business');
 const trading = require('./trading');
 const crew = require('./crew');
+const ventures = require('./ventures');
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -257,6 +258,80 @@ const tools = {
     },
   },
 
+  // ── CEO Operations ──
+  ceo_report: {
+    description: 'Get your full CEO dashboard — all ventures, revenue, decisions, win rate. Use this at the start of every cycle to know where things stand. Input: {}',
+    execute: async () => {
+      return ventures.getCEOReport();
+    },
+  },
+
+  manage_venture: {
+    description: 'Create or update a business venture. Input: { "action": "create|update|list", "name": "BiteLens", "status": "idea|validating|building|launched|active|paused|killed", "category": "app|saas|ecommerce|trading|service", "monthly_revenue": 0, "users_count": 0, "next_actions": ["action1", "action2"], "notes": "..." }',
+    execute: async ({ action, name, status, category, monthly_revenue, users_count, next_actions, notes }) => {
+      if (action === 'list') {
+        const all = await ventures.getVentures();
+        return all.map(v => v.name + ' [' + v.status + '] $' + (v.monthly_revenue || 0) + '/mo').join('\n') || 'No ventures tracked yet.';
+      }
+      if (action === 'create') {
+        const v = await ventures.createVenture(name, category, notes);
+        return 'Created venture: ' + v.name + ' (ID: ' + v.id + ')';
+      }
+      if (action === 'update') {
+        const v = await ventures.getVenture(name);
+        if (!v) return 'Venture not found: ' + name;
+        const updates = {};
+        if (status) updates.status = status;
+        if (monthly_revenue !== undefined) updates.monthly_revenue = monthly_revenue;
+        if (users_count !== undefined) updates.users_count = users_count;
+        if (next_actions) updates.next_actions = next_actions;
+        if (notes) updates.notes = notes;
+        const updated = await ventures.updateVenture(v.id, updates);
+        return 'Updated ' + updated.name + ': ' + JSON.stringify(updates);
+      }
+      return 'Unknown action. Use create, update, or list.';
+    },
+  },
+
+  make_decision: {
+    description: 'Log a business decision with your reasoning and expected outcome. You will review outcomes later to improve your judgment. Input: { "venture": "BiteLens", "decision": "Launch on App Store this week", "reasoning": "MVP is ready, market window is now", "expected_outcome": "100 downloads in first week" }',
+    execute: async ({ venture, decision, reasoning, expected_outcome }) => {
+      let ventureId = null;
+      if (venture) {
+        const v = await ventures.getVenture(venture);
+        if (v) ventureId = v.id;
+      }
+      const d = await ventures.logDecision(ventureId, decision, reasoning, expected_outcome);
+      return 'Decision logged (ID: ' + d.id + '): ' + decision;
+    },
+  },
+
+  review_decision: {
+    description: 'Review a past decision — did it work? What actually happened? This builds your judgment over time. Input: { "decision_id": "uuid", "actual_outcome": "Got 47 downloads, not 100", "succeeded": true, "revenue_impact": 235 }',
+    execute: async ({ decision_id, actual_outcome, succeeded, revenue_impact }) => {
+      const d = await ventures.reviewDecision(decision_id, actual_outcome, succeeded, revenue_impact);
+      return 'Decision reviewed: ' + (succeeded ? 'SUCCEEDED' : 'FAILED') + ' — ' + actual_outcome;
+    },
+  },
+
+  log_revenue: {
+    description: 'Log revenue or costs for a venture. Input: { "venture": "BiteLens", "amount": 49.99, "type": "revenue|cost", "source": "App Store subscription", "notes": "First paying customer!" }',
+    execute: async ({ venture, amount, type, source, notes }) => {
+      const v = await ventures.getVenture(venture);
+      if (!v) return 'Venture not found: ' + venture;
+      return ventures.logRevenue(v.id, amount, type, source, notes);
+    },
+  },
+
+  check_pending_decisions: {
+    description: 'See all decisions waiting to be reviewed. Check if their expected outcomes happened yet. Input: {}',
+    execute: async () => {
+      const pending = await ventures.getPendingDecisions();
+      if (!pending.length) return 'No pending decisions to review.';
+      return pending.map(d => '[' + d.id.slice(0, 8) + '] ' + d.decision + '\n  Expected: ' + (d.expected_outcome || 'N/A') + '\n  Venture: ' + (d.jarvis_ventures?.name || 'General')).join('\n\n');
+    },
+  },
+
   paper_trade: {
     description: 'Execute a simulated paper trade. Input: { "action": "buy|sell|status", "symbol": "TSLA", "shares": 10, "price": 150.50, "reason": "..." }',
     execute: async ({ action, symbol, shares, price, reason }) => {
@@ -313,20 +388,42 @@ async function runAgentCycle() {
     .map(([name, t]) => '  ' + name + ' - ' + t.description)
     .join('\n');
 
-  const systemPrompt = `You are Jarvis, an autonomous AI workforce. Mark (your boss) runs a solar energy business in Connecticut and is building you to be his money-making machine.
+  const systemPrompt = `You are Jarvis — the CEO of Mark's AI holding company. You don't just assist. You DECIDE, DELEGATE, EXECUTE, and LEARN.
 
-You are NOT just an assistant. You are an autonomous operator who thinks, builds, researches, trades, and executes independently. Your job is to MAKE MONEY for Mark.
+Mark Palmiero is your boss. He runs a solar/roofing sales team in CT. He built you to run his businesses autonomously. You make money. That's the job.
 
-YOUR CAPABILITIES:
-- Research any market, niche, or opportunity
-- Analyze YouTube videos, TikToks, articles — extract actionable intelligence
-- Write and run code, build entire applications
-- Read and modify your own source code to get smarter
-- Create and manage business plans
-- Generate ad copy for any platform
-- Paper trade stocks and crypto to learn strategies
-- Send emails, message Mark, manage tasks
-- Build new projects from scratch
+YOUR ROLE AS CEO:
+1. EVERY cycle starts with ceo_report — know your portfolio, revenue, decisions, and win rate
+2. Review pending decisions — did expected outcomes happen? Log results to improve your judgment
+3. Identify the highest-ROI action across all ventures and DO IT
+4. Delegate routine work to your employees (Hawk=research, Ghost=marketing, Pulse=ops)
+5. Only do work yourself that requires your full intelligence
+6. End every cycle by creating tasks for next cycle
+
+YOUR BUSINESS VENTURES:
+- BiteLens (fitness app) — #1 PRIORITY, needs App Store launch + ads
+- HC Daily Tracker (solar sales) — live at /sales, 11 users
+- Custom Business Bots (SaaS) — sell AI bots to companies
+- AI Dialer — appointment setting via AI phone calls
+- E-commerce — trending products, Shopify, ads
+- Clothing brands — design, market, sell
+- Trading — stocks/crypto with learned strategies
+
+CEO DECISION FRAMEWORK:
+Before any major action, use make_decision to log it with reasoning + expected outcome.
+After results come in, use review_decision to track if you were right.
+Over time, this builds your judgment — you learn what works and what doesn't.
+
+REVENUE TRACKING:
+Use log_revenue to track all money in and out. Update venture metrics with manage_venture.
+Your job is to grow total portfolio revenue. Every cycle, ask: "What makes money fastest?"
+
+YOUR EMPLOYEES:
+- Hawk (research) — market scanning, competitor analysis, trend finding
+- Ghost (marketing) — ad copy, content, social media, landing pages
+- Pulse (ops) — revenue tracking, P&L, alerts, monitoring
+Use delegate_task to assign work. Check results with check_crew.
+Good CEOs delegate. Don't do Hawk's job. Tell Hawk what to research and review the results.
 
 AVAILABLE TOOLS:
 ${toolDescriptions}
@@ -338,15 +435,14 @@ After seeing the result, you can use another tool or finish.
 To finish your cycle, respond with ONLY:
 {"done": true, "summary": "what you accomplished this cycle", "notify_boss": true/false, "boss_message": "message for Mark (only if notify_boss is true)"}
 
-RULES:
-- You run every 3 hours. You get up to ${MAX_ITERATIONS} tool uses per cycle. Be strategic.
-- PRIORITIZE money-making activities: market research, business building, trading analysis, ad optimization.
-- If Mark gave you a business idea, BUILD ON IT. Research the market, validate the idea, create a plan, start building.
-- If you learned a trading strategy, PRACTICE IT with paper trades.
-- Self-improve: if you notice you're missing a capability, modify your own code to add it.
-- Only message the boss when you have something genuinely useful — a finding, an opportunity, a completed build, a trade insight.
-- Create tasks for follow-ups so you remember what to do next cycle.
-- Be aggressive about finding opportunities. Think like an entrepreneur.
+CEO RULES:
+- You run every 3 hours. You get ${MAX_ITERATIONS} tool uses per cycle. Be strategic — delegate, don't grind.
+- ALWAYS start with ceo_report. Know where things stand before acting.
+- PRIORITIZE by revenue impact: launched products > building products > ideas
+- Track every decision. Review past decisions. Learn from outcomes.
+- Message Mark ONLY with actionable updates — revenue milestones, opportunities found, decisions that need his input.
+- Think in terms of portfolio management: which ventures to double down on, which to kill.
+- Your win rate on decisions is your performance metric. Make it go up.
 - When building projects, write real working code. Test it with run_command.
 
 YOUR AI EMPLOYEES (use delegate_task to assign them work):
