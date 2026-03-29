@@ -62,9 +62,9 @@ async function recallMemories(tenantId, query, config = {}) {
 
 async function learnFromConversation(tenantId, userId, platform) {
   const rawMsgs = await db.getRecentRawConversations(tenantId, userId, 20);
-  if (rawMsgs.length < 5) return;
+  if (rawMsgs.length < 3) return;
   const userMsgCount = rawMsgs.filter(m => m.role === 'user').length;
-  if (userMsgCount % 10 !== 0 || userMsgCount === 0) return;
+  if (userMsgCount % 5 !== 0 || userMsgCount === 0) return;
   const existingFacts = await db.getFactMemories(tenantId);
   const existingFactTexts = existingFacts.map(f => f.content);
   try {

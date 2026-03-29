@@ -1,10 +1,12 @@
 const Anthropic = require('@anthropic-ai/sdk').default;
 const { searchWeb } = require('./search');
+const { supabase } = require('../db/supabase');
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ── Paper Trading Engine ──
 // Jarvis tracks simulated trades to learn before risking real money
+// Portfolio persists to Supabase memories table as a fact so it survives restarts
 
 const paperPortfolio = {
   cash: 10000,
@@ -12,6 +14,60 @@ const paperPortfolio = {
   tradeHistory: [],  // { symbol, action, price, shares, date, pnl }
   totalPnL: 0,
 };
+
+const PORTFOLIO_KEY = 'paper_portfolio_state';
+
+async function savePortfolio() {
+  try {
+    const state = JSON.stringify(paperPortfolio);
+    const { data: existing } = await supabase
+      .from('memories')
+      .select('id')
+      .eq('category', 'fact')
+      .ilike('content', PORTFOLIO_KEY + ':%')
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      await supabase.from('memories').update({ content: PORTFOLIO_KEY + ':' + state }).eq('id', existing[0].id);
+    } else {
+      await supabase.from('memories').insert({
+        tenant_id: (await supabase.from('tenants').select('id').eq('plan', 'owner').single()).data?.id,
+        category: 'fact',
+        content: PORTFOLIO_KEY + ':' + state,
+        importance: 3,
+        source: 'trading_engine',
+      });
+    }
+  } catch (err) {
+    console.error('[TRADING] Portfolio save error:', err.message);
+  }
+}
+
+async function loadPortfolio() {
+  try {
+    const { data } = await supabase
+      .from('memories')
+      .select('content')
+      .eq('category', 'fact')
+      .ilike('content', PORTFOLIO_KEY + ':%')
+      .limit(1);
+
+    if (data && data.length > 0) {
+      const json = data[0].content.replace(PORTFOLIO_KEY + ':', '');
+      const saved = JSON.parse(json);
+      paperPortfolio.cash = saved.cash;
+      paperPortfolio.positions = saved.positions || [];
+      paperPortfolio.tradeHistory = saved.tradeHistory || [];
+      paperPortfolio.totalPnL = saved.totalPnL || 0;
+      console.log('[TRADING] Portfolio loaded — Cash: $' + paperPortfolio.cash.toFixed(2) + ', Positions: ' + paperPortfolio.positions.length);
+    }
+  } catch (err) {
+    console.error('[TRADING] Portfolio load error:', err.message);
+  }
+}
+
+// Load on startup
+loadPortfolio();
 
 // ── Market Analysis ──
 
@@ -102,6 +158,7 @@ function paperBuy(symbol, shares, price, reason) {
     date: new Date().toISOString(), pnl: 0,
   });
 
+  savePortfolio();
   return 'PAPER BUY: ' + shares + ' ' + symbol + ' @ $' + price + ' = $' + cost.toFixed(2) +
     ' | Cash remaining: $' + paperPortfolio.cash.toFixed(2);
 }
@@ -128,6 +185,7 @@ function paperSell(symbol, shares, price, reason) {
     date: new Date().toISOString(), pnl,
   });
 
+  savePortfolio();
   const pnlStr = pnl >= 0 ? '+$' + pnl.toFixed(2) : '-$' + Math.abs(pnl).toFixed(2);
   return 'PAPER SELL: ' + shares + ' ' + symbol + ' @ $' + price + ' | P&L: ' + pnlStr +
     ' | Cash: $' + paperPortfolio.cash.toFixed(2) + ' | Total P&L: $' + paperPortfolio.totalPnL.toFixed(2);
@@ -182,4 +240,6 @@ module.exports = {
   getPortfolioStatus,
   analyzeCrypto,
   paperPortfolio,
+  loadPortfolio,
+  savePortfolio,
 };

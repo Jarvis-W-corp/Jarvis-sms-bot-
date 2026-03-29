@@ -371,6 +371,9 @@ function initDiscord() {
     if (message.author.bot) return;
     if (['customer-logs', 'memory-log', 'daily-reports'].includes(message.channel?.name)) return;
     const discordId = message.author.id;
+    const userText = message.content.trim();
+    const userName = message.author.displayName || message.author.username;
+    const tenant = await tenantManager.resolveTenant(discordId);
     if (message.attachments.size > 0) {
       // Handle file attachments — PDFs, images, etc.
       const attachment = message.attachments.first();
@@ -380,7 +383,7 @@ function initDiscord() {
           const res = await fetch(attachment.url);
           const buffer = Buffer.from(await res.arrayBuffer());
           const contentModule = require('../core/content');
-          const result = await contentModule.processContent(buffer, userText || null, tenant.id);
+          const result = await contentModule.processContent(buffer, userText || null, tenant?.id);
           let response = '**Analyzed: ' + attachment.name + '**\n\n' + result.analysis;
           if (response.length > 2000) response = response.substring(0, 1997) + '...';
           return message.reply(response);
@@ -390,9 +393,6 @@ function initDiscord() {
       }
       // For non-PDF attachments, fall through to brain
     }
-    const userText = message.content.trim();
-    const userName = message.author.displayName || message.author.username;
-    const tenant = await tenantManager.resolveTenant(discordId);
     if (!tenant) return message.reply("I'm not set up yet. Database needs initialization.");
     if (userText.startsWith('!')) {
       const parts = userText.split(' ');

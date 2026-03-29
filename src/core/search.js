@@ -5,6 +5,10 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 async function searchWeb(query, count = 5) {
   try {
+    if (!process.env.BRAVE_SEARCH_API_KEY) {
+      console.error('[SEARCH] BRAVE_SEARCH_API_KEY not set');
+      return [];
+    }
     const res = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=${count}`, {
       headers: {
         'Accept': 'application/json',
@@ -12,11 +16,15 @@ async function searchWeb(query, count = 5) {
         'X-Subscription-Token': process.env.BRAVE_SEARCH_API_KEY,
       },
     });
+    if (!res.ok) {
+      console.error('[SEARCH] Brave API error: ' + res.status + ' ' + res.statusText + ' for query: ' + query);
+      return [];
+    }
     const data = await res.json();
     const results = data.web?.results || [];
     return results.map(r => ({ title: r.title, url: r.url, snippet: r.description }));
   } catch (error) {
-    console.error('[SEARCH] Error:', error.message);
+    console.error('[SEARCH] Error:', error.message, '| Query:', query);
     return [];
   }
 }

@@ -25,7 +25,8 @@ async function getAuthUrl() {
 async function setAuthCode(code) {
   const auth = getAuth();
   const { tokens } = await auth.getToken(code);
-  console.log('[GMAIL] Set GMAIL_TOKEN env var to:', JSON.stringify(tokens));
+  console.log('[GMAIL] Auth code exchanged successfully. Refresh token received: ' + (tokens.refresh_token ? 'YES' : 'NO'));
+  return tokens;
 }
 
 async function getEmails(maxResults = 5) {
