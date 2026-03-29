@@ -74,7 +74,10 @@ async function learnFromConversation(tenantId, userId, platform) {
       max_tokens: 800,
       messages: [{ role: 'user', content: 'Analyze this conversation and extract information worth remembering long-term. Return ONLY a JSON object with:\n- "facts": array of short factual strings about the user\n- "decisions": array of decisions made\n- "tasks": array of things to follow up on\n- "summary": a 2-3 sentence summary\n\nAlready known (dont repeat): ' + JSON.stringify(existingFactTexts) + '\n\nConversation:\n' + convoText + '\n\nReturn ONLY valid JSON, no markdown.' }],
     });
-    const analysis = JSON.parse(response.content[0].text.trim());
+    // Strip markdown code fences if Claude wraps the JSON
+    let rawText = response.content[0].text.trim();
+    rawText = rawText.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+    const analysis = JSON.parse(rawText);
     let stored = 0;
     if (analysis.facts?.length) {
       for (const fact of analysis.facts) {

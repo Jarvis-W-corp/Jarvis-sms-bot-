@@ -25,12 +25,21 @@ async function chat(tenantId, userId, platform, userText, userName) {
   if (!tenant) throw new Error('Tenant not found');
   const memoryContext = await memory.recallMemories(tenantId, userText, tenant.config || {});
   const systemPrompt = buildSystemPrompt(tenant, user, memoryContext);
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 1500,
-    system: systemPrompt,
-    messages: history,
-  });
+  let response;
+  try {
+    response = await Promise.race([
+      anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        system: systemPrompt,
+        messages: history,
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Claude API timeout (30s)')), 30000)),
+    ]);
+  } catch (apiError) {
+    console.error('[BRAIN] API error:', apiError.message);
+    throw new Error('Brain API failed: ' + apiError.message);
+  }
   const reply = response.content[0].text;
   const needsSearch = /don't have|don't know|not sure|I cannot|my knowledge cutoff/i.test(reply);
   if (needsSearch) {

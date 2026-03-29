@@ -50,9 +50,10 @@ async function generateAndSendIdea() {
 }
 
 function scheduleIdeas() {
-  setInterval(generateAndSendIdea, 8 * 60 * 60 * 1000);
-  setTimeout(generateAndSendIdea, 60 * 60 * 1000);
-  console.log('[SCHEDULER] Ideas engine started');
+  // Ideas once per day (throttled from 8h — ideas were flooding Discord)
+  setInterval(generateAndSendIdea, 24 * 60 * 60 * 1000);
+  setTimeout(generateAndSendIdea, 2 * 60 * 60 * 1000); // first in 2 hours
+  console.log('[SCHEDULER] Ideas engine started (daily)');
 }
 
 function startAppMonitoring() {
@@ -70,34 +71,34 @@ function startAppMonitoring() {
 }
 
 function scheduleAgentCycle() {
-  // Full agent cycle — every 1 hour (was 3h — CEO needs to think faster)
+  // Full agent cycle — every 3 hours (throttled from 1h to reduce spam + API costs)
   setTimeout(() => {
     runAgentCycle().catch(err => console.error('[AGENT] Cycle error:', err.message));
     setInterval(() => {
       runAgentCycle().catch(err => console.error('[AGENT] Cycle error:', err.message));
-    }, 60 * 60 * 1000); // every 1 hour
+    }, 3 * 60 * 60 * 1000); // every 3 hours
   }, 15 * 60 * 1000); // first in 15 min
-  console.log('[SCHEDULER] Agent cycle scheduled (every 1h, first in 15m)');
+  console.log('[SCHEDULER] Agent cycle scheduled (every 3h, first in 15m)');
 }
 
 function scheduleHustleEngine() {
-  // Quick revenue check — every 15 minutes
+  // Quick revenue check — every 4 hours (throttled from 15min to reduce spam)
   setTimeout(() => {
     hustle.quickCheck().catch(err => console.error('[HUSTLE] Quick check error:', err.message));
     setInterval(() => {
       hustle.quickCheck().catch(err => console.error('[HUSTLE] Quick check error:', err.message));
-    }, 15 * 60 * 1000);
-  }, 5 * 60 * 1000); // first in 5 min
-  console.log('[HUSTLE] Quick revenue checks: every 15 min');
+    }, 4 * 60 * 60 * 1000);
+  }, 30 * 60 * 1000); // first in 30 min
+  console.log('[HUSTLE] Quick revenue checks: every 4 hours');
 
-  // Opportunity scanner — every 2 hours
+  // Opportunity scanner — every 6 hours (throttled from 2h)
   setTimeout(() => {
     hustle.opportunityScan().catch(err => console.error('[HUSTLE] Scan error:', err.message));
     setInterval(() => {
       hustle.opportunityScan().catch(err => console.error('[HUSTLE] Scan error:', err.message));
-    }, 2 * 60 * 60 * 1000);
-  }, 20 * 60 * 1000); // first in 20 min
-  console.log('[HUSTLE] Opportunity scanner: every 2 hours');
+    }, 6 * 60 * 60 * 1000);
+  }, 45 * 60 * 1000); // first in 45 min
+  console.log('[HUSTLE] Opportunity scanner: every 6 hours');
 
   // Self-improvement — daily at 11 PM ET
   const next11pm = getNextETHour(23);
@@ -126,9 +127,9 @@ function scheduleCrewProcessing() {
     crew.processQueue().catch(err => console.error('[CREW] Queue error:', err.message));
     setInterval(() => {
       crew.processQueue().catch(err => console.error('[CREW] Queue error:', err.message));
-    }, 30 * 60 * 1000);
-  }, 2 * 60 * 1000);
-  console.log('[SCHEDULER] Crew processing scheduled (every 30m, first in 2m)');
+    }, 2 * 60 * 60 * 1000); // every 2 hours (throttled from 30m)
+  }, 5 * 60 * 1000);
+  console.log('[SCHEDULER] Crew processing scheduled (every 2h, first in 5m)');
 }
 
 // ══════════════════════════════════════════════

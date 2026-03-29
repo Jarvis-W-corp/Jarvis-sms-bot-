@@ -2,6 +2,16 @@ const { supabase } = require('../db/supabase');
 const { sendBossMessage, logToDiscord } = require('../channels/discord');
 const crew = require('../core/crew');
 
+// ── Dedup tracker — prevents duplicate messages on restart ──
+const lastSent = {};
+function shouldSend(key) {
+  const today = new Date().toISOString().split('T')[0];
+  const sentKey = key + '_' + today;
+  if (lastSent[sentKey]) return false;
+  lastSent[sentKey] = Date.now();
+  return true;
+}
+
 // ── Helpers ──
 
 function getToday() { return new Date().toISOString().split('T')[0]; }
@@ -39,6 +49,7 @@ async function getRoofingLeads() {
 // ══════════════════════════════════════════════
 
 async function morningGamePlan() {
+  if (!shouldSend('morning')) { console.log('[PROACTIVE] Morning plan already sent today'); return; }
   try {
     const [users, entries, goals, leads] = await Promise.all([
       getHCUsers(), getHCEntries(getWeekStart()), getHCGoals(), getRoofingLeads()
@@ -125,6 +136,7 @@ async function morningGamePlan() {
 // ══════════════════════════════════════════════
 
 async function endOfDayRecap() {
+  if (!shouldSend('eod')) { console.log('[PROACTIVE] EOD recap already sent today'); return; }
   try {
     const [users, entries, leads] = await Promise.all([
       getHCUsers(), getHCEntries(getToday()), getRoofingLeads()
@@ -190,6 +202,7 @@ async function endOfDayRecap() {
 // ══════════════════════════════════════════════
 
 async function noLogReminder() {
+  if (!shouldSend('nolog')) { console.log('[PROACTIVE] No-log reminder already sent today'); return; }
   try {
     const [users, entries] = await Promise.all([
       getHCUsers(), getHCEntries(getToday())
@@ -220,6 +233,7 @@ async function noLogReminder() {
 // ══════════════════════════════════════════════
 
 async function staleLeadAlert() {
+  if (!shouldSend('stale')) { console.log('[PROACTIVE] Stale lead alert already sent today'); return; }
   try {
     const leads = await getRoofingLeads();
     const today = getToday();
@@ -313,6 +327,7 @@ async function checkGoalAchievements() {
 // ══════════════════════════════════════════════
 
 async function weeklyReport() {
+  if (!shouldSend('weekly')) { console.log('[PROACTIVE] Weekly report already sent this period'); return; }
   try {
     const [users, entries, leads, goals] = await Promise.all([
       getHCUsers(), getHCEntries(getWeekStart()), getHCGoals(), getRoofingLeads()

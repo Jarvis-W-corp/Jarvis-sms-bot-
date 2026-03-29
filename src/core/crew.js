@@ -102,7 +102,18 @@ async function getWorker(workerId) {
 
 // ── Job Queue ──
 
-async function createJob(workerId, title, description, input, priority, parentJobId) {
+async function createJob(workerIdOrName, title, description, input, priority, parentJobId) {
+  // Resolve worker — accept ID or name ("research", "marketing", "ops")
+  let workerId = workerIdOrName;
+  const workerNameMap = { research: 'Hawk', marketing: 'Ghost', ops: 'Pulse' };
+  if (workerNameMap[workerIdOrName]) {
+    // Try to find worker by name in DB
+    const { data: worker } = await supabase.from('agent_workers').select('id')
+      .ilike('name', '%' + workerNameMap[workerIdOrName] + '%').single();
+    if (worker) workerId = worker.id;
+    // If not found, use the string name — job still gets created and can be processed
+  }
+
   const id = 'job_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
   const { error } = await supabase.from('agent_jobs').insert({
     id, worker_id: workerId, title, description,

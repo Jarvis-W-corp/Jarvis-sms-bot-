@@ -415,8 +415,11 @@ function initDiscord() {
         logToDiscord('memory-log', '🧠 **Learned ' + learnResult.stored + ' memories from ' + userName + '**\n' + (learnResult.analysis?.facts || []).map(f => '• ' + f).join('\n'));
       }
     } catch (error) {
-      console.error('[DISCORD] Error:', error.message);
-      await message.reply('Something broke. Give me a sec and try again.');
+      console.error('[DISCORD] Error:', error.message, error.stack?.split('\n')[1]);
+      const errMsg = error.message?.includes('timeout') ? 'Took too long to respond. Try again.'
+        : error.message?.includes('Tenant') ? 'Database issue — tenant not found.'
+        : 'Hit an error: ' + error.message.substring(0, 150);
+      await message.reply(errMsg);
     }
   });
 

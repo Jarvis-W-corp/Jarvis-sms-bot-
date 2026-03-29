@@ -2,9 +2,15 @@ require('dotenv').config();
 const express = require('express');
 const db = require('./src/db/queries');
 
+const path = require('path');
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// BiteLens privacy policy (live URL for App Store)
+app.get('/privacy', (req, res) => {
+  res.sendFile(path.join(__dirname, 'projects/intake/intake-app/privacy-policy.html'));
+});
 
 // Dashboard
 const dashboard = require('./src/dashboard/routes');

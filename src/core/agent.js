@@ -81,12 +81,12 @@ const tools = {
   },
 
   recall_memories: {
-    description: 'Search your memory for relevant information. Input: { "query": "what to search for", "category": "fact|decision|task|training" }',
-    execute: async ({ query, category }, tenantId) => {
+    description: 'Search your memory for relevant information. Input: { "query": "what to search for" }',
+    execute: async ({ query }, tenantId) => {
       const results = await memory.recallMemories(tenantId, query);
-      if (!results.length) return 'No relevant memories found for: ' + query;
-      const filtered = category ? results.filter(r => r.category === category) : results;
-      return filtered.map(r => '[' + r.category + '] ' + r.content).join('\n\n');
+      if (!results || !results.length) return 'No relevant memories found for: ' + query;
+      // recallMemories returns a formatted string, not an array
+      return results;
     },
   },
 
@@ -379,10 +379,9 @@ async function runAgentCycle() {
   ]);
 
   // Also pull training memories (strategies, learnings)
-  let trainingMemories = [];
+  let trainingContext = '';
   try {
-    trainingMemories = await memory.recallMemories(tenantId, 'trading strategy business learning');
-    trainingMemories = trainingMemories.filter(m => m.category === 'training').slice(0, 5);
+    trainingContext = await memory.recallMemories(tenantId, 'trading strategy business learning');
   } catch (e) { /* ok */ }
 
   const contextParts = [];
@@ -391,7 +390,7 @@ async function runAgentCycle() {
   if (agentPending.length) contextParts.push('Your pending agent tasks:\n' + agentPending.map(t => '- [' + t.id.slice(0, 8) + '] (P' + t.priority + ') ' + t.title + (t.description ? ': ' + t.description : '')).join('\n'));
   if (agentCompleted.length) contextParts.push('Recently completed:\n' + agentCompleted.map(t => '- ' + t.title + ': ' + (t.result || 'done').substring(0, 150)).join('\n'));
   if (decisions.length) contextParts.push('Recent decisions:\n' + decisions.map(d => '- ' + d.content).join('\n'));
-  if (trainingMemories.length) contextParts.push('Things you have learned (strategies, skills):\n' + trainingMemories.map(t => '- ' + t.content.substring(0, 200)).join('\n'));
+  if (trainingContext) contextParts.push('Things you have learned (strategies, skills):\n' + trainingContext);
 
   const toolDescriptions = Object.entries(tools)
     .map(([name, t]) => '  ' + name + ' - ' + t.description)
