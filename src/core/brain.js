@@ -20,7 +20,13 @@ function buildSystemPrompt(tenant, user, memoryContext) {
 async function chat(tenantId, userId, platform, userText, userName) {
   const user = await db.getOrCreateUser(tenantId, userId, platform, userName);
   await db.saveConversation(tenantId, platform, userId, 'user', userText);
-  const history = await db.getRecentConversations(tenantId, userId, 20);
+  let history = await db.getRecentConversations(tenantId, userId, 20);
+  // Clean history: remove null/empty messages, ensure alternating roles, must start with user
+  history = history.filter(m => m.content && typeof m.content === 'string' && m.content.trim());
+  // Remove leading assistant messages
+  while (history.length > 0 && history[0].role !== 'user') history.shift();
+  // Remove consecutive same-role messages (keep the last one)
+  history = history.filter((m, i) => i === 0 || m.role !== history[i - 1].role);
   const tenant = await db.getTenantById(tenantId);
   if (!tenant) throw new Error('Tenant not found');
   const memoryContext = await memory.recallMemories(tenantId, userText, tenant.config || {});
@@ -40,7 +46,10 @@ async function chat(tenantId, userId, platform, userText, userName) {
     console.error('[BRAIN] API error:', apiError.message);
     throw new Error('Brain API failed: ' + apiError.message);
   }
-  const reply = response.content[0].text;
+  const reply = response.content?.[0]?.text || 'Something went wrong — I got an empty response. Try again.';
+  if (!response.content || response.content.length === 0) {
+    console.error('[BRAIN] Empty response from Claude. History length:', history.length);
+  }
   const needsSearch = /don't have|don't know|not sure|I cannot|my knowledge cutoff/i.test(reply);
   if (needsSearch) {
     const { searchAndSummarize } = require('./search');
