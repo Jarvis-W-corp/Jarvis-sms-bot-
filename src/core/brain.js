@@ -21,15 +21,39 @@ async function chat(tenantId, userId, platform, userText, userName) {
   const user = await db.getOrCreateUser(tenantId, userId, platform, userName);
   await db.saveConversation(tenantId, platform, userId, 'user', userText);
   let history = await db.getRecentConversations(tenantId, userId, 20);
-  // Clean history: remove null/empty messages, ensure alternating roles, must start with user
+  // Clean history: remove null/empty messages
   history = history.filter(m => m.content && typeof m.content === 'string' && m.content.trim());
   // Remove leading assistant messages
   while (history.length > 0 && history[0].role !== 'user') history.shift();
-  // Remove consecutive same-role messages (keep the last one)
-  history = history.filter((m, i) => i === 0 || m.role !== history[i - 1].role);
+  // Dedupe consecutive same-role messages (keep the last one in each run)
+  const cleaned = [];
+  for (const m of history) {
+    if (cleaned.length > 0 && m.role === cleaned[cleaned.length - 1].role) {
+      cleaned[cleaned.length - 1] = m; // overwrite with the later message
+    } else {
+      cleaned.push(m);
+    }
+  }
+  history = cleaned;
+  // If history is empty or doesn't include current message, ensure it's there
+  if (history.length === 0 || history[history.length - 1].content !== userText) {
+    // Ensure it ends with current user message
+    if (history.length > 0 && history[history.length - 1].role === 'user') {
+      history[history.length - 1] = { role: 'user', content: userText };
+    } else {
+      history.push({ role: 'user', content: userText });
+    }
+  }
+  console.log('[BRAIN] Sending', history.length, 'messages to Claude. Last:', history[history.length - 1]?.role);
   const tenant = await db.getTenantById(tenantId);
   if (!tenant) throw new Error('Tenant not found');
-  const memoryContext = await memory.recallMemories(tenantId, userText, tenant.config || {});
+  let memoryContext = '';
+  try {
+    const raw = await memory.recallMemories(tenantId, userText, tenant.config || {});
+    memoryContext = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw.map(m => m.content || m).join('\n') : '';
+  } catch (memErr) {
+    console.error('[BRAIN] Memory recall failed:', memErr.message);
+  }
   const systemPrompt = buildSystemPrompt(tenant, user, memoryContext);
   let response;
   try {
