@@ -71,14 +71,14 @@ function startAppMonitoring() {
 }
 
 function scheduleAgentCycle() {
-  // Full agent cycle — every 3 hours (throttled from 1h to reduce spam + API costs)
+  // Full agent cycle — every 2 hours
   setTimeout(() => {
     runAgentCycle().catch(err => console.error('[AGENT] Cycle error:', err.message));
     setInterval(() => {
       runAgentCycle().catch(err => console.error('[AGENT] Cycle error:', err.message));
-    }, 3 * 60 * 60 * 1000); // every 3 hours
-  }, 15 * 60 * 1000); // first in 15 min
-  console.log('[SCHEDULER] Agent cycle scheduled (every 3h, first in 15m)');
+    }, 2 * 60 * 60 * 1000); // every 2 hours
+  }, 10 * 60 * 1000); // first in 10 min
+  console.log('[SCHEDULER] Agent cycle scheduled (every 2h, first in 10m)');
 }
 
 function scheduleHustleEngine() {

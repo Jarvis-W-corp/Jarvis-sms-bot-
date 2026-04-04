@@ -8,6 +8,15 @@ const { searchWeb } = require('./search');
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ── Jarvis Hustle Engine ──
+// Anti-spam: track last message time, don't message more than once per hour
+let lastBossMessageTime = 0;
+const MIN_MESSAGE_GAP = 60 * 60 * 1000; // 1 hour minimum between proactive messages
+
+function canMessageBoss() {
+  const now = Date.now();
+  if (now - lastBossMessageTime < MIN_MESSAGE_GAP) return false;
+  return true;
+}
 // This is Jarvis's revenue brain. It runs frequently and is OBSESSED with making money.
 // It's a lightweight fast-thinking loop that complements the full agent cycle.
 
@@ -95,11 +104,11 @@ If should_message is false, still fill internal_note with your thinking.`,
       await memory.storeMemory(tenant.id, 'decision', 'Quick check thought: ' + parsed.internal_note, 4, 'hustle');
     }
 
-    // Message Mark if warranted
-    if (parsed.should_message && parsed.message) {
+    // Message Mark if warranted (throttled to 1/hour max)
+    if (parsed.should_message && parsed.message && canMessageBoss()) {
       const msg = '🤖 Jarvis: ' + parsed.message;
       await textBoss(msg);
-      await sendBossMessage(msg);
+      lastBossMessageTime = Date.now();
       console.log('[HUSTLE] Messaged boss: ' + parsed.message.substring(0, 60));
     }
 
@@ -182,11 +191,11 @@ Respond with ONLY valid JSON:
       console.log('[HUSTLE] Delegated to ' + parsed.delegate_to + ': ' + parsed.delegate_task);
     }
 
-    // Message Mark if important
-    if (parsed.tell_mark && parsed.mark_message) {
+    // Message Mark if important (throttled)
+    if (parsed.tell_mark && parsed.mark_message && canMessageBoss()) {
       const msg = '🔥 Jarvis found something: ' + parsed.mark_message;
       await textBoss(msg);
-      await sendBossMessage(msg);
+      lastBossMessageTime = Date.now();
     }
 
     console.log('[HUSTLE] Opportunity scan complete for ' + focus.name);

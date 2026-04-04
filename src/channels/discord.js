@@ -188,6 +188,37 @@ async function handleCommand(message, command, args, tenant) {
       }
       return message.reply('Usage: !gmail auth | !gmail code <code> | !gmail read');
     }
+    case '!drive': {
+      const drive = require('../core/drive');
+      const sub = args[0];
+      if (sub === 'folders') {
+        const parentId = args[1] || null;
+        const folders = await drive.listFolders(parentId);
+        if (!folders.length) return message.reply('No folders found.');
+        return message.reply('📁 **Drive Folders:**\n' + folders.map(f => `• ${f.name} — \`${f.id}\``).join('\n'));
+      }
+      if (sub === 'list') {
+        const folderId = args[1] || null;
+        const files = await drive.listFiles(folderId, { limit: 20 });
+        if (!files.length) return message.reply('No files found.');
+        return message.reply('📄 **Files:**\n' + files.map(f => `• ${f.name} — \`${f.id}\``).join('\n'));
+      }
+      if (sub === 'search') {
+        const query = args.slice(1).join(' ');
+        if (!query) return message.reply('Usage: !drive search <name>');
+        const files = await drive.searchFiles(query);
+        if (!files.length) return message.reply('No files matching "' + query + '".');
+        return message.reply('🔍 **Results:**\n' + files.map(f => `• ${f.name} — \`${f.id}\``).join('\n'));
+      }
+      if (sub === 'download') {
+        const fileId = args[1];
+        if (!fileId) return message.reply('Usage: !drive download <fileId> [destPath]');
+        await message.reply('⏳ Downloading...');
+        const result = await drive.downloadFile(fileId, args[2] || null);
+        return message.reply('✅ Downloaded: ' + result.name + ' → ' + result.path);
+      }
+      return message.reply('Usage: !drive folders [parentId] | !drive list [folderId] | !drive search <name> | !drive download <fileId>');
+    }
     case '!agent': {
       const sub = args[0];
       if (sub === 'run') {
@@ -327,6 +358,7 @@ async function handleCommand(message, command, args, tenant) {
           { name: '!drip', value: 'Drip campaign status (run: !drip run)' },
           { name: '!remittance', value: 'Parse pay stubs to spreadsheet' },
           { name: '!gmail', value: 'Read emails' },
+          { name: '!drive', value: 'Google Drive: list / search / download' },
           { name: '--- Agent ---', value: '\u200b' },
           { name: '!agent', value: 'Agent status / !agent run / !agent tasks' },
         ).setFooter({ text: 'Super Jarvis v2.0 — AI Workforce' }).setTimestamp();
@@ -409,17 +441,27 @@ function initDiscord() {
       await message.channel.sendTyping();
       const userId = 'discord_' + discordId;
       const reply = await brain.chat(tenant.id, userId, 'discord', userText, userName);
+      if (!reply || reply.trim() === '') {
+        await message.reply("I processed that but had nothing to say. Try rephrasing?");
+        return;
+      }
       await sendLongMessage(message, reply);
-      const learnResult = await memoryModule.learnFromConversation(tenant.id, userId, 'discord').catch(() => null);
-      if (learnResult?.stored > 0) {
-        logToDiscord('memory-log', '🧠 **Learned ' + learnResult.stored + ' memories from ' + userName + '**\n' + (learnResult.analysis?.facts || []).map(f => '• ' + f).join('\n'));
+      // Learn in background — don't let it crash the response
+      try {
+        const learnResult = await memoryModule.learnFromConversation(tenant.id, userId, 'discord');
+        if (learnResult?.stored > 0) {
+          const factsList = Array.isArray(learnResult.analysis?.facts) ? learnResult.analysis.facts : [];
+          logToDiscord('memory-log', '🧠 **Learned ' + learnResult.stored + ' memories from ' + userName + '**\n' + factsList.map(f => '• ' + f).join('\n'));
+        }
+      } catch (learnErr) {
+        console.error('[DISCORD] Learn error (non-fatal):', learnErr.message);
       }
     } catch (error) {
       console.error('[DISCORD] Error:', error.message, error.stack?.split('\n')[1]);
       const errMsg = error.message?.includes('timeout') ? 'Took too long to respond. Try again.'
         : error.message?.includes('Tenant') ? 'Database issue — tenant not found.'
-        : 'Hit an error: ' + error.message.substring(0, 150);
-      await message.reply(errMsg);
+        : 'Something went wrong: ' + (error.message || 'unknown error').substring(0, 150);
+      try { await message.reply(errMsg); } catch (e) { console.error('[DISCORD] Reply failed:', e.message); }
     }
   });
 

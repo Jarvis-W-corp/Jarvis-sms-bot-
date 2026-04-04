@@ -71,6 +71,66 @@ const tools = {
     },
   },
 
+  // ── Google Drive ──
+  drive_list: {
+    description: 'List files in a Google Drive folder. Input: { "folderId": "optional-folder-id", "limit": 50 }',
+    execute: async ({ folderId, limit }) => {
+      const drive = require('./drive');
+      const files = await drive.listFiles(folderId || null, { limit: limit || 50 });
+      if (!files.length) return 'No files found.';
+      return files.map(f => `${f.name} (${f.mimeType}) — ID: ${f.id}`).join('\n');
+    },
+  },
+
+  drive_folders: {
+    description: 'List folders in Google Drive. Input: { "parentId": "optional-parent-folder-id" }',
+    execute: async ({ parentId }) => {
+      const drive = require('./drive');
+      const folders = await drive.listFolders(parentId || null);
+      if (!folders.length) return 'No folders found.';
+      return folders.map(f => `${f.name} — ID: ${f.id}`).join('\n');
+    },
+  },
+
+  drive_search: {
+    description: 'Search for files by name in Google Drive. Input: { "name": "search term" }',
+    execute: async ({ name }) => {
+      const drive = require('./drive');
+      const files = await drive.searchFiles(name);
+      if (!files.length) return 'No files matching "' + name + '" found.';
+      return files.map(f => `${f.name} (${f.mimeType}) — ID: ${f.id}`).join('\n');
+    },
+  },
+
+  drive_download: {
+    description: 'Download a file from Google Drive. Input: { "fileId": "...", "destPath": "optional/local/path" }',
+    execute: async ({ fileId, destPath }) => {
+      const drive = require('./drive');
+      const result = await drive.downloadFile(fileId, destPath || null);
+      return 'Downloaded: ' + result.name + ' → ' + result.path;
+    },
+  },
+
+  drive_download_folder: {
+    description: 'Download all files from a Google Drive folder. Input: { "folderId": "...", "destDir": "/local/path" }',
+    execute: async ({ folderId, destDir }) => {
+      const drive = require('./drive');
+      const results = await drive.downloadFolder(folderId, destDir);
+      const ok = results.filter(r => !r.error);
+      const fail = results.filter(r => r.error);
+      return `Downloaded ${ok.length} files.` + (fail.length ? ` Failed: ${fail.map(f => f.name).join(', ')}` : '');
+    },
+  },
+
+  drive_upload: {
+    description: 'Upload a local file to Google Drive. Input: { "localPath": "/path/to/file", "folderId": "optional-folder-id", "name": "optional-filename" }',
+    execute: async ({ localPath, folderId, name }) => {
+      const drive = require('./drive');
+      const result = await drive.uploadFile(localPath, folderId || null, name || null);
+      return 'Uploaded: ' + result.name + ' — ID: ' + result.id + ' — Link: ' + (result.webViewLink || 'N/A');
+    },
+  },
+
   // ── Memory & Tasks ──
   store_memory: {
     description: 'Save an important fact, decision, or task to your memory. Input: { "category": "fact|decision|task|training", "content": "what to remember", "importance": 7 }',
@@ -84,8 +144,7 @@ const tools = {
     description: 'Search your memory for relevant information. Input: { "query": "what to search for" }',
     execute: async ({ query }, tenantId) => {
       const results = await memory.recallMemories(tenantId, query);
-      if (!results || !results.length) return 'No relevant memories found for: ' + query;
-      // recallMemories returns a formatted string, not an array
+      if (!results || results.trim() === '') return 'No relevant memories found for: ' + query;
       return results;
     },
   },
@@ -381,8 +440,9 @@ async function runAgentCycle() {
   // Also pull training memories (strategies, learnings)
   let trainingContext = '';
   try {
-    trainingContext = await memory.recallMemories(tenantId, 'trading strategy business learning');
-  } catch (e) { /* ok */ }
+    const recalled = await memory.recallMemories(tenantId, 'trading strategy business learning');
+    trainingContext = typeof recalled === 'string' ? recalled : '';
+  } catch (e) { trainingContext = ''; }
 
   const contextParts = [];
   if (facts.length) contextParts.push('Known facts about Mark and the business:\n' + facts.map(f => '- ' + f.content).join('\n'));
