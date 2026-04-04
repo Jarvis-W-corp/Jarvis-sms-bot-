@@ -11,7 +11,7 @@ const SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/drive',
 ];
-const REDIRECT_URI = process.env.GMAIL_REDIRECT_URI || 'http://localhost:8091';
+const REDIRECT_URI = process.env.GMAIL_REDIRECT_URI || 'https://jarvis-sms-bot.onrender.com/auth/gmail/callback';
 
 // Cache auth clients per tenant to avoid re-creating
 const authCache = {};

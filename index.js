@@ -23,6 +23,27 @@ app.use(dashboard);
 const sales = require('./src/sales/routes');
 app.use(sales);
 
+// ── Gmail OAuth Callback (no more localhost!) ──
+app.get('/auth/gmail', async (req, res) => {
+  const gmail = require('./src/core/gmail');
+  const url = await gmail.getAuthUrl();
+  res.redirect(url);
+});
+
+app.get('/auth/gmail/callback', async (req, res) => {
+  const code = req.query.code;
+  if (!code) return res.send('No code received. Try again: /auth/gmail');
+  try {
+    const gmail = require('./src/core/gmail');
+    const db = require('./src/db/queries');
+    const tenant = await db.getDefaultTenant();
+    const result = await gmail.setAuthCode(code, tenant?.id);
+    res.send('<h2>Gmail connected!</h2><p>Account: ' + (result.email || 'saved') + '</p><p>You can close this window.</p>');
+  } catch (err) {
+    res.send('<h2>Error</h2><p>' + err.message + '</p><p><a href="/auth/gmail">Try again</a></p>');
+  }
+});
+
 app.get('/', async (req, res) => {
   try {
     const tenant = await db.getDefaultTenant();
