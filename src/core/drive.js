@@ -1,26 +1,20 @@
 const { google } = require('googleapis');
 const path = require('path');
 const fs = require('fs');
+const { getAuthForTenant } = require('./gmail');
 
-// Reuse the same OAuth2 setup as gmail.js
-function getAuth() {
-  const clientId = process.env.GMAIL_CLIENT_ID;
-  const clientSecret = process.env.GMAIL_CLIENT_SECRET;
-  if (!clientId || !clientSecret) throw new Error('GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET env vars required');
-  const oAuth2Client = new google.auth.OAuth2(clientId, clientSecret, 'http://localhost:8091');
-  if (process.env.GMAIL_REFRESH_TOKEN) {
-    oAuth2Client.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN });
-  }
-  return oAuth2Client;
-}
+// Use the same multi-tenant auth as gmail.js
+// Each tenant's Drive access uses their saved refresh token from tenants.config.gmail
+// Falls back to env var GMAIL_REFRESH_TOKEN for the default tenant
 
-function getDrive() {
-  return google.drive({ version: 'v3', auth: getAuth() });
+function getDrive(auth) {
+  return google.drive({ version: 'v3', auth });
 }
 
 // List files in a folder (or root if no folderId)
-async function listFiles(folderId, options = {}) {
-  const drive = getDrive();
+async function listFiles(folderId, options = {}, tenantId) {
+  const auth = await getAuthForTenant(tenantId);
+  const drive = getDrive(auth);
   const query = folderId
     ? `'${folderId}' in parents and trashed = false`
     : 'trashed = false';
@@ -36,8 +30,9 @@ async function listFiles(folderId, options = {}) {
 }
 
 // List all folders
-async function listFolders(parentId) {
-  const drive = getDrive();
+async function listFolders(parentId, tenantId) {
+  const auth = await getAuthForTenant(tenantId);
+  const drive = getDrive(auth);
   const query = parentId
     ? `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`
     : `mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
@@ -53,8 +48,9 @@ async function listFolders(parentId) {
 }
 
 // Search files by name
-async function searchFiles(name, mimeType) {
-  const drive = getDrive();
+async function searchFiles(name, mimeType, tenantId) {
+  const auth = await getAuthForTenant(tenantId);
+  const drive = getDrive(auth);
   let query = `name contains '${name.replace(/'/g, "\\'")}' and trashed = false`;
   if (mimeType) query += ` and mimeType = '${mimeType}'`;
 
@@ -69,8 +65,9 @@ async function searchFiles(name, mimeType) {
 }
 
 // Download a file to local path
-async function downloadFile(fileId, destPath) {
-  const drive = getDrive();
+async function downloadFile(fileId, destPath, tenantId) {
+  const auth = await getAuthForTenant(tenantId);
+  const drive = getDrive(auth);
 
   // Get file metadata first
   const meta = await drive.files.get({ fileId, fields: 'name, mimeType, size' });
@@ -110,20 +107,19 @@ async function downloadFile(fileId, destPath) {
 }
 
 // Download all files from a folder
-async function downloadFolder(folderId, destDir) {
-  const files = await listFiles(folderId);
+async function downloadFolder(folderId, destDir, tenantId) {
+  const files = await listFiles(folderId, {}, tenantId);
   const results = [];
 
   for (const file of files) {
     if (file.mimeType === 'application/vnd.google-apps.folder') {
-      // Recurse into subfolders
       const subDir = path.join(destDir, file.name);
-      const subResults = await downloadFolder(file.id, subDir);
+      const subResults = await downloadFolder(file.id, subDir, tenantId);
       results.push(...subResults);
     } else {
       try {
         const destPath = path.join(destDir, file.name);
-        const result = await downloadFile(file.id, destPath);
+        const result = await downloadFile(file.id, destPath, tenantId);
         results.push(result);
       } catch (err) {
         results.push({ name: file.name, error: err.message });
@@ -135,8 +131,9 @@ async function downloadFolder(folderId, destDir) {
 }
 
 // Read a PDF or text file content (returns buffer)
-async function readFileContent(fileId) {
-  const drive = getDrive();
+async function readFileContent(fileId, tenantId) {
+  const auth = await getAuthForTenant(tenantId);
+  const drive = getDrive(auth);
   const meta = await drive.files.get({ fileId, fields: 'name, mimeType' });
 
   const googleTypes = {
@@ -154,8 +151,9 @@ async function readFileContent(fileId) {
 }
 
 // Upload a file to Drive
-async function uploadFile(localPath, folderId, name) {
-  const drive = getDrive();
+async function uploadFile(localPath, folderId, name, tenantId) {
+  const auth = await getAuthForTenant(tenantId);
+  const drive = getDrive(auth);
   const fileName = name || path.basename(localPath);
 
   const fileMetadata = { name: fileName };

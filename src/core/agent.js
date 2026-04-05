@@ -77,9 +77,9 @@ const tools = {
   // ── Google Drive ──
   drive_list: {
     description: 'List files in a Google Drive folder. Input: { "folderId": "optional-folder-id", "limit": 50 }',
-    execute: async ({ folderId, limit }) => {
+    execute: async ({ folderId, limit }, tenantId) => {
       const drive = require('./drive');
-      const files = await drive.listFiles(folderId || null, { limit: limit || 50 });
+      const files = await drive.listFiles(folderId || null, { limit: limit || 50 }, tenantId);
       if (!files.length) return 'No files found.';
       return files.map(f => `${f.name} (${f.mimeType}) — ID: ${f.id}`).join('\n');
     },
@@ -87,9 +87,9 @@ const tools = {
 
   drive_folders: {
     description: 'List folders in Google Drive. Input: { "parentId": "optional-parent-folder-id" }',
-    execute: async ({ parentId }) => {
+    execute: async ({ parentId }, tenantId) => {
       const drive = require('./drive');
-      const folders = await drive.listFolders(parentId || null);
+      const folders = await drive.listFolders(parentId || null, tenantId);
       if (!folders.length) return 'No folders found.';
       return folders.map(f => `${f.name} — ID: ${f.id}`).join('\n');
     },
@@ -97,9 +97,9 @@ const tools = {
 
   drive_search: {
     description: 'Search for files by name in Google Drive. Input: { "name": "search term" }',
-    execute: async ({ name }) => {
+    execute: async ({ name }, tenantId) => {
       const drive = require('./drive');
-      const files = await drive.searchFiles(name);
+      const files = await drive.searchFiles(name, null, tenantId);
       if (!files.length) return 'No files matching "' + name + '" found.';
       return files.map(f => `${f.name} (${f.mimeType}) — ID: ${f.id}`).join('\n');
     },
@@ -107,18 +107,18 @@ const tools = {
 
   drive_download: {
     description: 'Download a file from Google Drive. Input: { "fileId": "...", "destPath": "optional/local/path" }',
-    execute: async ({ fileId, destPath }) => {
+    execute: async ({ fileId, destPath }, tenantId) => {
       const drive = require('./drive');
-      const result = await drive.downloadFile(fileId, destPath || null);
+      const result = await drive.downloadFile(fileId, destPath || null, tenantId);
       return 'Downloaded: ' + result.name + ' → ' + result.path;
     },
   },
 
   drive_download_folder: {
     description: 'Download all files from a Google Drive folder. Input: { "folderId": "...", "destDir": "/local/path" }',
-    execute: async ({ folderId, destDir }) => {
+    execute: async ({ folderId, destDir }, tenantId) => {
       const drive = require('./drive');
-      const results = await drive.downloadFolder(folderId, destDir);
+      const results = await drive.downloadFolder(folderId, destDir, tenantId);
       const ok = results.filter(r => !r.error);
       const fail = results.filter(r => r.error);
       return `Downloaded ${ok.length} files.` + (fail.length ? ` Failed: ${fail.map(f => f.name).join(', ')}` : '');
@@ -127,9 +127,9 @@ const tools = {
 
   drive_upload: {
     description: 'Upload a local file to Google Drive. Input: { "localPath": "/path/to/file", "folderId": "optional-folder-id", "name": "optional-filename" }',
-    execute: async ({ localPath, folderId, name }) => {
+    execute: async ({ localPath, folderId, name }, tenantId) => {
       const drive = require('./drive');
-      const result = await drive.uploadFile(localPath, folderId || null, name || null);
+      const result = await drive.uploadFile(localPath, folderId || null, name || null, tenantId);
       return 'Uploaded: ' + result.name + ' — ID: ' + result.id + ' — Link: ' + (result.webViewLink || 'N/A');
     },
   },

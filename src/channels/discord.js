@@ -193,20 +193,20 @@ async function handleCommand(message, command, args, tenant) {
       const sub = args[0];
       if (sub === 'folders') {
         const parentId = args[1] || null;
-        const folders = await drive.listFolders(parentId);
+        const folders = await drive.listFolders(parentId, tenantId);
         if (!folders.length) return message.reply('No folders found.');
         return message.reply('📁 **Drive Folders:**\n' + folders.map(f => `• ${f.name} — \`${f.id}\``).join('\n'));
       }
       if (sub === 'list') {
         const folderId = args[1] || null;
-        const files = await drive.listFiles(folderId, { limit: 20 });
+        const files = await drive.listFiles(folderId, { limit: 20 }, tenantId);
         if (!files.length) return message.reply('No files found.');
         return message.reply('📄 **Files:**\n' + files.map(f => `• ${f.name} — \`${f.id}\``).join('\n'));
       }
       if (sub === 'search') {
         const query = args.slice(1).join(' ');
         if (!query) return message.reply('Usage: !drive search <name>');
-        const files = await drive.searchFiles(query);
+        const files = await drive.searchFiles(query, null, tenantId);
         if (!files.length) return message.reply('No files matching "' + query + '".');
         return message.reply('🔍 **Results:**\n' + files.map(f => `• ${f.name} — \`${f.id}\``).join('\n'));
       }
@@ -214,7 +214,7 @@ async function handleCommand(message, command, args, tenant) {
         const fileId = args[1];
         if (!fileId) return message.reply('Usage: !drive download <fileId> [destPath]');
         await message.reply('⏳ Downloading...');
-        const result = await drive.downloadFile(fileId, args[2] || null);
+        const result = await drive.downloadFile(fileId, args[2] || null, tenantId);
         return message.reply('✅ Downloaded: ' + result.name + ' → ' + result.path);
       }
       return message.reply('Usage: !drive folders [parentId] | !drive list [folderId] | !drive search <name> | !drive download <fileId>');
@@ -347,6 +347,23 @@ async function handleCommand(message, command, args, tenant) {
       const result = coderModule.createProject(projectName, projectType);
       return message.reply(result);
     }
+    case '!code': {
+      if (!tenant.config?.boss_discord_id || !message.author.id.includes(tenant.config.boss_discord_id)) {
+        return message.reply('Only the boss can use !code.');
+      }
+      if (!process.env.GITHUB_TOKEN) {
+        return message.reply('GITHUB_TOKEN not set — I can\'t edit my codebase yet.');
+      }
+      const instruction = args.join(' ');
+      if (!instruction) return message.reply('Usage: !code <what to change>\nExample: !code add a !ping command that replies with pong');
+      await message.reply('🔧 On it — reading my code and making changes...');
+      await message.channel.sendTyping();
+      const userId = 'discord_' + message.author.id;
+      // Route through brain.chat so Jarvis uses his code tools
+      const reply = await brain.chat(tenant.id, userId, 'discord', 'UPDATE MY CODE: ' + instruction, message.author.displayName || message.author.username);
+      await sendLongMessage(message, reply);
+      return;
+    }
     case '!help': {
       const embed = new EmbedBuilder().setTitle('Super Jarvis Commands').setColor(0x0099ff)
         .addFields(
@@ -377,6 +394,8 @@ async function handleCommand(message, command, args, tenant) {
           { name: '!voice <message>', value: 'Jarvis speaks it as an audio clip' },
           { name: '--- Agent ---', value: '\u200b' },
           { name: '!agent', value: 'Agent status / !agent run / !agent tasks' },
+          { name: '--- Self-Edit ---', value: '\u200b' },
+          { name: '!code <instruction>', value: 'Tell Jarvis to edit his own code (boss only)' },
         ).setFooter({ text: 'Super Jarvis v2.0 — AI Workforce' }).setTimestamp();
       return message.reply({ embeds: [embed] });
     }

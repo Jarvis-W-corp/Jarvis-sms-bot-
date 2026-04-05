@@ -1,6 +1,7 @@
 const Anthropic = require('@anthropic-ai/sdk').default;
 const db = require('../db/queries');
 const memory = require('./memory');
+const codebase = require('./codebase');
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -34,7 +35,8 @@ YOUR CAPABILITIES (things you CAN do right now):
 - Run drip campaigns for solar sales
 - Paper trade stocks and crypto
 - Parse remittance PDFs to Google Sheets
-- Read and modify your own source code
+- Read and modify your own source code via GitHub (changes auto-deploy on Render)
+- When Mark asks you to add features, fix bugs, or change behavior — you edit your own code, commit to GitHub, and Render deploys it live
 - Make autonomous decisions and track outcomes
 - Run a full agent cycle every 2 hours with 50+ tools
 
@@ -100,34 +102,83 @@ async function chat(tenantId, userId, platform, userText, userName) {
     console.error('[BRAIN] Memory recall failed:', memErr.message);
   }
   const systemPrompt = buildSystemPrompt(tenant, user, memoryContext);
-  let response;
-  try {
-    response = await Promise.race([
-      anthropic.messages.create({
+  // Determine if Jarvis gets code tools (only for boss via Discord)
+  const isBoss = user?.platform_id?.includes(tenant.config?.boss_discord_id);
+  const tools = (isBoss && process.env.GITHUB_TOKEN) ? codebase.TOOLS : undefined;
+
+  let messages = [...history];
+  let finalReply = '';
+  const MAX_TOOL_ROUNDS = 5;
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    let response;
+    try {
+      const createParams = {
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 1500,
+        max_tokens: 2000,
         system: systemPrompt,
-        messages: history,
-      }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Claude API timeout (60s)')), 60000)),
-    ]);
-  } catch (apiError) {
-    console.error('[BRAIN] API error:', apiError.message);
-    throw new Error('Brain API failed: ' + apiError.message);
+        messages,
+      };
+      if (tools) createParams.tools = tools;
+
+      response = await Promise.race([
+        anthropic.messages.create(createParams),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Claude API timeout (60s)')), 60000)),
+      ]);
+    } catch (apiError) {
+      console.error('[BRAIN] API error:', apiError.message);
+      throw new Error('Brain API failed: ' + apiError.message);
+    }
+
+    // Extract text and tool_use blocks
+    const textBlocks = response.content.filter(b => b.type === 'text');
+    const toolBlocks = response.content.filter(b => b.type === 'tool_use');
+
+    if (textBlocks.length > 0) {
+      finalReply = textBlocks.map(b => b.text).join('\n');
+    }
+
+    // If no tool calls, we're done
+    if (toolBlocks.length === 0 || response.stop_reason !== 'tool_use') {
+      break;
+    }
+
+    // Execute tool calls and continue the loop
+    console.log('[BRAIN] Tool calls:', toolBlocks.map(t => t.name).join(', '));
+
+    // Add assistant message with all content blocks
+    messages.push({ role: 'assistant', content: response.content });
+
+    // Execute each tool and collect results
+    const toolResults = [];
+    for (const tool of toolBlocks) {
+      try {
+        const result = await codebase.executeTool(tool.name, tool.input);
+        console.log('[BRAIN] Tool ' + tool.name + ' succeeded');
+        toolResults.push({ type: 'tool_result', tool_use_id: tool.id, content: result });
+      } catch (toolErr) {
+        console.error('[BRAIN] Tool ' + tool.name + ' failed:', toolErr.message);
+        toolResults.push({ type: 'tool_result', tool_use_id: tool.id, content: 'Error: ' + toolErr.message, is_error: true });
+      }
+    }
+
+    messages.push({ role: 'user', content: toolResults });
   }
-  const reply = response.content?.[0]?.text || 'Something went wrong — I got an empty response. Try again.';
-  if (!response.content || response.content.length === 0) {
+
+  if (!finalReply) {
     console.error('[BRAIN] Empty response from Claude. History length:', history.length);
+    finalReply = 'Something went wrong — I got an empty response. Try again.';
   }
-  const needsSearch = /don't have|don't know|not sure|I cannot|my knowledge cutoff/i.test(reply);
+
+  const needsSearch = /don't have|don't know|not sure|I cannot|my knowledge cutoff/i.test(finalReply);
   if (needsSearch) {
     const { searchAndSummarize } = require('./search');
     const searchResult = await searchAndSummarize(userText, tenantId);
     await db.saveConversation(tenantId, platform, userId, 'assistant', searchResult);
     return searchResult;
   }
-  await db.saveConversation(tenantId, platform, userId, 'assistant', reply);
-  return reply;
+  await db.saveConversation(tenantId, platform, userId, 'assistant', finalReply);
+  return finalReply;
 }
 
 async function generateBriefing(tenantId) {
