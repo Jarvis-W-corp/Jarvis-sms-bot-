@@ -7,6 +7,10 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Debug: check Discord token on startup
+console.log('[STARTUP] Discord token starts with:', process.env.DISCORD_BOT_TOKEN?.substring(0, 10) + '...');
+console.log('[STARTUP] ElevenLabs key set:', !!process.env.ELEVENLABS_API_KEY);
+
 // Snack AI privacy policy (live URL for App Store)
 app.get('/privacy', (req, res) => {
   res.sendFile(path.join(__dirname, 'projects/intake/intake-app/privacy-policy.html'));
