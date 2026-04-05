@@ -486,6 +486,11 @@ function initDiscord() {
     const maxRetries = 3;
     const retryDelay = 10000; // 10 seconds between retries
 
+    // Wait 15s on startup so Render kills the old instance first — prevents token invalidation
+    const startupDelay = 15000;
+    console.log(`[DISCORD] Waiting ${startupDelay / 1000}s for old instance to die...`);
+    setTimeout(() => {
+
     function attemptLogin() {
       console.log(`[DISCORD] Attempting login${retries > 0 ? ` (retry ${retries}/${maxRetries})` : ''}...`);
       discord.login(process.env.DISCORD_BOT_TOKEN)
@@ -505,6 +510,7 @@ function initDiscord() {
         });
     }
     attemptLogin();
+    }, startupDelay);
   } else {
     console.log('[DISCORD] No token, disabled');
   }
