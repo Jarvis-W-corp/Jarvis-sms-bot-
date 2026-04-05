@@ -317,6 +317,33 @@ async function handleCommand(message, command, args, tenant) {
       await sendLongMessage(message, '**Ad Copy for: ' + product + '**\n\n' + copy);
       return;
     }
+    case '!spy': {
+      const query = args.join(' ');
+      if (!query) return message.reply('Usage: !spy <niche or competitor>\nExample: !spy med spa botox CT');
+      await message.reply('🔍 Scraping Meta Ad Library for "' + query + '"...');
+      await message.channel.sendTyping();
+      const adslibrary = require('../core/adslibrary');
+      const ads = await adslibrary.scrapeCompetitorAds(query, 15);
+      if (!ads.length) return message.reply('No ads found for "' + query + '".');
+      const analysis = await adslibrary.analyzeAds(ads, query);
+      await sendLongMessage(message, '🕵️ **Ad Spy: ' + query + '** (' + ads.length + ' ads found)\n\n' + analysis);
+      return;
+    }
+    case '!adpipeline': {
+      const niche = args.join(' ');
+      if (!niche) return message.reply('Usage: !adpipeline <niche>\nExample: !adpipeline med spa CT');
+      await message.reply('🚀 Running full ad pipeline: scrape → analyze → create → campaign...');
+      await message.channel.sendTyping();
+      const adslibrary = require('../core/adslibrary');
+      const result = await adslibrary.runAdPipeline(niche, { tenantId, count: 3 });
+      let output = '🚀 **Ad Pipeline: ' + niche + '**\n\n';
+      output += '**Ads Scraped:** ' + (result.steps[0]?.adsFound || 0) + '\n\n';
+      output += '**COMPETITOR ANALYSIS:**\n' + result.analysis + '\n\n';
+      output += '**WINNING CREATIVES:**\n' + result.creatives + '\n\n';
+      output += '**CAMPAIGN STRUCTURE:**\n' + result.campaign;
+      await sendLongMessage(message, output);
+      return;
+    }
     case '!stock': {
       const symbol = args[0]?.toUpperCase();
       if (!symbol) return message.reply('Usage: !stock <TICKER>\nExample: !stock TSLA');
@@ -379,6 +406,8 @@ async function handleCommand(message, command, args, tenant) {
           { name: '!plan <idea>', value: 'Generate a business plan' },
           { name: '!validate <idea>', value: 'Evaluate a business idea (GO/NO-GO)' },
           { name: '!ad <product>', value: 'Generate ad copy' },
+          { name: '!spy <niche>', value: 'Scrape Meta Ad Library for competitor ads' },
+          { name: '!adpipeline <niche>', value: 'Full pipeline: scrape → analyze → create → launch plan' },
           { name: '!build <name>', value: 'Scaffold a new project' },
           { name: '--- Trading ---', value: '\u200b' },
           { name: '!stock <TICKER>', value: 'Analyze a stock' },

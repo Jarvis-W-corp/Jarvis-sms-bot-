@@ -77,6 +77,25 @@ const workerTools = {
     return res.content[0].text;
   },
 
+  scrape_ads: async ({ query, limit }) => {
+    const adslibrary = require('./adslibrary');
+    const ads = await adslibrary.scrapeCompetitorAds(query, limit || 15);
+    if (!ads.length) return 'No ads found for "' + query + '".';
+    return ads.map(ad =>
+      'Page: ' + (ad.page_name || '?') + ' | Headline: ' + (ad.headline || 'N/A') + ' | Body: ' + (ad.body || 'N/A').substring(0, 200)
+    ).join('\n---\n');
+  },
+
+  run_ad_pipeline: async ({ niche, product, competitors, budget, audience, count }) => {
+    const adslibrary = require('./adslibrary');
+    const result = await adslibrary.runAdPipeline(niche, { product, competitors, budget, audience, count: count || 3 });
+    let output = 'Ads scraped: ' + (result.steps[0]?.adsFound || 0) + '\n\n';
+    output += 'ANALYSIS:\n' + result.analysis.substring(0, 2000) + '\n\n';
+    output += 'CREATIVES:\n' + result.creatives.substring(0, 2000) + '\n\n';
+    output += 'CAMPAIGN:\n' + result.campaign.substring(0, 2000);
+    return output;
+  },
+
   store_finding: async ({ category, content, importance }) => {
     const memory = require('./memory');
     const { supabase: db } = require('../db/supabase');

@@ -469,6 +469,32 @@ const tools = {
     },
   },
 
+  scrape_ad_library: {
+    description: 'Scrape the Meta Ad Library for real competitor ads. Returns actual ad copy, hooks, headlines, and platforms. Input: { "query": "med spa botox", "limit": 15 }',
+    execute: async ({ query, limit }) => {
+      const adslibrary = require('./adslibrary');
+      const ads = await adslibrary.scrapeCompetitorAds(query, limit || 15);
+      if (!ads.length) return 'No ads found for "' + query + '".';
+      return ads.map(ad =>
+        'Page: ' + (ad.page_name || '?') + '\nHeadline: ' + (ad.headline || 'N/A') + '\nBody: ' + (ad.body || 'N/A').substring(0, 300) + '\nPlatforms: ' + (ad.platforms?.join(', ') || 'web')
+      ).join('\n---\n');
+    },
+  },
+
+  ad_pipeline: {
+    description: 'Run the full ad pipeline: scrape competitor ads from Meta Ad Library → analyze patterns & gaps → generate winning ad creatives → build campaign structure. This is the most powerful ad tool. Input: { "niche": "med spa CT", "product": "Luxe Level Aesthetics", "competitors": ["Skin Laundry", "Ever/Body"], "budget": "$1000/month", "audience": "women 28-55 CT", "count": 5 }',
+    execute: async ({ niche, product, competitors, budget, audience, platform, count }, tenantId) => {
+      const adslibrary = require('./adslibrary');
+      const result = await adslibrary.runAdPipeline(niche, { competitors, product, budget, audience, platform, count, tenantId });
+      let output = '**AD PIPELINE COMPLETE**\n';
+      output += 'Ads scraped: ' + (result.steps[0]?.adsFound || 0) + '\n\n';
+      output += '**COMPETITOR ANALYSIS:**\n' + result.analysis + '\n\n';
+      output += '**WINNING CREATIVES:**\n' + result.creatives + '\n\n';
+      output += '**CAMPAIGN STRUCTURE:**\n' + result.campaign;
+      return output.substring(0, 10000);
+    },
+  },
+
   // ── Voice AI ──
   make_call: {
     description: 'Make an outbound phone call using Jarvis voice AI. Input: { "to": "+1234567890", "message": "Hi, this is Jarvis calling about..." }',
