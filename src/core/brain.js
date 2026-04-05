@@ -109,7 +109,7 @@ async function chat(tenantId, userId, platform, userText, userName) {
         system: systemPrompt,
         messages: history,
       }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Claude API timeout (30s)')), 30000)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Claude API timeout (60s)')), 60000)),
     ]);
   } catch (apiError) {
     console.error('[BRAIN] API error:', apiError.message);
