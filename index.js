@@ -60,6 +60,10 @@ app.get('/', async (req, res) => {
   }
 });
 
+// Voice AI routes (Twilio Voice webhooks)
+const voice = require('./src/core/voice');
+voice.initVoiceRoutes(app);
+
 const { initDiscord } = require('./src/channels/discord');
 initDiscord();
 

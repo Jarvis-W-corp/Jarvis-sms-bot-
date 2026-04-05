@@ -9,6 +9,9 @@ const business = require('./business');
 const trading = require('./trading');
 const crew = require('./crew');
 const ventures = require('./ventures');
+const leads = require('./leads');
+const adresearch = require('./adresearch');
+const voice = require('./voice');
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -397,6 +400,88 @@ const tools = {
       const pending = await ventures.getPendingDecisions();
       if (!pending.length) return 'No pending decisions to review.';
       return pending.map(d => '[' + d.id.slice(0, 8) + '] ' + d.decision + '\n  Expected: ' + (d.expected_outcome || 'N/A') + '\n  Venture: ' + (d.jarvis_ventures?.name || 'General')).join('\n\n');
+    },
+  },
+
+  // ── Lead Generation & Outreach ──
+  scrape_leads: {
+    description: 'Scrape businesses from the web for a specific niche and location. Builds your lead pipeline. Input: { "niche": "med spas", "location": "Connecticut", "count": 20 }',
+    execute: async ({ niche, location, count }) => {
+      const result = await leads.scrapeLeads(niche, location, count || 20);
+      return result.message + '\n\nSample leads:\n' + result.leads.slice(0, 5).map(l => l.name + ' | ' + (l.phone || 'no phone') + ' | ' + (l.email || 'no email')).join('\n');
+    },
+  },
+
+  get_pipeline: {
+    description: 'View your lead pipeline — all scraped leads by status and niche. Input: { "status": "new|outreach|replied|booked|closed|dead", "niche": "optional filter" }',
+    execute: async ({ status, niche }) => {
+      return leads.getPipelineStats();
+    },
+  },
+
+  create_outreach: {
+    description: 'Generate an AI outreach sequence (SMS + email) for a niche. Input: { "niche": "roofing companies", "service": "AI receptionist bot", "tone": "friendly and direct" }',
+    execute: async ({ niche, service, tone }) => {
+      const result = await leads.generateSequence(niche, service, tone);
+      if (result.error) return result.error;
+      const saved = await leads.createSequence(niche + ' outreach', result.steps);
+      return 'Created ' + result.count + '-step sequence (ID: ' + saved.id + '):\n' + result.steps.map((s, i) => 'Day ' + s.day + ': ' + s.channel + ' — ' + s.template.substring(0, 80)).join('\n');
+    },
+  },
+
+  enroll_leads: {
+    description: 'Enroll leads into an outreach sequence. Input: { "niche": "med spas", "sequence_id": "uuid", "limit": 10 }',
+    execute: async ({ niche, sequence_id, limit }) => {
+      const newLeads = await leads.getLeads('new', niche, limit || 10);
+      let enrolled = 0;
+      for (const lead of newLeads) {
+        if (lead.phone || lead.email) {
+          await leads.enrollLead(lead.id, sequence_id);
+          enrolled++;
+        }
+      }
+      return 'Enrolled ' + enrolled + ' leads into outreach sequence';
+    },
+  },
+
+  // ── Ad Research & Strategy ──
+  research_ads: {
+    description: 'Research competitor ads in a niche. Analyzes hooks, angles, offers, creative, weaknesses. Input: { "niche": "fitness apps", "competitors": ["MyFitnessPal", "Noom"] }',
+    execute: async ({ niche, competitors }) => {
+      const result = await adresearch.researchCompetitorAds(niche, competitors);
+      return result.analysis;
+    },
+  },
+
+  ad_strategy: {
+    description: 'Create a full ad strategy with campaign structure, targeting, creatives, testing framework, budget. Input: { "niche": "nutrition apps", "product": "Snack AI", "budget": "$500/month", "audience": "health-conscious 25-45 year olds" }',
+    execute: async ({ niche, product, budget, audience }) => {
+      const result = await adresearch.generateAdStrategy(niche, product, budget, audience);
+      return result.strategy;
+    },
+  },
+
+  create_ads: {
+    description: 'Generate ready-to-use ad creatives with hooks, copy, CTA, and creative direction. Input: { "product": "Snack AI - AI food scanner", "platform": "instagram", "audience": "gym goers 20-35", "angle": "convenience", "count": 3 }',
+    execute: async ({ product, platform, audience, angle, count }) => {
+      const result = await adresearch.generateAdCreatives(product, platform, audience, angle, count);
+      return result.creatives;
+    },
+  },
+
+  // ── Voice AI ──
+  make_call: {
+    description: 'Make an outbound phone call using Jarvis voice AI. Input: { "to": "+1234567890", "message": "Hi, this is Jarvis calling about..." }',
+    execute: async ({ to, message }) => {
+      const result = await voice.makeCall(to, message);
+      return 'Call initiated — SID: ' + result.callSid + ' Status: ' + result.status;
+    },
+  },
+
+  send_voice_memo: {
+    description: 'Send a voice memo to Mark via Discord using ElevenLabs AI voice. Input: { "message": "Hey Mark, I found an opportunity..." }',
+    execute: async ({ message }) => {
+      return voice.sendVoiceMemo(message);
     },
   },
 
