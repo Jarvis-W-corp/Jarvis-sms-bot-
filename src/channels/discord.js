@@ -219,6 +219,20 @@ async function handleCommand(message, command, args, tenant) {
       }
       return message.reply('Usage: !drive folders [parentId] | !drive list [folderId] | !drive search <name> | !drive download <fileId>');
     }
+    case '!voice': {
+      const voice = require('../core/voice');
+      const voiceText = args.join(' ');
+      if (!voiceText) return message.reply('Usage: `!voice <message>` — Jarvis speaks it as audio');
+      await message.channel.sendTyping();
+      try {
+        const result = await voice.sendVoiceMemo(voiceText, message.channel);
+        if (!result.startsWith('Voice memo')) await message.reply(result);
+      } catch (err) {
+        await message.reply('Voice error: ' + err.message);
+      }
+      return;
+    }
+
     case '!agent': {
       const sub = args[0];
       if (sub === 'run') {
@@ -359,6 +373,8 @@ async function handleCommand(message, command, args, tenant) {
           { name: '!remittance', value: 'Parse pay stubs to spreadsheet' },
           { name: '!gmail', value: 'Read emails' },
           { name: '!drive', value: 'Google Drive: list / search / download' },
+          { name: '--- Voice ---', value: '\u200b' },
+          { name: '!voice <message>', value: 'Jarvis speaks it as an audio clip' },
           { name: '--- Agent ---', value: '\u200b' },
           { name: '!agent', value: 'Agent status / !agent run / !agent tasks' },
         ).setFooter({ text: 'Super Jarvis v2.0 — AI Workforce' }).setTimestamp();
