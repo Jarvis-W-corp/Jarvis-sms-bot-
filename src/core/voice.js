@@ -59,11 +59,12 @@ async function sendVoiceMemo(message, discordChannel) {
 
 // Inbound call handler — Jarvis answers the phone
 function generateInboundTwiML(greeting) {
+  const renderUrl = process.env.RENDER_EXTERNAL_URL || 'https://jarvis-sms-bot.onrender.com';
   const msg = greeting || "Hey, this is Jarvis. How can I help you today?";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Matthew">${msg}</Say>
-  <Gather input="speech" timeout="5" speechTimeout="auto" action="/voice/respond" method="POST">
+  <Gather input="speech" timeout="5" speechTimeout="auto" action="${renderUrl}/voice/respond" method="POST">
     <Say voice="Polly.Matthew">I'm listening.</Say>
   </Gather>
   <Say voice="Polly.Matthew">I didn't catch that. Feel free to call back anytime.</Say>
@@ -85,10 +86,11 @@ async function handleVoiceResponse(speechResult, callSid, from) {
     // Store call in memory
     await memory.storeMemory(tenant.id, 'conversation', `Phone call from ${from}: "${speechResult}" → Jarvis: "${reply}"`, 6, 'voice');
 
+    const renderUrl = process.env.RENDER_EXTERNAL_URL || 'https://jarvis-sms-bot.onrender.com';
     return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Matthew">${reply.replace(/[<>&"']/g, '')}</Say>
-  <Gather input="speech" timeout="5" speechTimeout="auto" action="/voice/respond" method="POST">
+  <Gather input="speech" timeout="5" speechTimeout="auto" action="${renderUrl}/voice/respond" method="POST">
     <Say voice="Polly.Matthew">Anything else?</Say>
   </Gather>
   <Say voice="Polly.Matthew">Alright, have a great day!</Say>
