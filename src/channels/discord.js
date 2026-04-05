@@ -484,14 +484,9 @@ function initDiscord() {
   if (process.env.DISCORD_BOT_TOKEN) {
     let retries = 0;
     const maxRetries = 3;
-    const retryDelay = 10000; // 10 seconds between retries
+    const retryDelay = 10000;
 
-    // Wait 15s on startup so Render kills the old instance first — prevents token invalidation
-    const startupDelay = 15000;
-    console.log(`[DISCORD] Waiting ${startupDelay / 1000}s for old instance to die...`);
-    setTimeout(() => {
-
-    function attemptLogin() {
+    const attemptLogin = () => {
       console.log(`[DISCORD] Attempting login${retries > 0 ? ` (retry ${retries}/${maxRetries})` : ''}...`);
       discord.login(process.env.DISCORD_BOT_TOKEN)
         .then(() => console.log('[DISCORD] Login successful'))
@@ -499,7 +494,6 @@ function initDiscord() {
           console.error('[DISCORD] Login failed:', err.message);
           if (err.code === 'TokenInvalid') {
             console.error('[DISCORD] Token is invalid — update DISCORD_BOT_TOKEN in .env');
-            console.log('[DISCORD] Server will keep running without Discord. Dashboard available at /dashboard');
           } else if (retries < maxRetries) {
             retries++;
             console.log(`[DISCORD] Retrying in ${retryDelay / 1000}s...`);
@@ -508,9 +502,11 @@ function initDiscord() {
             console.error('[DISCORD] Max retries reached. Server continues without Discord.');
           }
         });
-    }
-    attemptLogin();
-    }, startupDelay);
+    };
+
+    // Wait 15s so Render kills old instance first — prevents token invalidation
+    console.log('[DISCORD] Waiting 15s for old instance to shut down...');
+    setTimeout(attemptLogin, 15000);
   } else {
     console.log('[DISCORD] No token, disabled');
   }
