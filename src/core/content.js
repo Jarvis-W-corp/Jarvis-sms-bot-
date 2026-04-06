@@ -272,6 +272,7 @@ module.exports = {
   extractContent,
   analyzeContent,
   processContent,
+  processVideoAttachment,
   getYouTubeTranscript,
   getTikTokContent,
   getWebPageContent,
