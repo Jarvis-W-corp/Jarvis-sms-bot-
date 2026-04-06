@@ -474,23 +474,40 @@ function initDiscord() {
     const userName = message.author.displayName || message.author.username;
     const tenant = await tenantManager.resolveTenant(discordId);
     if (message.attachments.size > 0) {
-      // Handle file attachments — PDFs, images, etc.
+      // Handle file attachments — Videos, PDFs, images, etc.
       const attachment = message.attachments.first();
-      if (attachment.name?.endsWith('.pdf')) {
+      const fileName = attachment.name?.toLowerCase() || '';
+      const isVideo = fileName.endsWith('.mp4') || fileName.endsWith('.mov') || fileName.endsWith('.webm') || fileName.endsWith('.avi') || fileName.endsWith('.mkv');
+      const isPDF = fileName.endsWith('.pdf');
+      
+      if (isVideo || isPDF) {
         try {
           await message.channel.sendTyping();
-          const res = await fetch(attachment.url);
-          const buffer = Buffer.from(await res.arrayBuffer());
-          const contentModule = require('../core/content');
-          const result = await contentModule.processContent(buffer, userText || null, tenant?.id);
-          let response = '**Analyzed: ' + attachment.name + '**\n\n' + result.analysis;
-          if (response.length > 2000) response = response.substring(0, 1997) + '...';
-          return message.reply(response);
+          
+          if (isVideo) {
+            // For videos, analyze the attachment URL and any user text context
+            const contentModule = require('../core/content');
+            const context = userText || 'Analyze this video content for business insights, opportunities, and actionable items.';
+            const result = await contentModule.processVideoAttachment(attachment.url, context, tenant?.id, attachment.name);
+            let response = '🎥 **Video Analysis: ' + attachment.name + '**\n\n' + result.analysis;
+            if (response.length > 2000) response = response.substring(0, 1997) + '...';
+            return message.reply(response);
+          }
+          
+          if (isPDF) {
+            const res = await fetch(attachment.url);
+            const buffer = Buffer.from(await res.arrayBuffer());
+            const contentModule = require('../core/content');
+            const result = await contentModule.processContent(buffer, userText || null, tenant?.id);
+            let response = '📄 **Analyzed: ' + attachment.name + '**\n\n' + result.analysis;
+            if (response.length > 2000) response = response.substring(0, 1997) + '...';
+            return message.reply(response);
+          }
         } catch (err) {
-          return message.reply('Error reading PDF: ' + err.message);
+          return message.reply('Error analyzing ' + (isVideo ? 'video' : 'PDF') + ': ' + err.message);
         }
       }
-      // For non-PDF attachments, fall through to brain
+      // For other attachments, fall through to brain
     }
     if (!tenant) return message.reply("I'm not set up yet. Database needs initialization.");
     if (userText.startsWith('!')) {
