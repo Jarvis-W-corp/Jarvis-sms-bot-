@@ -136,6 +136,63 @@ async function getPDFContent(buffer, filename) {
   };
 }
 
+// ── Video Attachment Processing ──
+
+async function processVideoAttachment(videoUrl, context, tenantId, filename) {
+  // For video attachments, we can't easily extract audio/transcript without server-side processing
+  // Instead, we'll analyze the context provided by the user and store it as a learning opportunity
+  
+  const videoInfo = {
+    type: 'video_attachment',
+    filename: filename || 'video.mp4',
+    url: videoUrl,
+    context: context,
+    text: `Video Upload: ${filename || 'video.mp4'}\n\nContext: ${context}\n\nNote: Video content analysis requires transcription. Consider uploading with detailed description of key points, strategies, or insights you want Jarvis to learn from this video.`,
+  };
+
+  // Analyze the context provided
+  const analysis = await analyzeVideoContext(context, filename);
+
+  // Store as learning memory if we have tenant
+  if (tenantId) {
+    const memory = require('./memory');
+    await memory.storeMemory(
+      tenantId,
+      'training',
+      `Video upload: ${filename} - ${context.substring(0, 300)}`,
+      7,
+      'video_processor'
+    );
+  }
+
+  return {
+    content: videoInfo,
+    analysis: analysis,
+    source: filename || 'video upload',
+  };
+}
+
+async function analyzeVideoContext(context, filename) {
+  const prompt = `The user uploaded a video file "${filename || 'video'}" with this context/description: "${context}"\n\nSince I cannot process video content directly, analyze what the user is trying to teach me and provide actionable insights based on their description.`;
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 1500,
+    system: `You are Jarvis, Mark's AI CEO. A video was uploaded but you cannot process video content directly. Instead, analyze the user's description/context and extract business value.
+
+Provide:
+1. **What Mark Wants Me to Learn** - Based on his description
+2. **Action Items** - Specific tasks I should work on
+3. **Business Applications** - How this applies to our ventures
+4. **Follow-up Questions** - What clarification I need to maximize learning
+
+Be direct and revenue-focused. If the context is vague, ask for more specific details about the key points, strategies, or insights from the video.`,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  return response.content[0].text;
+}
+
 // ── Universal Content Processor ──
 
 async function extractContent(input) {
