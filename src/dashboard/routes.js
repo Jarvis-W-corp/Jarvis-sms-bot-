@@ -2,8 +2,10 @@ const express = require('express');
 const path = require('path');
 const os = require('os');
 const db = require('../db/queries');
+const multer = require('multer');
 
 const router = express.Router();
+const upload = multer({ dest: '/tmp/jarvis-uploads/', limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB max
 
 // Serve dashboard HTML
 router.get('/dashboard', (req, res) => {
@@ -249,6 +251,69 @@ router.post('/dashboard/api/chat', async (req, res) => {
   }
 });
 
+// API: feed — upload files (video, PDF, images) or submit URLs for Jarvis to process
+router.post('/dashboard/api/feed', upload.single('file'), async (req, res) => {
+  try {
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+
+    const content = require('../core/content');
+    const context = req.body.context || '';
+    let result;
+
+    if (req.file) {
+      // File upload — video, PDF, etc
+      const fs = require('fs');
+      const filePath = req.file.path;
+      const fileName = req.file.originalname || 'upload';
+      const mime = req.file.mimetype || '';
+
+      if (mime.startsWith('video/') || /\.(mp4|mov|webm|avi|mkv)$/i.test(fileName)) {
+        // Video — Whisper transcription
+        const fileUrl = 'file://' + filePath;
+        result = await content.processVideoAttachment(fileUrl, context, tenant.id, fileName);
+      } else if (mime === 'application/pdf' || fileName.endsWith('.pdf')) {
+        // PDF
+        const buffer = fs.readFileSync(filePath);
+        result = await content.processContent(buffer, context, tenant.id);
+      } else {
+        // Other files — try as generic content
+        const buffer = fs.readFileSync(filePath);
+        const text = buffer.toString('utf-8').substring(0, 10000);
+        result = await content.processContent(text, context, tenant.id);
+      }
+
+      // Cleanup uploaded file
+      try { fs.unlinkSync(filePath); } catch(e) {}
+    } else if (req.body.url) {
+      // URL — YouTube, TikTok, website, etc
+      result = await content.processContent(req.body.url, context, tenant.id);
+    } else {
+      return res.status(400).json({ error: 'No file or URL provided' });
+    }
+
+    res.json({ success: true, analysis: result.analysis, source: result.source });
+  } catch (error) {
+    console.error('[DASHBOARD] Feed error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API: feed — process video from a direct URL (no upload needed)
+router.post('/dashboard/api/feed/url-video', async (req, res) => {
+  try {
+    const { url, context } = req.body;
+    if (!url) return res.status(400).json({ error: 'No URL' });
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+    const content = require('../core/content');
+    const result = await content.processVideoAttachment(url, context || '', tenant.id, url.split('/').pop());
+    res.json({ success: true, analysis: result.analysis, transcript: result.content?.transcript, source: result.source });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // API: feature progress (static manifest)
 router.get('/dashboard/api/progress', (req, res) => {
   res.json({
@@ -285,9 +350,14 @@ router.get('/dashboard/api/progress', (req, res) => {
         status: 'in-progress',
         features: [
           { name: 'Mission Control dashboard', status: 'done' },
-          { name: 'Autonomous agent loop (22 tools)', status: 'done' },
-          { name: 'Content ingestion (YouTube/TikTok/PDF)', status: 'done' },
-          { name: 'Code execution (read/write/shell)', status: 'done' },
+          { name: 'Dashboard voice chat (push-to-talk + ElevenLabs)', status: 'done' },
+          { name: 'Dashboard media feed (drop videos/PDFs/URLs)', status: 'done' },
+          { name: 'Whisper video transcription (OpenAI STT)', status: 'done' },
+          { name: 'Autonomous agent loop (50+ tools)', status: 'done' },
+          { name: 'Content ingestion (YouTube/TikTok/PDF/Video)', status: 'done' },
+          { name: 'Self-editing via GitHub API (Jarvis edits own code)', status: 'done' },
+          { name: 'Meta Ad Library scraper + ad pipeline', status: 'done' },
+          { name: 'Google Drive multi-tenant access', status: 'done' },
           { name: 'Business ops (research/plans/ads)', status: 'done' },
           { name: 'Trading engine (stocks/crypto)', status: 'done' },
           { name: 'Enerflo pipeline dashboard', status: 'done' },
@@ -295,27 +365,25 @@ router.get('/dashboard/api/progress', (req, res) => {
           { name: 'HC Sales Tracker (KPIs, leads, goals)', status: 'done' },
           { name: 'Roofing pipeline + Roof Admin role', status: 'done' },
           { name: 'Notification system (lead updates)', status: 'done' },
-          { name: 'Meta Ads API (create/manage campaigns)', status: 'planned' },
+          { name: 'Voice calls (Twilio + ElevenLabs)', status: 'done' },
+          { name: 'Meta Ads API (create/manage campaigns)', status: 'in-progress' },
+          { name: 'GoHighLevel CRM integration', status: 'planned' },
           { name: 'Google Ads API', status: 'planned' },
           { name: 'Alpaca broker API (live trading)', status: 'planned' },
-          { name: 'Shopify API (store/product management)', status: 'planned' },
-          { name: 'App Store Connect API (deploy apps)', status: 'planned' },
-          { name: 'Voice calls (Twilio + ElevenLabs)', status: 'planned' },
           { name: 'Calendar + appointments', status: 'planned' },
         ],
       },
       {
         name: 'Phase 4 — Sub-Agent System (AI Employees)',
-        status: 'planned',
+        status: 'in-progress',
         features: [
           { name: 'Sub-agent task queue + orchestrator', status: 'done' },
-          { name: 'Research Agent (market scanning, opportunities)', status: 'done' },
-          { name: 'Marketing Agent (ad copy, content, social)', status: 'done' },
-          { name: 'Ads Agent (campaign creation, A/B test, optimize)', status: 'planned' },
-          { name: 'Commerce Agent (Shopify stores, product sourcing)', status: 'planned' },
-          { name: 'Ops Agent — Pulse (revenue tracking, P&L, alerts)', status: 'done' },
+          { name: 'Hawk — Research Agent (7 tools, ad scraping)', status: 'done' },
+          { name: 'Ghost — Marketing Agent (11 tools, full ad pipeline)', status: 'done' },
+          { name: 'Pulse — Ops Agent (monitoring, alerts, reports)', status: 'done' },
           { name: 'Proactive monitoring (morning plan, EOD recap, alerts)', status: 'done' },
           { name: 'Auto-delegate (Jarvis assigns crew work on schedule)', status: 'done' },
+          { name: 'Lead scraping + outreach pipeline', status: 'in-progress' },
           { name: 'Dialer Agent (AI phone calls, appt setting)', status: 'planned' },
           { name: 'Agent learning system (get smarter over time)', status: 'planned' },
           { name: 'Agent performance metrics + kill switch', status: 'planned' },
@@ -323,16 +391,14 @@ router.get('/dashboard/api/progress', (req, res) => {
       },
       {
         name: 'Phase 5 — Business Ventures',
-        status: 'planned',
+        status: 'in-progress',
         features: [
-          { name: 'Intake App (fitness tracker, App Store deploy)', status: 'planned' },
-          { name: 'Intake ad campaigns (Meta/Google)', status: 'planned' },
-          { name: 'Intake feature iteration (auto-improve from data)', status: 'planned' },
-          { name: 'E-commerce venture (trending products, Shopify)', status: 'planned' },
-          { name: 'Custom Business Bot (SaaS product)', status: 'planned' },
-          { name: 'Business Bot tiered pricing + onboarding', status: 'planned' },
-          { name: 'AI Dialer package (add-on for businesses)', status: 'planned' },
-          { name: 'Clothing brand (design, market, sell)', status: 'planned' },
+          { name: 'Snack AI — submitted to App Store (waiting review)', status: 'done' },
+          { name: 'Snack AI ad campaigns (Meta/Google)', status: 'planned' },
+          { name: 'Luxe Level Aesthetics — first B2B client', status: 'in-progress' },
+          { name: 'Med spa multi-offer package', status: 'in-progress' },
+          { name: 'AI Workforce — white-label Jarvis for businesses', status: 'in-progress' },
+          { name: 'E-commerce venture (trending products)', status: 'planned' },
           { name: 'Autonomous ad spend optimization', status: 'planned' },
           { name: 'Cross-venture P&L dashboard', status: 'planned' },
         ],

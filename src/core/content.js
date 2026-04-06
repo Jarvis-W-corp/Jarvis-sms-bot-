@@ -136,61 +136,90 @@ async function getPDFContent(buffer, filename) {
   };
 }
 
-// ── Video Attachment Processing ──
+// ── Video Processing with Whisper Transcription ──
 
 async function processVideoAttachment(videoUrl, context, tenantId, filename) {
-  // For video attachments, we can't easily extract audio/transcript without server-side processing
-  // Instead, we'll analyze the context provided by the user and store it as a learning opportunity
-  
-  const videoInfo = {
-    type: 'video_attachment',
-    filename: filename || 'video.mp4',
-    url: videoUrl,
-    context: context,
-    text: `Video Upload: ${filename || 'video.mp4'}\n\nContext: ${context}\n\nNote: Video content analysis requires transcription. Consider uploading with detailed description of key points, strategies, or insights you want Jarvis to learn from this video.`,
-  };
+  const fs = require('fs');
+  const { execSync } = require('child_process');
+  const OpenAI = require('openai');
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  // Analyze the context provided
-  const analysis = await analyzeVideoContext(context, filename);
+  let transcript = '';
+  const ts = Date.now();
+  const tmpVideo = '/tmp/jarvis_vid_' + ts + '.mp4';
+  const tmpAudio = '/tmp/jarvis_vid_' + ts + '.mp3';
 
-  // Store as learning memory if we have tenant
-  if (tenantId) {
-    const memory = require('./memory');
-    await memory.storeMemory(
-      tenantId,
-      'training',
-      `Video upload: ${filename} - ${context.substring(0, 300)}`,
-      7,
-      'video_processor'
-    );
+  try {
+    // 1. Download or copy video
+    console.log('[CONTENT] Loading video: ' + (filename || videoUrl.substring(0, 60)));
+    if (videoUrl.startsWith('file://')) {
+      const localPath = videoUrl.replace('file://', '');
+      fs.copyFileSync(localPath, tmpVideo);
+    } else {
+      const res = await fetch(videoUrl);
+      const buffer = Buffer.from(await res.arrayBuffer());
+      fs.writeFileSync(tmpVideo, buffer);
+    }
+    console.log('[CONTENT] Video size: ' + Math.round(fs.statSync(tmpVideo).size / 1024) + 'KB');
+
+    // 2. Extract audio with ffmpeg
+    try {
+      execSync('ffmpeg -y -i "' + tmpVideo + '" -vn -acodec libmp3lame -q:a 4 -ac 1 -ar 16000 "' + tmpAudio + '" 2>/dev/null', { timeout: 120000 });
+    } catch (e) {
+      console.error('[CONTENT] ffmpeg extract failed:', e.message);
+    }
+
+    // 3. Transcribe with Whisper
+    if (fs.existsSync(tmpAudio) && fs.statSync(tmpAudio).size > 0) {
+      const audioSize = fs.statSync(tmpAudio).size;
+      console.log('[CONTENT] Sending to Whisper (' + Math.round(audioSize / 1024) + 'KB)...');
+      if (audioSize < 25 * 1024 * 1024) {
+        transcript = await openai.audio.transcriptions.create({
+          file: fs.createReadStream(tmpAudio),
+          model: 'whisper-1',
+          response_format: 'text',
+        });
+        console.log('[CONTENT] Transcript length: ' + transcript.length + ' chars');
+      } else {
+        transcript = '[Audio over 25MB — too large for Whisper in one shot]';
+      }
+    }
+  } catch (err) {
+    console.error('[CONTENT] Video processing error:', err.message);
+  } finally {
+    try { require('fs').unlinkSync(tmpVideo); } catch(e) {}
+    try { require('fs').unlinkSync(tmpAudio); } catch(e) {}
   }
 
-  return {
-    content: videoInfo,
-    analysis: analysis,
-    source: filename || 'video upload',
-  };
-}
-
-async function analyzeVideoContext(context, filename) {
-  const prompt = `The user uploaded a video file "${filename || 'video'}" with this context/description: "${context}"\n\nSince I cannot process video content directly, analyze what the user is trying to teach me and provide actionable insights based on their description.`;
+  // 4. Analyze with Claude
+  const hasTranscript = transcript && transcript.length > 20;
+  const analysisInput = hasTranscript
+    ? 'Video: "' + (filename || 'video') + '"\n\nTranscript:\n' + transcript + (context ? '\n\nUser notes: ' + context : '')
+    : 'Video: "' + (filename || 'video') + '"\nUser notes: ' + (context || 'none') + '\n\n(Transcript unavailable)';
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 1500,
-    system: `You are Jarvis, Mark's AI CEO. A video was uploaded but you cannot process video content directly. Instead, analyze the user's description/context and extract business value.
-
-Provide:
-1. **What Mark Wants Me to Learn** - Based on his description
-2. **Action Items** - Specific tasks I should work on
-3. **Business Applications** - How this applies to our ventures
-4. **Follow-up Questions** - What clarification I need to maximize learning
-
-Be direct and revenue-focused. If the context is vague, ask for more specific details about the key points, strategies, or insights from the video.`,
-    messages: [{ role: 'user', content: prompt }],
+    max_tokens: 2000,
+    system: 'You are Jarvis, an AI CEO. Analyze this video content. Extract: 1) Key takeaways 2) Strategies/tactics mentioned 3) Action items for the team 4) How it applies to our ventures (solar, med spa, Snack AI, AI workforce) 5) Revenue opportunities. Pull exact quotes from the transcript. Be specific and tactical.',
+    messages: [{ role: 'user', content: analysisInput }],
   });
 
-  return response.content[0].text;
+  const analysis = response.content[0].text;
+
+  // 5. Store to memory
+  if (tenantId) {
+    const mem = require('./memory');
+    const memText = hasTranscript
+      ? 'Video "' + (filename || 'video') + '" key points: ' + transcript.substring(0, 500)
+      : 'Video "' + (filename || 'video') + '" context: ' + (context || '').substring(0, 300);
+    await mem.storeMemory(tenantId, 'training', memText, 8, 'whisper');
+  }
+
+  return {
+    content: { transcript: transcript || null, filename, context },
+    analysis,
+    source: filename || 'video upload',
+  };
 }
 
 // ── Universal Content Processor ──

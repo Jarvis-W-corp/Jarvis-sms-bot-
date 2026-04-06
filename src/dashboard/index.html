@@ -219,6 +219,42 @@
   }
   .send-btn:hover { border-color: #a78bfa; color: #a78bfa; }
   .voice-status { text-align: center; font-size: 12px; color: #555; margin-top: 12px; }
+
+  /* Feed Section */
+  .feed-container { max-width: 800px; margin: 0 auto; }
+  .drop-zone {
+    border: 2px dashed #333; border-radius: 16px; padding: 48px 24px; text-align: center;
+    background: #0a0a0a; cursor: pointer; transition: all 0.2s; margin-bottom: 20px;
+  }
+  .drop-zone:hover, .drop-zone.dragover { border-color: #a78bfa; background: #1a1a2e; }
+  .drop-zone .drop-icon { font-size: 40px; margin-bottom: 12px; }
+  .drop-zone .drop-text { font-size: 14px; color: #888; }
+  .drop-zone .drop-sub { font-size: 12px; color: #555; margin-top: 6px; }
+  .feed-url-row { display: flex; gap: 10px; margin-bottom: 20px; }
+  .feed-url-input {
+    flex: 1; background: #141414; border: 1px solid #222; border-radius: 10px; padding: 12px 16px;
+    color: #e0e0e0; font-size: 14px; outline: none; font-family: inherit;
+  }
+  .feed-url-input:focus { border-color: #a78bfa; }
+  .feed-url-btn {
+    background: #1a1a2e; border: 1px solid #2a2a4a; color: #a78bfa; padding: 12px 20px;
+    border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: 600; white-space: nowrap;
+  }
+  .feed-url-btn:hover { background: #2a2a4a; }
+  .feed-context-input {
+    width: 100%; background: #141414; border: 1px solid #222; border-radius: 10px; padding: 10px 16px;
+    color: #e0e0e0; font-size: 13px; outline: none; font-family: inherit; margin-bottom: 20px;
+  }
+  .feed-results { margin-top: 20px; }
+  .feed-result-card {
+    background: #141414; border: 1px solid #222; border-radius: 12px; padding: 20px; margin-bottom: 16px;
+  }
+  .feed-result-card .source { font-size: 11px; color: #a78bfa; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .feed-result-card .analysis { font-size: 14px; color: #ccc; line-height: 1.6; white-space: pre-wrap; }
+  .feed-processing {
+    text-align: center; padding: 40px; color: #a78bfa; font-size: 14px;
+  }
+  .feed-processing .spinner { animation: pulse 1s infinite; font-size: 24px; margin-bottom: 12px; }
   .tool-log-item .tool-name { color: #a78bfa; font-weight: 600; }
   .tool-log-item .tool-input { color: #888; margin-top: 2px; }
   .tool-log-item .tool-output { color: #666; margin-top: 2px; font-style: italic; }
@@ -285,6 +321,9 @@
   </button>
   <button class="nav-btn" onclick="showSection('crew')" title="AI Employees">
     <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+  </button>
+  <button class="nav-btn" onclick="showSection('feed')" title="Feed Jarvis">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
   </button>
   <button class="nav-btn" onclick="showSection('voice')" title="Talk to Jarvis">
     <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
@@ -557,6 +596,28 @@
   </div>
 
   <!-- Build Progress -->
+  <!-- Feed Jarvis -->
+  <div class="section" id="sec-feed">
+    <div class="section-title">Feed Jarvis</div>
+    <div class="feed-container">
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <div class="drop-icon">📥</div>
+        <div class="drop-text">Drop videos, PDFs, screen recordings, or any file</div>
+        <div class="drop-sub">MP4, MOV, PDF, images — up to 100MB. Videos get Whisper transcription.</div>
+      </div>
+      <input type="file" id="fileInput" style="display:none" accept="video/*,application/pdf,image/*,.mp4,.mov,.webm,.avi,.mkv" onchange="handleFileSelect(this.files[0])">
+
+      <div class="feed-url-row">
+        <input type="text" class="feed-url-input" id="feedUrlInput" placeholder="Paste a YouTube, TikTok, Instagram, or any URL..." onkeydown="if(event.key==='Enter')submitFeedUrl()">
+        <button class="feed-url-btn" onclick="submitFeedUrl()">Process</button>
+      </div>
+
+      <input type="text" class="feed-context-input" id="feedContext" placeholder="Optional: tell Jarvis what to focus on (e.g. 'learn the ad strategy from this')">
+
+      <div class="feed-results" id="feedResults"></div>
+    </div>
+  </div>
+
   <!-- Voice Chat -->
   <div class="section" id="sec-voice">
     <div class="section-title">Talk to Jarvis</div>
@@ -1053,6 +1114,61 @@ async function runCrewNow() {
   } catch (e) { alert('Error: ' + e.message); }
 }
 
+// ── Feed Jarvis ──
+var dropZone = document.getElementById('dropZone');
+if (dropZone) {
+  dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('dragover'); });
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault(); dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length > 0) handleFileSelect(e.dataTransfer.files[0]);
+  });
+}
+
+async function handleFileSelect(file) {
+  if (!file) return;
+  var resultsDiv = document.getElementById('feedResults');
+  var context = document.getElementById('feedContext').value.trim();
+  resultsDiv.innerHTML = '<div class="feed-processing"><div class="spinner">🧠</div>Processing ' + esc(file.name) + '...<br><span style="font-size:12px;color:#555">Videos get Whisper transcription — may take a minute</span></div>';
+
+  var formData = new FormData();
+  formData.append('file', file);
+  if (context) formData.append('context', context);
+
+  try {
+    var r = await fetch('/dashboard/api/feed', { method: 'POST', body: formData });
+    var d = await r.json();
+    if (d.error) throw new Error(d.error);
+    resultsDiv.innerHTML = '<div class="feed-result-card"><div class="source">' + esc(d.source || file.name) + '</div><div class="analysis">' + esc(d.analysis) + '</div></div>' + resultsDiv.innerHTML.replace(/<div class="feed-processing">.*?<\/div>/s, '');
+  } catch(e) {
+    resultsDiv.innerHTML = '<div class="feed-result-card"><div class="source" style="color:#ef4444">Error</div><div class="analysis" style="color:#ef4444">' + esc(e.message) + '</div></div>';
+  }
+  document.getElementById('feedContext').value = '';
+}
+
+async function submitFeedUrl() {
+  var url = document.getElementById('feedUrlInput').value.trim();
+  if (!url) return;
+  var context = document.getElementById('feedContext').value.trim();
+  var resultsDiv = document.getElementById('feedResults');
+  resultsDiv.innerHTML = '<div class="feed-processing"><div class="spinner">🧠</div>Processing ' + esc(url) + '...</div>';
+  document.getElementById('feedUrlInput').value = '';
+
+  try {
+    var r = await fetch('/dashboard/api/feed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url, context: context })
+    });
+    var d = await r.json();
+    if (d.error) throw new Error(d.error);
+    resultsDiv.innerHTML = '<div class="feed-result-card"><div class="source">' + esc(d.source || url) + '</div><div class="analysis">' + esc(d.analysis) + '</div></div>' + resultsDiv.innerHTML.replace(/<div class="feed-processing">.*?<\/div>/s, '');
+  } catch(e) {
+    resultsDiv.innerHTML = '<div class="feed-result-card"><div class="source" style="color:#ef4444">Error</div><div class="analysis" style="color:#ef4444">' + esc(e.message) + '</div></div>';
+  }
+  document.getElementById('feedContext').value = '';
+}
+
 // ── Voice Chat ──
 var voiceRecognition = null;
 var isRecording = false;
@@ -1133,7 +1249,11 @@ async function sendVoiceMessage(text, withAudio) {
     log.innerHTML += '<div class="voice-msg jarvis"><div class="sender">Jarvis</div><div class="bubble">' + esc(d.reply) + '</div></div>';
     log.scrollTop = log.scrollHeight;
 
-    // Play audio if available
+    // Stop any previous audio before playing new
+    if (jarvisAudio) { jarvisAudio.pause(); jarvisAudio.currentTime = 0; jarvisAudio = null; }
+
+    // Stop old audio, play new
+    if (jarvisAudio) { jarvisAudio.pause(); jarvisAudio = null; }
     if (d.audio) {
       jarvisAudio = new Audio('data:audio/mpeg;base64,' + d.audio);
       jarvisAudio.play().catch(function(e) { console.error('Audio play error:', e); });
