@@ -202,6 +202,53 @@ router.post('/dashboard/api/crew/run', async (req, res) => {
   }
 });
 
+// API: voice chat — browser sends text (from Web Speech API), Jarvis replies with text + audio
+router.post('/dashboard/api/voice', async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ error: 'No text provided' });
+
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+
+    const brain = require('../core/brain');
+    const reply = await brain.chat(tenant.id, 'dashboard_voice', 'dashboard', text, 'Boss');
+
+    // Generate audio via ElevenLabs
+    let audioBase64 = null;
+    try {
+      const voice = require('../core/voice');
+      const audioBuffer = await voice.textToSpeech(reply.substring(0, 1000));
+      audioBase64 = audioBuffer.toString('base64');
+    } catch (voiceErr) {
+      console.error('[DASHBOARD] TTS error:', voiceErr.message);
+      // Still return text even if voice fails
+    }
+
+    res.json({ reply, audio: audioBase64 });
+  } catch (error) {
+    console.error('[DASHBOARD] Voice error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API: text chat — same as voice but no audio
+router.post('/dashboard/api/chat', async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ error: 'No text provided' });
+
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+
+    const brain = require('../core/brain');
+    const reply = await brain.chat(tenant.id, 'dashboard_chat', 'dashboard', text, 'Boss');
+    res.json({ reply });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // API: feature progress (static manifest)
 router.get('/dashboard/api/progress', (req, res) => {
   res.json({
