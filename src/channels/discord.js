@@ -446,6 +446,9 @@ async function handleCommand(message, command, args, tenant) {
         .setFooter({ text: 'Super Jarvis v2.0' }).setTimestamp();
       return message.reply({ embeds: [embed] });
     }
+    case '!ping': {
+      return message.reply('pong');
+    }
     default: return null;
   }
 }
