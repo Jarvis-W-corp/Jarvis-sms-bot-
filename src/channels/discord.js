@@ -225,8 +225,8 @@ async function handleCommand(message, command, args, tenant) {
       if (!voiceText) return message.reply('Usage: `!voice <message>` — Jarvis speaks it as audio');
       await message.channel.sendTyping();
       try {
-        const result = await voice.sendVoiceMemo(voiceText, message.channel);
-        if (!result.startsWith('Voice memo')) await message.reply(result);
+        await voice.sendVoiceMemo(voiceText, message.channel);
+        // Don't send a text reply - the voice memo is the response
       } catch (err) {
         await message.reply('Voice error: ' + err.message);
       }
