@@ -1136,7 +1136,7 @@ async function handleFileSelect(file) {
   if (context) formData.append('context', context);
 
   try {
-    var r = await fetch('/dashboard/api/feed', { method: 'POST', body: formData });
+    var r = await fetch('/dashboard/api/feed/upload', { method: 'POST', body: formData });
     var d = await r.json();
     if (d.error) throw new Error(d.error);
     resultsDiv.innerHTML = '<div class="feed-result-card"><div class="source">' + esc(d.source || file.name) + '</div><div class="analysis">' + esc(d.analysis) + '</div></div>' + resultsDiv.innerHTML.replace(/<div class="feed-processing">.*?<\/div>/s, '');
@@ -1155,7 +1155,7 @@ async function submitFeedUrl() {
   document.getElementById('feedUrlInput').value = '';
 
   try {
-    var r = await fetch('/dashboard/api/feed', {
+    var r = await fetch('/dashboard/api/feed/url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: url, context: context })

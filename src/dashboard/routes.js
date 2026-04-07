@@ -251,50 +251,52 @@ router.post('/dashboard/api/chat', async (req, res) => {
   }
 });
 
-// API: feed — upload files (video, PDF, images) or submit URLs for Jarvis to process
-router.post('/dashboard/api/feed', upload.single('file'), async (req, res) => {
+// API: feed — file upload (video, PDF, images)
+router.post('/dashboard/api/feed/upload', upload.single('file'), async (req, res) => {
   try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const tenant = await db.getDefaultTenant();
     if (!tenant) return res.status(500).json({ error: 'No tenant' });
 
-    const content = require('../core/content');
+    const contentModule = require('../core/content');
+    const fs = require('fs');
     const context = req.body.context || '';
+    const filePath = req.file.path;
+    const fileName = req.file.originalname || 'upload';
+    const mime = req.file.mimetype || '';
     let result;
 
-    if (req.file) {
-      // File upload — video, PDF, etc
-      const fs = require('fs');
-      const filePath = req.file.path;
-      const fileName = req.file.originalname || 'upload';
-      const mime = req.file.mimetype || '';
-
-      if (mime.startsWith('video/') || /\.(mp4|mov|webm|avi|mkv)$/i.test(fileName)) {
-        // Video — Whisper transcription
-        const fileUrl = 'file://' + filePath;
-        result = await content.processVideoAttachment(fileUrl, context, tenant.id, fileName);
-      } else if (mime === 'application/pdf' || fileName.endsWith('.pdf')) {
-        // PDF
-        const buffer = fs.readFileSync(filePath);
-        result = await content.processContent(buffer, context, tenant.id);
-      } else {
-        // Other files — try as generic content
-        const buffer = fs.readFileSync(filePath);
-        const text = buffer.toString('utf-8').substring(0, 10000);
-        result = await content.processContent(text, context, tenant.id);
-      }
-
-      // Cleanup uploaded file
-      try { fs.unlinkSync(filePath); } catch(e) {}
-    } else if (req.body.url) {
-      // URL — YouTube, TikTok, website, etc
-      result = await content.processContent(req.body.url, context, tenant.id);
+    if (mime.startsWith('video/') || /\.(mp4|mov|webm|avi|mkv)$/i.test(fileName)) {
+      result = await contentModule.processVideoAttachment('file://' + filePath, context, tenant.id, fileName);
+    } else if (mime === 'application/pdf' || fileName.endsWith('.pdf')) {
+      const buffer = fs.readFileSync(filePath);
+      result = await contentModule.processContent(buffer, context, tenant.id);
     } else {
-      return res.status(400).json({ error: 'No file or URL provided' });
+      const text = fs.readFileSync(filePath, 'utf-8').substring(0, 10000);
+      result = await contentModule.processContent(text, context, tenant.id);
     }
 
+    try { fs.unlinkSync(filePath); } catch(e) {}
     res.json({ success: true, analysis: result.analysis, source: result.source });
   } catch (error) {
-    console.error('[DASHBOARD] Feed error:', error.message);
+    console.error('[DASHBOARD] Feed upload error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API: feed — URL submission (YouTube, TikTok, website, etc)
+router.post('/dashboard/api/feed/url', async (req, res) => {
+  try {
+    const { url, context } = req.body;
+    if (!url) return res.status(400).json({ error: 'No URL provided' });
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+
+    const contentModule = require('../core/content');
+    const result = await contentModule.processContent(url, context || '', tenant.id);
+    res.json({ success: true, analysis: result.analysis, source: result.source });
+  } catch (error) {
+    console.error('[DASHBOARD] Feed URL error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
