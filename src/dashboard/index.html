@@ -49,10 +49,17 @@
   }
   @media(max-width:800px){ .station-grid { grid-template-columns:1fr 1fr;grid-template-areas:"command command" "ghost hawk" "pulse pulse" "comms intake"; } }
 
-  .room { border-radius:8px;padding:16px;position:relative;cursor:pointer;background:rgba(6,6,18,0.85);border:1px solid rgba(100,100,255,0.1);transition:border-color 0.2s,box-shadow 0.2s;min-height:110px; }
+  .room { border-radius:8px;padding:16px;position:relative;cursor:pointer;background:rgba(6,6,18,0.85);border:1px solid rgba(100,100,255,0.1);transition:border-color 0.2s,box-shadow 0.2s;min-height:180px; }
   .room:hover { border-color:rgba(100,100,255,0.3); }
+  .room:hover .room-floor { opacity:0.45; }
   .room::before { content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:8px 8px 0 0; }
-  .room-floor { position:absolute;bottom:0;left:0;right:0;height:35%;opacity:0.04;border-radius:0 0 8px 8px;background-image:url('/dashboard/assets/scifi-32x32.png');background-size:256px;image-rendering:pixelated; }
+  .room-floor { position:absolute;top:0;left:0;right:0;bottom:0;opacity:0.25;border-radius:8px;background-size:cover;background-position:center;image-rendering:auto; }
+  .room-command .room-floor { background-image:url('/dashboard/assets/room-command.png'); }
+  .room-ghost .room-floor { background-image:url('/dashboard/assets/room-ghost.png'); }
+  .room-hawk .room-floor { background-image:url('/dashboard/assets/room-hawk.png'); }
+  .room-pulse .room-floor { background-image:url('/dashboard/assets/room-pulse.png'); }
+  .room-comms .room-floor { background-image:url('/dashboard/assets/room-comms.png'); }
+  .room-intake .room-floor { background-image:url('/dashboard/assets/room-intake.png'); }
   .room-command { grid-area:command; } .room-command::before { background:linear-gradient(90deg,#00f0ff,transparent); } .room-command:hover { box-shadow:0 0 20px rgba(0,240,255,0.1);border-color:rgba(0,240,255,0.3); }
   .room-ghost { grid-area:ghost; } .room-ghost::before { background:linear-gradient(90deg,#a78bfa,transparent); } .room-ghost:hover { box-shadow:0 0 20px rgba(167,139,250,0.1);border-color:rgba(167,139,250,0.3); }
   .room-hawk { grid-area:hawk; } .room-hawk::before { background:linear-gradient(90deg,#ff6b00,transparent); } .room-hawk:hover { box-shadow:0 0 20px rgba(255,107,0,0.1);border-color:rgba(255,107,0,0.3); }
@@ -60,18 +67,18 @@
   .room-comms { grid-area:comms; } .room-comms::before { background:linear-gradient(90deg,#00f0ff,rgba(0,240,255,0.1)); } .room-comms:hover { box-shadow:0 0 15px rgba(0,240,255,0.08); }
   .room-intake { grid-area:intake; } .room-intake::before { background:linear-gradient(90deg,#ff0080,rgba(255,0,128,0.1)); } .room-intake:hover { box-shadow:0 0 15px rgba(255,0,128,0.08); }
 
-  .room-name { font-size:12px;font-weight:900;letter-spacing:2px;margin-bottom:2px; }
+  .room-name { font-size:12px;font-weight:900;letter-spacing:2px;margin-bottom:2px;position:relative;z-index:1; }
   .nc { color:#00f0ff;text-shadow:0 0 8px rgba(0,240,255,0.3); }
   .np { color:#a78bfa;text-shadow:0 0 8px rgba(167,139,250,0.3); }
   .no { color:#ff6b00;text-shadow:0 0 8px rgba(255,107,0,0.3); }
   .ng { color:#0f0;text-shadow:0 0 8px rgba(0,255,0,0.3); }
   .nk { color:#ff0080;text-shadow:0 0 8px rgba(255,0,128,0.3); }
-  .room-role { font-size:9px;color:#335;letter-spacing:0.5px;margin-bottom:10px; }
+  .room-role { font-size:9px;color:#335;letter-spacing:0.5px;margin-bottom:10px;position:relative;z-index:1; }
   .room-stats { display:flex;gap:12px;position:relative;z-index:1; }
   .rs { text-align:center; }
   .rs .rn { font-size:16px;font-weight:800; }
   .rs .rl { font-size:7px;color:#335;letter-spacing:1px; }
-  .rb { position:absolute;top:12px;right:12px;font-size:7px;padding:2px 6px;border-radius:999px;letter-spacing:1px;font-weight:700; }
+  .rb { position:absolute;top:12px;right:12px;font-size:7px;padding:2px 6px;border-radius:999px;letter-spacing:1px;font-weight:700;z-index:1; }
   .rb-on { background:rgba(0,255,0,0.1);color:#0f0;border:1px solid rgba(0,255,0,0.2); }
   .rb-off { background:rgba(100,100,255,0.05);color:#335;border:1px solid rgba(100,100,255,0.1); }
 
