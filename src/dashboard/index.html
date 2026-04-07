@@ -350,12 +350,69 @@
     </div>
   </div>
 
-  <!-- System Health -->
+  <!-- Command Center -->
   <div class="section active" id="sec-health">
-    <div class="section-title">System Health</div>
+    <div class="section-title">Command Center</div>
+
+    <!-- Revenue Row -->
+    <div class="health-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 20px;">
+      <div class="health-card" style="border-left: 3px solid #22c55e;">
+        <div class="label">MTD Revenue</div>
+        <div class="value green" id="hRevenue">$0</div>
+        <div class="sub">Month to date</div>
+      </div>
+      <div class="health-card" style="border-left: 3px solid #a78bfa;">
+        <div class="label">Active Ventures</div>
+        <div class="value purple" id="hVentures">4</div>
+        <div class="sub">Solar · Snack AI · Luxe Level · AI Workforce</div>
+      </div>
+      <div class="health-card" style="border-left: 3px solid #f97316;">
+        <div class="label">Leads</div>
+        <div class="value orange" id="hLeads">0</div>
+        <div class="sub">Total scraped</div>
+      </div>
+      <div class="health-card" style="border-left: 3px solid #60a5fa;">
+        <div class="label">API Cost Today</div>
+        <div class="value blue" id="hApiCost">~$0</div>
+        <div class="sub">Lean mode active</div>
+      </div>
+    </div>
+
+    <!-- Agent Ecosystem -->
+    <div style="margin-bottom: 20px;">
+      <div class="section-title" style="margin-bottom: 12px;">AI Workforce</div>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
+        <div class="health-card" style="border-top: 3px solid #a78bfa;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:14px;font-weight:700;color:#a78bfa;">Ghost</span>
+            <span style="font-size:10px;padding:2px 8px;border-radius:999px;background:#1a1a2e;color:#a78bfa;" id="ghostStatus">standby</span>
+          </div>
+          <div class="sub">Marketing · Ads · Content · Landing Pages</div>
+          <div style="font-size:11px;color:#555;margin-top:6px;">11 tools · <span id="ghostTasks">0</span> tasks completed</div>
+        </div>
+        <div class="health-card" style="border-top: 3px solid #f97316;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:14px;font-weight:700;color:#f97316;">Hawk</span>
+            <span style="font-size:10px;padding:2px 8px;border-radius:999px;background:#2e1a0a;color:#f97316;" id="hawkStatus">standby</span>
+          </div>
+          <div class="sub">Research · Intel · Lead Scraping · Ad Spy</div>
+          <div style="font-size:11px;color:#555;margin-top:6px;">7 tools · <span id="hawkTasks">0</span> tasks completed</div>
+        </div>
+        <div class="health-card" style="border-top: 3px solid #22c55e;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:14px;font-weight:700;color:#22c55e;">Pulse</span>
+            <span style="font-size:10px;padding:2px 8px;border-radius:999px;background:#0a2e0a;color:#22c55e;" id="pulseStatus">standby</span>
+          </div>
+          <div class="sub">Monitoring · Alerts · Reports · KPIs</div>
+          <div style="font-size:11px;color:#555;margin-top:6px;">5 tools · <span id="pulseTasks">0</span> tasks completed</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Stats -->
     <div class="health-grid">
       <div class="health-card">
-        <div class="label">CPU Usage</div>
+        <div class="label">CPU</div>
         <div class="value purple" id="hCpu">—%</div>
         <div class="sub" id="hCpuSub">—</div>
         <div class="bar purple-bg" id="hCpuBar" style="width:0%"></div>
@@ -365,12 +422,6 @@
         <div class="value orange" id="hMem">—%</div>
         <div class="sub" id="hMemSub">—</div>
         <div class="bar orange-bg" id="hMemBar" style="width:0%"></div>
-      </div>
-      <div class="health-card">
-        <div class="label">Heap Used</div>
-        <div class="value green" id="hHeap">— MB</div>
-        <div class="sub" id="hHeapSub">—</div>
-        <div class="bar green-bg" id="hHeapBar" style="width:0%"></div>
       </div>
       <div class="health-card">
         <div class="label">Uptime</div>
@@ -391,11 +442,6 @@
         <div class="label">Memories</div>
         <div class="value green" id="hMemories">—</div>
         <div class="sub" id="hMemBreakdown">—</div>
-      </div>
-      <div class="health-card">
-        <div class="label">Open Tasks</div>
-        <div class="value blue" id="hTasks">—</div>
-        <div class="sub">In memory system</div>
       </div>
     </div>
   </div>
@@ -699,10 +745,6 @@ async function loadHealth() {
     document.getElementById('hMemSub').textContent = fmtMB(d.memory.used * 1024 * 1024) + ' / ' + fmtMB(d.memory.total * 1024 * 1024) + ' MB';
     document.getElementById('hMemBar').style.width = d.memory.usedPercent + '%';
 
-    document.getElementById('hHeap').textContent = fmtMB(d.heap.used) + ' MB';
-    document.getElementById('hHeapSub').textContent = 'of ' + fmtMB(d.heap.total) + ' MB allocated';
-    document.getElementById('hHeapBar').style.width = Math.round((d.heap.used / d.heap.total) * 100) + '%';
-
     document.getElementById('hUptime').textContent = fmtUptime(d.uptime);
     document.getElementById('uptime').textContent = fmtUptime(d.uptime);
 
@@ -710,7 +752,6 @@ async function loadHealth() {
     document.getElementById('hUsers').textContent = fmt(d.stats?.users);
     document.getElementById('hMessages').textContent = fmt(d.stats?.messages);
     document.getElementById('hMemories').textContent = fmt(d.stats?.memories);
-    document.getElementById('hTasks').textContent = fmt(d.tasks);
 
     const bd = d.stats?.memoryBreakdown;
     if (bd) {
@@ -720,6 +761,21 @@ async function loadHealth() {
 
     document.getElementById('statusDot').className = 'status-dot online';
     document.getElementById('statusText').textContent = 'Online';
+
+    // Load agent stats into command center
+    try {
+      const cr = await fetch('/dashboard/api/crew');
+      const cd = await cr.json();
+      if (cd.workers) {
+        cd.workers.forEach(function(w) {
+          var name = (w.name || '').toLowerCase();
+          var statusEl = document.getElementById(name + 'Status');
+          var tasksEl = document.getElementById(name + 'Tasks');
+          if (statusEl) statusEl.textContent = w.status || 'standby';
+          if (tasksEl) tasksEl.textContent = w.tasks_completed || 0;
+        });
+      }
+    } catch(e) {}
   } catch (e) {
     setOffline();
   }
