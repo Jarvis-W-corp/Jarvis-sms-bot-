@@ -3,251 +3,281 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Jarvis — Mission Control</title>
+<title>JARVIS — Mission Control</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #080810; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100vh; overflow: hidden; }
+  body { background: #040408; color: #e0e0e0; font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; height: 100vh; overflow: hidden; }
 
-  /* Layout */
-  .app { display: flex; height: 100vh; }
-  .sidebar {
-    width: 220px; background: #0c0c18; border-right: 1px solid #1a1a2e; display: flex; flex-direction: column;
-    flex-shrink: 0; padding: 0;
+  /* Animated starfield background */
+  .stars {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;
+    background: radial-gradient(ellipse at 20% 50%, #0a0a20 0%, #040408 70%);
   }
-  .main { flex: 1; overflow-y: auto; padding: 0; }
-  .main::-webkit-scrollbar { width: 6px; }
-  .main::-webkit-scrollbar-thumb { background: #222; border-radius: 3px; }
+  .stars::before, .stars::after {
+    content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background-image:
+      radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 30% 60%, rgba(255,255,255,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 50% 30%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 70% 80%, rgba(255,255,255,0.15) 0%, transparent 100%),
+      radial-gradient(1px 1px at 90% 10%, rgba(255,255,255,0.25) 0%, transparent 100%),
+      radial-gradient(1px 1px at 15% 90%, rgba(255,255,255,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 85% 50%, rgba(255,255,255,0.15) 0%, transparent 100%);
+    animation: drift 60s linear infinite;
+  }
+  .stars::after { animation-duration: 90s; animation-direction: reverse; opacity: 0.5; }
+  @keyframes drift { from { transform: translateY(0); } to { transform: translateY(-20px); } }
+
+  .app { position: relative; z-index: 1; display: flex; height: 100vh; }
 
   /* Sidebar */
-  .sidebar-header { padding: 20px 16px; border-bottom: 1px solid #1a1a2e; }
-  .sidebar-header h1 { font-size: 18px; font-weight: 800; }
-  .sidebar-header h1 span { background: linear-gradient(135deg, #a78bfa, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-  .sidebar-header .status { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 11px; color: #555; }
-  .sidebar-header .dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; }
-
-  .nav-section { padding: 16px 12px 8px; font-size: 10px; color: #444; text-transform: uppercase; letter-spacing: 2px; font-weight: 700; }
-  .nav-item {
-    display: flex; align-items: center; gap: 10px; padding: 10px 16px; cursor: pointer;
-    color: #666; font-size: 13px; font-weight: 500; transition: all 0.15s; border-left: 2px solid transparent;
+  .sidebar {
+    width: 200px; background: rgba(8,8,16,0.95); border-right: 1px solid rgba(100,100,255,0.1);
+    display: flex; flex-direction: column; flex-shrink: 0; backdrop-filter: blur(10px);
   }
-  .nav-item:hover { color: #ccc; background: #111122; }
-  .nav-item.active { color: #a78bfa; background: #0f0f20; border-left-color: #a78bfa; }
-  .nav-item .icon { width: 18px; text-align: center; font-size: 14px; }
-  .sidebar-spacer { flex: 1; }
-  .sidebar-footer { padding: 12px 16px; border-top: 1px solid #1a1a2e; font-size: 10px; color: #333; }
+  .sidebar-brand { padding: 20px 16px; border-bottom: 1px solid rgba(100,100,255,0.1); }
+  .sidebar-brand h1 { font-size: 20px; font-weight: 900; letter-spacing: 4px; color: #00f0ff; text-shadow: 0 0 20px rgba(0,240,255,0.3); }
+  .sidebar-brand .sub { font-size: 9px; color: #335; letter-spacing: 3px; margin-top: 4px; }
+  .sidebar-status { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 10px; color: #446; }
+  .sidebar-status .dot { width: 5px; height: 5px; border-radius: 50%; background: #0f0; box-shadow: 0 0 6px #0f0; }
 
-  /* Top Bar */
+  .nav-group { padding: 16px 0 4px 0; }
+  .nav-label { padding: 0 16px; font-size: 8px; color: #335; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 8px; }
+  .nav-btn {
+    display: block; width: 100%; padding: 8px 16px; cursor: pointer; border: none; background: transparent;
+    color: #446; font-size: 11px; font-family: inherit; text-align: left; transition: all 0.15s; border-left: 2px solid transparent;
+  }
+  .nav-btn:hover { color: #aac; background: rgba(100,100,255,0.05); }
+  .nav-btn.active { color: #00f0ff; background: rgba(0,240,255,0.05); border-left-color: #00f0ff; text-shadow: 0 0 10px rgba(0,240,255,0.3); }
+  .sidebar-spacer { flex: 1; }
+  .sidebar-footer { padding: 12px 16px; border-top: 1px solid rgba(100,100,255,0.1); font-size: 9px; color: #223; }
+
+  /* Main */
+  .main { flex: 1; overflow-y: auto; }
+  .main::-webkit-scrollbar { width: 4px; }
+  .main::-webkit-scrollbar-thumb { background: #224; border-radius: 2px; }
+
+  /* Topbar */
   .topbar {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 16px 28px; border-bottom: 1px solid #1a1a2e; background: #0a0a16;
+    padding: 12px 24px; border-bottom: 1px solid rgba(100,100,255,0.1); background: rgba(8,8,16,0.8);
   }
-  .topbar-left { display: flex; align-items: center; gap: 16px; }
-  .topbar-title { font-size: 16px; font-weight: 700; color: #aaa; }
-  .topbar-right { display: flex; align-items: center; gap: 12px; }
-  .topbar-time { font-size: 12px; color: #444; font-family: 'SF Mono', monospace; }
-  .btn-sm {
-    padding: 6px 14px; border-radius: 6px; border: 1px solid #222; background: #111; color: #888;
-    cursor: pointer; font-size: 11px; font-weight: 600; transition: all 0.15s;
+  .topbar-title { font-size: 12px; color: #557; letter-spacing: 2px; text-transform: uppercase; }
+  .topbar-clock { font-size: 11px; color: #00f0ff; text-shadow: 0 0 8px rgba(0,240,255,0.3); }
+  .topbar-refresh {
+    padding: 4px 12px; border-radius: 4px; border: 1px solid rgba(100,100,255,0.15); background: transparent;
+    color: #557; cursor: pointer; font-size: 9px; font-family: inherit; letter-spacing: 1px;
   }
-  .btn-sm:hover { border-color: #a78bfa; color: #a78bfa; }
+  .topbar-refresh:hover { border-color: #00f0ff; color: #00f0ff; }
 
-  /* Content */
-  .content { padding: 24px 28px; }
+  .content { padding: 20px 24px; }
   .section { display: none; }
   .section.active { display: block; }
 
-  /* Revenue Strip */
-  .revenue-strip {
-    display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: #1a1a2e;
-    border-radius: 12px; overflow: hidden; margin-bottom: 24px;
+  /* Revenue Bar — the big numbers */
+  .revenue-bar {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; margin-bottom: 24px;
+    background: rgba(100,100,255,0.08); border-radius: 8px; overflow: hidden; border: 1px solid rgba(100,100,255,0.1);
   }
-  .rev-card {
-    background: #0e0e1a; padding: 20px; text-align: center;
-  }
-  .rev-card .rev-label { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
-  .rev-card .rev-value { font-size: 28px; font-weight: 800; }
-  .rev-card .rev-sub { font-size: 10px; color: #444; margin-top: 4px; }
-  .green { color: #22c55e; } .purple { color: #a78bfa; } .orange { color: #f97316; } .blue { color: #60a5fa; } .red { color: #ef4444; } .white { color: #e0e0e0; }
+  .rev-cell { background: rgba(8,8,20,0.9); padding: 20px 16px; text-align: center; }
+  .rev-cell .rev-num { font-size: 32px; font-weight: 900; letter-spacing: -1px; }
+  .rev-cell .rev-label { font-size: 8px; color: #446; letter-spacing: 2px; text-transform: uppercase; margin-top: 6px; }
+  .cyan { color: #00f0ff; text-shadow: 0 0 15px rgba(0,240,255,0.3); }
+  .green { color: #0f0; text-shadow: 0 0 15px rgba(0,255,0,0.3); }
+  .purple { color: #a78bfa; text-shadow: 0 0 15px rgba(167,139,250,0.3); }
+  .orange { color: #ff6b00; text-shadow: 0 0 15px rgba(255,107,0,0.3); }
+  .pink { color: #ff0080; text-shadow: 0 0 15px rgba(255,0,128,0.3); }
+  .white { color: #e0e0e0; }
+  .dim { color: #335; }
 
-  /* Agent Ecosystem */
-  .section-label { font-size: 11px; color: #444; text-transform: uppercase; letter-spacing: 2px; font-weight: 700; margin-bottom: 16px; }
-  .agents-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
-  .agent-card {
-    background: #0e0e1a; border: 1px solid #1a1a2e; border-radius: 12px; padding: 20px; position: relative; overflow: hidden;
+  /* Section Labels */
+  .sec-label {
+    font-size: 9px; color: #335; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 14px;
+    padding-bottom: 8px; border-bottom: 1px solid rgba(100,100,255,0.08);
   }
-  .agent-card::before {
+
+  /* Agent Rooms — the space station rooms */
+  .agent-rooms { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+  .agent-room {
+    background: rgba(8,8,20,0.8); border-radius: 10px; padding: 20px; position: relative; overflow: hidden;
+    border: 1px solid rgba(100,100,255,0.1); transition: all 0.3s;
+  }
+  .agent-room:hover { border-color: rgba(100,100,255,0.25); }
+  .agent-room::before {
     content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
   }
-  .agent-card.ghost::before { background: linear-gradient(90deg, #a78bfa, #818cf8); }
-  .agent-card.hawk::before { background: linear-gradient(90deg, #f97316, #fb923c); }
-  .agent-card.pulse::before { background: linear-gradient(90deg, #22c55e, #4ade80); }
-  .agent-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-  .agent-name { font-size: 16px; font-weight: 700; }
-  .agent-badge {
-    font-size: 9px; padding: 3px 8px; border-radius: 999px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  .agent-room.ghost-room::before { background: linear-gradient(90deg, #a78bfa, transparent); }
+  .agent-room.hawk-room::before { background: linear-gradient(90deg, #ff6b00, transparent); }
+  .agent-room.pulse-room::before { background: linear-gradient(90deg, #0f0, transparent); }
+  .agent-room .room-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .agent-room .room-name { font-size: 14px; font-weight: 800; letter-spacing: 1px; }
+  .agent-room .room-badge {
+    font-size: 8px; padding: 2px 8px; border-radius: 999px; letter-spacing: 1px; font-weight: 700;
   }
-  .badge-active { background: #052e16; color: #4ade80; border: 1px solid #166534; }
-  .badge-standby { background: #1a1a2e; color: #666; border: 1px solid #333; }
-  .agent-role { font-size: 12px; color: #555; margin-bottom: 12px; }
-  .agent-stats { display: flex; gap: 16px; }
-  .agent-stat { text-align: center; }
-  .agent-stat .num { font-size: 20px; font-weight: 700; }
-  .agent-stat .lbl { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 1px; }
+  .badge-online { background: rgba(0,255,0,0.1); color: #0f0; border: 1px solid rgba(0,255,0,0.2); }
+  .badge-standby { background: rgba(100,100,255,0.05); color: #335; border: 1px solid rgba(100,100,255,0.1); }
+  .agent-room .room-role { font-size: 10px; color: #446; margin-bottom: 14px; letter-spacing: 0.5px; }
+  .room-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .room-stat { text-align: center; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 6px; }
+  .room-stat .stat-num { font-size: 18px; font-weight: 800; }
+  .room-stat .stat-lbl { font-size: 7px; color: #335; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 2px; }
+  /* Glow effect for active agents */
+  .agent-room.active-glow { box-shadow: 0 0 20px rgba(0,240,255,0.1); border-color: rgba(0,240,255,0.2); }
 
   /* Operations Board */
-  .ops-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
-  @media (max-width: 1000px) { .ops-grid, .agents-grid { grid-template-columns: 1fr; } }
+  .ops-board { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  @media (max-width: 900px) { .ops-board, .agent-rooms { grid-template-columns: 1fr; } }
   .ops-panel {
-    background: #0e0e1a; border: 1px solid #1a1a2e; border-radius: 12px; padding: 20px;
-    max-height: 400px; overflow-y: auto;
+    background: rgba(8,8,20,0.8); border: 1px solid rgba(100,100,255,0.1); border-radius: 10px;
+    padding: 16px; max-height: 350px; overflow-y: auto;
   }
-  .ops-panel::-webkit-scrollbar { width: 4px; }
-  .ops-panel::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
-  .ops-panel h3 { font-size: 11px; color: #444; text-transform: uppercase; letter-spacing: 2px; font-weight: 700; margin-bottom: 14px; }
-  .ops-item { padding: 10px 0; border-bottom: 1px solid #111; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-  .ops-item:last-child { border-bottom: none; }
-  .ops-item .ops-text { font-size: 13px; color: #999; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ops-item .ops-time { font-size: 10px; color: #444; white-space: nowrap; }
-  .ops-item .ops-tag {
-    font-size: 9px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; font-weight: 600; white-space: nowrap;
-  }
-  .tag-discord { background: #1a1a3e; color: #7289da; }
-  .tag-sms { background: #0a2e0a; color: #22c55e; }
-  .tag-dashboard { background: #2e1a0a; color: #f97316; }
-  .empty-state { color: #333; font-size: 12px; font-style: italic; padding: 20px 0; text-align: center; }
+  .ops-panel::-webkit-scrollbar { width: 3px; }
+  .ops-panel::-webkit-scrollbar-thumb { background: #224; border-radius: 2px; }
+  .ops-panel h3 { font-size: 9px; color: #335; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
+  .ops-line { padding: 6px 0; border-bottom: 1px solid rgba(100,100,255,0.05); display: flex; gap: 10px; align-items: center; font-size: 11px; }
+  .ops-line:last-child { border-bottom: none; }
+  .ops-line .ops-tag { font-size: 8px; padding: 1px 6px; border-radius: 3px; font-weight: 700; letter-spacing: 0.5px; flex-shrink: 0; }
+  .tag-discord { background: rgba(114,137,218,0.15); color: #7289da; }
+  .tag-sms { background: rgba(0,255,0,0.1); color: #0f0; }
+  .tag-dashboard { background: rgba(255,107,0,0.1); color: #ff6b00; }
+  .ops-line .ops-msg { color: #557; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ops-line .ops-time { color: #223; font-size: 9px; flex-shrink: 0; }
+  .ops-empty { color: #223; font-size: 11px; padding: 16px 0; text-align: center; }
 
-  /* Log Terminal */
+  /* Terminal */
   .terminal {
-    background: #060610; border: 1px solid #1a1a2e; border-radius: 12px; padding: 16px;
-    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; max-height: 500px; overflow-y: auto;
+    background: rgba(4,4,8,0.9); border: 1px solid rgba(100,100,255,0.1); border-radius: 8px;
+    padding: 16px; max-height: 500px; overflow-y: auto; font-size: 11px;
   }
-  .terminal::-webkit-scrollbar { width: 4px; }
-  .terminal::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
-  .log-line { padding: 3px 0; display: flex; gap: 10px; }
-  .log-ts { color: #333; flex-shrink: 0; }
-  .log-role { flex-shrink: 0; min-width: 50px; font-weight: 600; }
-  .log-role.user { color: #60a5fa; }
+  .terminal::-webkit-scrollbar { width: 3px; }
+  .terminal::-webkit-scrollbar-thumb { background: #224; }
+  .log-line { padding: 2px 0; display: flex; gap: 8px; }
+  .log-ts { color: #223; flex-shrink: 0; }
+  .log-role { flex-shrink: 0; min-width: 50px; font-weight: 700; }
+  .log-role.user { color: #00f0ff; }
   .log-role.assistant { color: #a78bfa; }
-  .log-msg { color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .log-msg { color: #446; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* Voice Chat */
   .voice-container { max-width: 700px; }
-  .voice-chat-log {
-    background: #060610; border: 1px solid #1a1a2e; border-radius: 12px; padding: 20px;
-    min-height: 300px; max-height: 500px; overflow-y: auto; margin-bottom: 16px;
+  .voice-log {
+    background: rgba(4,4,8,0.9); border: 1px solid rgba(100,100,255,0.1); border-radius: 10px;
+    padding: 20px; min-height: 300px; max-height: 500px; overflow-y: auto; margin-bottom: 14px;
   }
-  .voice-chat-log::-webkit-scrollbar { width: 4px; }
-  .voice-chat-log::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
-  .voice-msg { margin-bottom: 16px; }
-  .voice-msg.user { text-align: right; }
-  .voice-msg .bubble { display: inline-block; padding: 10px 16px; border-radius: 16px; max-width: 80%; font-size: 14px; line-height: 1.5; text-align: left; }
-  .voice-msg.user .bubble { background: #1a1a3e; color: #c4b5fd; border-bottom-right-radius: 4px; }
-  .voice-msg.jarvis .bubble { background: #0e0e1a; color: #ccc; border: 1px solid #1a1a2e; border-bottom-left-radius: 4px; }
-  .voice-msg .sender { font-size: 10px; color: #444; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
-  .voice-controls { display: flex; gap: 10px; align-items: center; }
-  .voice-input { flex: 1; background: #0e0e1a; border: 1px solid #1a1a2e; border-radius: 10px; padding: 12px 16px; color: #e0e0e0; font-size: 14px; outline: none; }
-  .voice-input:focus { border-color: #a78bfa; }
+  .voice-log::-webkit-scrollbar { width: 3px; }
+  .voice-log::-webkit-scrollbar-thumb { background: #224; }
+  .v-msg { margin-bottom: 14px; }
+  .v-msg.user { text-align: right; }
+  .v-msg .v-bubble { display: inline-block; padding: 10px 16px; border-radius: 14px; max-width: 80%; font-size: 13px; line-height: 1.5; text-align: left; font-family: -apple-system, sans-serif; }
+  .v-msg.user .v-bubble { background: rgba(0,240,255,0.1); color: #88ddf0; border: 1px solid rgba(0,240,255,0.15); }
+  .v-msg.jarvis .v-bubble { background: rgba(167,139,250,0.08); color: #aaa; border: 1px solid rgba(167,139,250,0.12); }
+  .v-msg .v-sender { font-size: 9px; color: #335; letter-spacing: 1px; margin-bottom: 4px; }
+  .voice-row { display: flex; gap: 10px; align-items: center; }
+  .voice-input { flex: 1; background: rgba(8,8,20,0.8); border: 1px solid rgba(100,100,255,0.1); border-radius: 8px; padding: 12px 16px; color: #e0e0e0; font-size: 13px; outline: none; font-family: -apple-system, sans-serif; }
+  .voice-input:focus { border-color: #00f0ff; box-shadow: 0 0 10px rgba(0,240,255,0.1); }
   .mic-btn, .send-btn {
-    width: 48px; height: 48px; border-radius: 50%; border: 1px solid #1a1a2e; background: #0e0e1a;
-    color: #666; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+    width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(100,100,255,0.15); background: rgba(8,8,20,0.8);
+    color: #446; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;
   }
-  .mic-btn:hover, .send-btn:hover { border-color: #a78bfa; color: #a78bfa; }
-  .mic-btn.recording { border-color: #ef4444; background: #1a0a0a; color: #ef4444; animation: pulse 1.5s infinite; }
-  .mic-btn.thinking { border-color: #a78bfa; background: #0f0f20; color: #a78bfa; animation: pulse 1s infinite; }
-  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-  .voice-status { text-align: center; font-size: 11px; color: #444; margin-top: 10px; }
+  .mic-btn:hover, .send-btn:hover { border-color: #00f0ff; color: #00f0ff; box-shadow: 0 0 10px rgba(0,240,255,0.2); }
+  .mic-btn.recording { border-color: #f00; color: #f00; box-shadow: 0 0 15px rgba(255,0,0,0.3); animation: pulse 1.5s infinite; }
+  .mic-btn.thinking { border-color: #a78bfa; color: #a78bfa; box-shadow: 0 0 15px rgba(167,139,250,0.3); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+  .voice-status { text-align: center; font-size: 10px; color: #335; margin-top: 10px; }
 
   /* Feed */
   .feed-container { max-width: 800px; }
   .drop-zone {
-    border: 2px dashed #1a1a2e; border-radius: 12px; padding: 48px 24px; text-align: center;
-    background: #060610; cursor: pointer; transition: all 0.2s; margin-bottom: 16px;
+    border: 1px dashed rgba(100,100,255,0.2); border-radius: 10px; padding: 40px 24px; text-align: center;
+    background: rgba(4,4,8,0.6); cursor: pointer; transition: all 0.2s; margin-bottom: 14px;
   }
-  .drop-zone:hover, .drop-zone.dragover { border-color: #a78bfa; background: #0f0f20; }
-  .drop-zone .drop-icon { font-size: 36px; margin-bottom: 10px; }
-  .drop-zone .drop-text { font-size: 13px; color: #666; }
-  .drop-zone .drop-sub { font-size: 11px; color: #444; margin-top: 6px; }
-  .feed-url-row { display: flex; gap: 10px; margin-bottom: 12px; }
-  .feed-url-input { flex: 1; background: #0e0e1a; border: 1px solid #1a1a2e; border-radius: 8px; padding: 10px 14px; color: #e0e0e0; font-size: 13px; outline: none; }
-  .feed-url-input:focus { border-color: #a78bfa; }
-  .feed-url-btn { background: #0f0f20; border: 1px solid #2a2a4a; color: #a78bfa; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; }
-  .feed-url-btn:hover { background: #1a1a3e; }
-  .feed-context-input { width: 100%; background: #0e0e1a; border: 1px solid #1a1a2e; border-radius: 8px; padding: 10px 14px; color: #e0e0e0; font-size: 12px; outline: none; margin-bottom: 16px; }
-  .feed-result-card { background: #0e0e1a; border: 1px solid #1a1a2e; border-radius: 12px; padding: 20px; margin-bottom: 12px; }
-  .feed-result-card .source { font-size: 10px; color: #a78bfa; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-  .feed-result-card .analysis { font-size: 13px; color: #999; line-height: 1.6; white-space: pre-wrap; }
-  .feed-processing { text-align: center; padding: 40px; color: #a78bfa; font-size: 13px; }
-
-  /* Progress */
-  .phase { background: #0e0e1a; border: 1px solid #1a1a2e; border-radius: 12px; padding: 20px; margin-bottom: 12px; }
-  .phase-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-  .phase-name { font-size: 14px; font-weight: 600; }
-  .phase-badge { font-size: 9px; padding: 3px 10px; border-radius: 999px; font-weight: 700; text-transform: uppercase; }
-  .phase-badge.complete { background: #052e16; color: #4ade80; }
-  .phase-badge.in-progress { background: #1a1a3e; color: #a78bfa; }
-  .phase-badge.planned { background: #111; color: #555; }
-  .prog-bar { height: 3px; background: #111; border-radius: 2px; margin-bottom: 14px; overflow: hidden; }
-  .prog-fill { height: 100%; border-radius: 2px; }
-  .prog-fill.green-bg { background: #22c55e; }
-  .prog-fill.purple-bg { background: #a78bfa; }
-  .prog-fill.gray-bg { background: #333; }
-  .feature-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 3px 20px; }
-  .feature { font-size: 12px; padding: 3px 0; display: flex; align-items: center; gap: 6px; }
-  .feature .icon { width: 14px; text-align: center; }
-  .overall-bar { background: #0e0e1a; border: 1px solid #1a1a2e; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 20px; }
-  .overall-pct { font-size: 48px; font-weight: 800; background: linear-gradient(135deg, #a78bfa, #f97316); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-  .overall-sub { color: #444; font-size: 12px; margin-top: 4px; }
+  .drop-zone:hover, .drop-zone.dragover { border-color: #00f0ff; background: rgba(0,240,255,0.02); }
+  .drop-zone .drop-icon { font-size: 28px; margin-bottom: 8px; filter: hue-rotate(180deg); }
+  .drop-zone .drop-text { font-size: 12px; color: #557; }
+  .drop-zone .drop-sub { font-size: 10px; color: #335; margin-top: 4px; }
+  .feed-url-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .feed-url-input { flex: 1; background: rgba(8,8,20,0.8); border: 1px solid rgba(100,100,255,0.1); border-radius: 6px; padding: 10px 14px; color: #e0e0e0; font-size: 12px; outline: none; font-family: inherit; }
+  .feed-url-btn { background: rgba(0,240,255,0.08); border: 1px solid rgba(0,240,255,0.15); color: #00f0ff; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-size: 10px; font-weight: 700; font-family: inherit; letter-spacing: 1px; }
+  .feed-context-input { width: 100%; background: rgba(8,8,20,0.8); border: 1px solid rgba(100,100,255,0.1); border-radius: 6px; padding: 8px 14px; color: #e0e0e0; font-size: 11px; outline: none; margin-bottom: 14px; font-family: inherit; }
+  .feed-result { background: rgba(8,8,20,0.8); border: 1px solid rgba(100,100,255,0.1); border-radius: 8px; padding: 16px; margin-bottom: 10px; }
+  .feed-result .src { font-size: 9px; color: #00f0ff; letter-spacing: 1px; margin-bottom: 6px; }
+  .feed-result .txt { font-size: 12px; color: #668; line-height: 1.6; white-space: pre-wrap; font-family: -apple-system, sans-serif; }
+  .feed-processing { text-align: center; padding: 30px; color: #00f0ff; font-size: 12px; }
 
   /* Crew */
-  .crew-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
-  .crew-card { background: #0e0e1a; border: 1px solid #1a1a2e; border-radius: 12px; padding: 20px; }
-  .crew-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
-  .crew-card .crew-role { font-size: 11px; color: #555; margin-bottom: 12px; }
-  .crew-card .crew-stat-row { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; }
-  .crew-card .crew-stat-val { color: #a78bfa; font-weight: 600; }
-  .crew-job-form { background: #0e0e1a; border: 1px solid #1a1a2e; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
-  .crew-input { width: 100%; background: #060610; border: 1px solid #1a1a2e; border-radius: 6px; padding: 8px 12px; color: #e0e0e0; font-size: 13px; outline: none; margin-bottom: 8px; }
-  .crew-select { background: #060610; border: 1px solid #1a1a2e; border-radius: 6px; padding: 8px 12px; color: #e0e0e0; font-size: 13px; outline: none; margin-bottom: 8px; }
+  .crew-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+  .crew-card { background: rgba(8,8,20,0.8); border: 1px solid rgba(100,100,255,0.1); border-radius: 8px; padding: 16px; }
+  .crew-card h4 { font-size: 12px; color: #aac; margin-bottom: 4px; }
+  .crew-card .crew-role { font-size: 9px; color: #335; margin-bottom: 10px; }
+  .crew-card .crew-row { display: flex; justify-content: space-between; font-size: 10px; padding: 3px 0; color: #446; }
+  .crew-card .crew-val { color: #00f0ff; }
+  .crew-form { background: rgba(8,8,20,0.8); border: 1px solid rgba(100,100,255,0.1); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .crew-form h4 { font-size: 10px; color: #446; letter-spacing: 1px; margin-bottom: 10px; }
+  .crew-inp { width: 100%; background: rgba(4,4,8,0.8); border: 1px solid rgba(100,100,255,0.1); border-radius: 4px; padding: 8px 10px; color: #e0e0e0; font-size: 11px; outline: none; margin-bottom: 6px; font-family: inherit; }
+  .crew-sel { background: rgba(4,4,8,0.8); border: 1px solid rgba(100,100,255,0.1); border-radius: 4px; padding: 8px 10px; color: #e0e0e0; font-size: 11px; outline: none; margin-bottom: 6px; font-family: inherit; }
+  .btn-neon { padding: 6px 14px; border-radius: 4px; border: 1px solid rgba(0,240,255,0.2); background: transparent; color: #00f0ff; cursor: pointer; font-size: 9px; font-family: inherit; letter-spacing: 1px; font-weight: 700; }
+  .btn-neon:hover { background: rgba(0,240,255,0.08); box-shadow: 0 0 10px rgba(0,240,255,0.15); }
+
+  /* Progress */
+  .phase { background: rgba(8,8,20,0.8); border: 1px solid rgba(100,100,255,0.1); border-radius: 8px; padding: 16px; margin-bottom: 10px; }
+  .phase-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .phase-name { font-size: 12px; font-weight: 700; color: #aac; }
+  .phase-badge { font-size: 8px; padding: 2px 8px; border-radius: 999px; font-weight: 700; letter-spacing: 0.5px; }
+  .phase-badge.complete { background: rgba(0,255,0,0.1); color: #0f0; }
+  .phase-badge.in-progress { background: rgba(167,139,250,0.1); color: #a78bfa; }
+  .phase-badge.planned { background: rgba(100,100,255,0.05); color: #335; }
+  .prog-bar { height: 2px; background: rgba(100,100,255,0.08); border-radius: 1px; margin-bottom: 12px; overflow: hidden; }
+  .prog-fill { height: 100%; border-radius: 1px; }
+  .prog-fill.g { background: #0f0; box-shadow: 0 0 6px rgba(0,255,0,0.3); }
+  .prog-fill.p { background: #a78bfa; box-shadow: 0 0 6px rgba(167,139,250,0.3); }
+  .prog-fill.d { background: #224; }
+  .feat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 16px; }
+  .feat { font-size: 10px; padding: 2px 0; display: flex; align-items: center; gap: 6px; color: #446; }
+  .feat .fi { width: 12px; text-align: center; }
+  .overall-box { background: rgba(8,8,20,0.8); border: 1px solid rgba(100,100,255,0.1); border-radius: 10px; padding: 24px; text-align: center; margin-bottom: 16px; }
+  .overall-num { font-size: 56px; font-weight: 900; color: #00f0ff; text-shadow: 0 0 30px rgba(0,240,255,0.3); }
+  .overall-sub { font-size: 10px; color: #335; letter-spacing: 2px; margin-top: 4px; }
 </style>
 </head>
 <body>
-<div class="app">
 
-<!-- Sidebar -->
+<div class="stars"></div>
+
+<div class="app">
 <nav class="sidebar">
-  <div class="sidebar-header">
-    <h1><span>JARVIS</span></h1>
-    <div class="status"><span class="dot" id="statusDot"></span> <span id="statusText">Online</span> · <span id="uptime">—</span></div>
+  <div class="sidebar-brand">
+    <h1>JARVIS</h1>
+    <div class="sub">MISSION CONTROL</div>
+    <div class="sidebar-status"><span class="dot" id="statusDot"></span> <span id="statusText">ONLINE</span> · <span id="uptime">—</span></div>
   </div>
 
-  <div class="nav-section">Operations</div>
-  <div class="nav-item active" onclick="showSection('command', this)"><span class="icon">◆</span> Command Center</div>
-  <div class="nav-item" onclick="showSection('agents', this)"><span class="icon">◈</span> AI Workforce</div>
-  <div class="nav-item" onclick="showSection('logs', this)"><span class="icon">▤</span> Operations Log</div>
-
-  <div class="nav-section">Tools</div>
-  <div class="nav-item" onclick="showSection('voice', this)"><span class="icon">◉</span> Talk to Jarvis</div>
-  <div class="nav-item" onclick="showSection('feed', this)"><span class="icon">▲</span> Feed Jarvis</div>
-  <div class="nav-item" onclick="showSection('pipeline', this)"><span class="icon">◧</span> Pipeline</div>
-
-  <div class="nav-section">System</div>
-  <div class="nav-item" onclick="showSection('crew', this)"><span class="icon">◫</span> Crew Manager</div>
-  <div class="nav-item" onclick="showSection('progress', this)"><span class="icon">◩</span> Build Progress</div>
-  <div class="nav-item" onclick="window.open('/sales','_blank')"><span class="icon">◨</span> Sales Tracker ↗</div>
-
+  <div class="nav-group">
+    <div class="nav-label">Operations</div>
+    <button class="nav-btn active" onclick="showSection('command',this)">◆ Command Center</button>
+    <button class="nav-btn" onclick="showSection('agents',this)">◈ AI Workforce</button>
+    <button class="nav-btn" onclick="showSection('logs',this)">▤ Operations Log</button>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Interface</div>
+    <button class="nav-btn" onclick="showSection('voice',this)">◉ Talk to Jarvis</button>
+    <button class="nav-btn" onclick="showSection('feed',this)">▲ Feed Jarvis</button>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Management</div>
+    <button class="nav-btn" onclick="showSection('crew',this)">◫ Crew Manager</button>
+    <button class="nav-btn" onclick="showSection('progress',this)">◩ Build Progress</button>
+    <button class="nav-btn" onclick="window.open('/sales','_blank')">◨ Sales Tracker ↗</button>
+  </div>
   <div class="sidebar-spacer"></div>
-  <div class="sidebar-footer">Jarvis v2.0 · Lean Mode</div>
+  <div class="sidebar-footer">v2.0 · LEAN MODE · <span id="footerCost">~$0/day</span></div>
 </nav>
 
-<!-- Main -->
 <div class="main">
   <div class="topbar">
-    <div class="topbar-left">
-      <span class="topbar-title" id="pageTitle">Command Center</span>
-    </div>
-    <div class="topbar-right">
-      <span class="topbar-time" id="clockTime"></span>
-      <button class="btn-sm" onclick="loadAll()">Refresh</button>
+    <span class="topbar-title" id="pageTitle">◆ COMMAND CENTER</span>
+    <div style="display:flex;gap:12px;align-items:center;">
+      <span class="topbar-clock" id="clock"></span>
+      <button class="topbar-refresh" onclick="loadAll()">REFRESH</button>
     </div>
   </div>
 
@@ -255,173 +285,134 @@
 
     <!-- COMMAND CENTER -->
     <div class="section active" id="sec-command">
-      <div class="revenue-strip">
-        <div class="rev-card">
-          <div class="rev-label">MTD Revenue</div>
-          <div class="rev-value green" id="rRevenue">$0</div>
-          <div class="rev-sub">Month to date</div>
-        </div>
-        <div class="rev-card">
-          <div class="rev-label">Leads</div>
-          <div class="rev-value orange" id="rLeads">0</div>
-          <div class="rev-sub">Total scraped</div>
-        </div>
-        <div class="rev-card">
-          <div class="rev-label">Messages</div>
-          <div class="rev-value blue" id="rMessages">—</div>
-          <div class="rev-sub">All time</div>
-        </div>
-        <div class="rev-card">
-          <div class="rev-label">Memories</div>
-          <div class="rev-value purple" id="rMemories">—</div>
-          <div class="rev-sub" id="rMemBreakdown">—</div>
-        </div>
-        <div class="rev-card">
-          <div class="rev-label">API Mode</div>
-          <div class="rev-value green" style="font-size:18px;">LEAN</div>
-          <div class="rev-sub">1 call/day</div>
-        </div>
+      <div class="revenue-bar">
+        <div class="rev-cell"><div class="rev-num green" id="rRevenue">$0</div><div class="rev-label">MTD Revenue</div></div>
+        <div class="rev-cell"><div class="rev-num orange" id="rLeads">0</div><div class="rev-label">Leads Scraped</div></div>
+        <div class="rev-cell"><div class="rev-num cyan" id="rMessages">—</div><div class="rev-label">Messages</div></div>
+        <div class="rev-cell"><div class="rev-num purple" id="rMemories">—</div><div class="rev-label">Memories</div></div>
+        <div class="rev-cell"><div class="rev-num green" style="font-size:20px;">LEAN</div><div class="rev-label">API Mode</div></div>
       </div>
 
-      <!-- Agent Ecosystem -->
-      <div class="section-label">AI Workforce — Live Status</div>
-      <div class="agents-grid">
-        <div class="agent-card ghost">
-          <div class="agent-header">
-            <span class="agent-name purple">Ghost</span>
-            <span class="agent-badge badge-standby" id="ghostBadge">STANDBY</span>
+      <div class="sec-label">AI WORKFORCE — LIVE STATUS</div>
+      <div class="agent-rooms">
+        <div class="agent-room ghost-room" id="ghostRoom">
+          <div class="room-header">
+            <span class="room-name purple">GHOST</span>
+            <span class="room-badge badge-standby" id="ghostBadge">STANDBY</span>
           </div>
-          <div class="agent-role">Marketing · Ads · Content · Landing Pages</div>
-          <div class="agent-stats">
-            <div class="agent-stat"><div class="num purple" id="ghostCompleted">0</div><div class="lbl">Tasks Done</div></div>
-            <div class="agent-stat"><div class="num" style="color:#555" id="ghostFailed">0</div><div class="lbl">Failed</div></div>
-            <div class="agent-stat"><div class="num" style="color:#444;">11</div><div class="lbl">Tools</div></div>
-          </div>
-        </div>
-        <div class="agent-card hawk">
-          <div class="agent-header">
-            <span class="agent-name orange">Hawk</span>
-            <span class="agent-badge badge-standby" id="hawkBadge">STANDBY</span>
-          </div>
-          <div class="agent-role">Research · Intel · Lead Scraping · Ad Spy</div>
-          <div class="agent-stats">
-            <div class="agent-stat"><div class="num orange" id="hawkCompleted">0</div><div class="lbl">Tasks Done</div></div>
-            <div class="agent-stat"><div class="num" style="color:#555" id="hawkFailed">0</div><div class="lbl">Failed</div></div>
-            <div class="agent-stat"><div class="num" style="color:#444;">7</div><div class="lbl">Tools</div></div>
+          <div class="room-role">Marketing · Ads · Content · Landing Pages</div>
+          <div class="room-stats">
+            <div class="room-stat"><div class="stat-num purple" id="ghostDone">0</div><div class="stat-lbl">Done</div></div>
+            <div class="room-stat"><div class="stat-num dim" id="ghostFail">0</div><div class="stat-lbl">Failed</div></div>
+            <div class="room-stat"><div class="stat-num dim">11</div><div class="stat-lbl">Tools</div></div>
           </div>
         </div>
-        <div class="agent-card pulse">
-          <div class="agent-header">
-            <span class="agent-name green">Pulse</span>
-            <span class="agent-badge badge-standby" id="pulseBadge">STANDBY</span>
+        <div class="agent-room hawk-room" id="hawkRoom">
+          <div class="room-header">
+            <span class="room-name orange">HAWK</span>
+            <span class="room-badge badge-standby" id="hawkBadge">STANDBY</span>
           </div>
-          <div class="agent-role">Monitoring · Alerts · Reports · KPIs</div>
-          <div class="agent-stats">
-            <div class="agent-stat"><div class="num green" id="pulseCompleted">0</div><div class="lbl">Tasks Done</div></div>
-            <div class="agent-stat"><div class="num" style="color:#555" id="pulseFailed">0</div><div class="lbl">Failed</div></div>
-            <div class="agent-stat"><div class="num" style="color:#444;">5</div><div class="lbl">Tools</div></div>
+          <div class="room-role">Research · Intel · Lead Scraping · Ad Spy</div>
+          <div class="room-stats">
+            <div class="room-stat"><div class="stat-num orange" id="hawkDone">0</div><div class="stat-lbl">Done</div></div>
+            <div class="room-stat"><div class="stat-num dim" id="hawkFail">0</div><div class="stat-lbl">Failed</div></div>
+            <div class="room-stat"><div class="stat-num dim">7</div><div class="stat-lbl">Tools</div></div>
+          </div>
+        </div>
+        <div class="agent-room pulse-room" id="pulseRoom">
+          <div class="room-header">
+            <span class="room-name green">PULSE</span>
+            <span class="room-badge badge-standby" id="pulseBadge">STANDBY</span>
+          </div>
+          <div class="room-role">Monitoring · Alerts · Reports · KPIs</div>
+          <div class="room-stats">
+            <div class="room-stat"><div class="stat-num green" id="pulseDone">0</div><div class="stat-lbl">Done</div></div>
+            <div class="room-stat"><div class="stat-num dim" id="pulseFail">0</div><div class="stat-lbl">Failed</div></div>
+            <div class="room-stat"><div class="stat-num dim">5</div><div class="stat-lbl">Tools</div></div>
           </div>
         </div>
       </div>
 
-      <!-- Ops Board -->
-      <div class="section-label">Operations Board</div>
-      <div class="ops-grid">
-        <div class="ops-panel">
-          <h3>Recent Activity</h3>
-          <div id="opsActivity"><div class="empty-state">Loading...</div></div>
-        </div>
-        <div class="ops-panel">
-          <h3>System Health</h3>
-          <div id="opsHealth">
-            <div class="ops-item"><span class="ops-text">CPU</span><span class="ops-time" id="ohCpu">—</span></div>
-            <div class="ops-item"><span class="ops-text">Memory</span><span class="ops-time" id="ohMem">—</span></div>
-            <div class="ops-item"><span class="ops-text">Uptime</span><span class="ops-time" id="ohUptime">—</span></div>
-            <div class="ops-item"><span class="ops-text">Users</span><span class="ops-time" id="ohUsers">—</span></div>
-            <div class="ops-item"><span class="ops-text">Database</span><span class="ops-time" style="color:#22c55e;">Connected</span></div>
-            <div class="ops-item"><span class="ops-text">Scheduler</span><span class="ops-time" style="color:#22c55e;">Lean Mode</span></div>
-          </div>
+      <div class="sec-label">OPERATIONS BOARD</div>
+      <div class="ops-board">
+        <div class="ops-panel"><h3>Activity Feed</h3><div id="opsActivity"><div class="ops-empty">Loading...</div></div></div>
+        <div class="ops-panel"><h3>System Status</h3>
+          <div class="ops-line"><span class="ops-msg">CPU</span><span class="ops-time cyan" id="ohCpu">—</span></div>
+          <div class="ops-line"><span class="ops-msg">Memory</span><span class="ops-time cyan" id="ohMem">—</span></div>
+          <div class="ops-line"><span class="ops-msg">Uptime</span><span class="ops-time cyan" id="ohUp">—</span></div>
+          <div class="ops-line"><span class="ops-msg">Users</span><span class="ops-time cyan" id="ohUsers">—</span></div>
+          <div class="ops-line"><span class="ops-msg">Database</span><span class="ops-time green">Connected</span></div>
+          <div class="ops-line"><span class="ops-msg">Scheduler</span><span class="ops-time green">Lean Mode</span></div>
+          <div class="ops-line"><span class="ops-msg">Self-Edit</span><span class="ops-time green">Active</span></div>
         </div>
       </div>
     </div>
 
     <!-- AI WORKFORCE -->
     <div class="section" id="sec-agents">
-      <div class="section-label">Agent Activity</div>
-      <div id="agentCycles"><div class="empty-state">Loading agent cycles...</div></div>
+      <div class="sec-label">AGENT CYCLES</div>
+      <div id="agentCycles"><div class="ops-empty">Loading...</div></div>
     </div>
 
-    <!-- OPERATIONS LOG -->
+    <!-- LOGS -->
     <div class="section" id="sec-logs">
-      <div class="section-label">Operations Log</div>
-      <div class="terminal" id="logTerminal"><div class="empty-state">Loading...</div></div>
+      <div class="sec-label">OPERATIONS LOG</div>
+      <div class="terminal" id="logTerminal"><div class="ops-empty">Loading...</div></div>
     </div>
 
-    <!-- TALK TO JARVIS -->
+    <!-- VOICE -->
     <div class="section" id="sec-voice">
-      <div class="section-label">Talk to Jarvis</div>
+      <div class="sec-label">TALK TO JARVIS</div>
       <div class="voice-container">
-        <div class="voice-chat-log" id="voiceChatLog">
-          <div class="voice-msg jarvis"><div class="sender">Jarvis</div><div class="bubble">What's good. Tap the mic or type.</div></div>
-        </div>
-        <div class="voice-controls">
-          <button class="mic-btn" id="micBtn" onclick="toggleMic()" title="Push to talk">
-            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
-          </button>
+        <div class="voice-log" id="voiceChatLog"><div class="v-msg jarvis"><div class="v-sender">JARVIS</div><div class="v-bubble">What's good. Tap the mic or type.</div></div></div>
+        <div class="voice-row">
+          <button class="mic-btn" id="micBtn" onclick="toggleMic()"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>
           <input type="text" class="voice-input" id="voiceInput" placeholder="Type or tap mic..." onkeydown="if(event.key==='Enter')sendVoiceText()">
-          <button class="send-btn" onclick="sendVoiceText()">
-            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-          </button>
+          <button class="send-btn" onclick="sendVoiceText()"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
         </div>
-        <div class="voice-status" id="voiceStatus">Click the mic to talk</div>
+        <div class="voice-status" id="voiceStatus">Click mic to talk</div>
       </div>
     </div>
 
-    <!-- FEED JARVIS -->
+    <!-- FEED -->
     <div class="section" id="sec-feed">
-      <div class="section-label">Feed Jarvis</div>
+      <div class="sec-label">FEED JARVIS</div>
       <div class="feed-container">
         <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
           <div class="drop-icon">⬆</div>
-          <div class="drop-text">Drop videos, PDFs, screen recordings, or any file</div>
-          <div class="drop-sub">Videos get Whisper transcription · Up to 100MB</div>
+          <div class="drop-text">Drop videos, PDFs, screen recordings</div>
+          <div class="drop-sub">Whisper transcription · Up to 100MB</div>
         </div>
         <input type="file" id="fileInput" style="display:none" accept="*/*" onchange="handleFileSelect(this.files[0])">
         <div class="feed-url-row">
-          <input type="text" class="feed-url-input" id="feedUrlInput" placeholder="Paste YouTube, TikTok, or any URL..." onkeydown="if(event.key==='Enter')submitFeedUrl()">
-          <button class="feed-url-btn" onclick="submitFeedUrl()">Process</button>
+          <input type="text" class="feed-url-input" id="feedUrlInput" placeholder="YouTube, TikTok, any URL..." onkeydown="if(event.key==='Enter')submitFeedUrl()">
+          <button class="feed-url-btn" onclick="submitFeedUrl()">PROCESS</button>
         </div>
-        <input type="text" class="feed-context-input" id="feedContext" placeholder="Optional: tell Jarvis what to focus on...">
+        <input type="text" class="feed-context-input" id="feedContext" placeholder="Optional focus instructions...">
         <div id="feedResults"></div>
       </div>
     </div>
 
-    <!-- PIPELINE -->
-    <div class="section" id="sec-pipeline">
-      <div class="section-label">Solar Pipeline</div>
-      <div class="ops-grid" id="pipelineContent"><div class="empty-state">Loading pipeline...</div></div>
-    </div>
-
-    <!-- CREW MANAGER -->
+    <!-- CREW -->
     <div class="section" id="sec-crew">
-      <div class="section-label">Crew Manager</div>
-      <div class="crew-job-form">
-        <h3 style="font-size:13px;margin-bottom:12px;color:#888;">Delegate a Task</h3>
-        <select class="crew-select" id="crewWorker"><option value="research">Hawk (Research)</option><option value="marketing">Ghost (Marketing)</option><option value="ops">Pulse (Operations)</option></select>
-        <input class="crew-input" id="crewJobTitle" placeholder="Task title...">
-        <input class="crew-input" id="crewJobDesc" placeholder="Details...">
-        <button class="btn-sm" onclick="delegateJob()">Delegate</button>
-        <button class="btn-sm" onclick="runCrewNow()" style="margin-left:8px;">Run Queue Now</button>
+      <div class="sec-label">CREW MANAGER</div>
+      <div class="crew-form">
+        <h4>DELEGATE TASK</h4>
+        <select class="crew-sel" id="crewWorker"><option value="research">Hawk</option><option value="marketing">Ghost</option><option value="ops">Pulse</option></select>
+        <input class="crew-inp" id="crewJobTitle" placeholder="Task title...">
+        <input class="crew-inp" id="crewJobDesc" placeholder="Details...">
+        <button class="btn-neon" onclick="delegateJob()">DELEGATE</button>
+        <button class="btn-neon" onclick="runCrewNow()" style="margin-left:6px;">RUN QUEUE</button>
       </div>
-      <div class="crew-grid" id="crewCards"><div class="empty-state">Loading crew...</div></div>
-      <div class="section-label" style="margin-top:20px;">Recent Jobs</div>
-      <div class="ops-panel" id="crewJobs"><div class="empty-state">Loading...</div></div>
+      <div class="crew-grid" id="crewCards"><div class="ops-empty">Loading...</div></div>
+      <div class="sec-label" style="margin-top:16px;">RECENT JOBS</div>
+      <div class="ops-panel" id="crewJobs"><div class="ops-empty">Loading...</div></div>
     </div>
 
-    <!-- BUILD PROGRESS -->
+    <!-- PROGRESS -->
     <div class="section" id="sec-progress">
-      <div class="section-label">Build Progress</div>
-      <div class="overall-bar"><div class="overall-pct" id="overallPct">—%</div><div class="overall-sub">Overall Build Progress</div></div>
+      <div class="sec-label">BUILD PROGRESS</div>
+      <div class="overall-box"><div class="overall-num" id="overallPct">—%</div><div class="overall-sub">OVERALL COMPLETION</div></div>
       <div id="phases"></div>
     </div>
 
@@ -430,281 +421,44 @@
 </div>
 
 <script>
-// ── Navigation ──
-function showSection(name, el) {
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-  document.getElementById('sec-' + name).classList.add('active');
-  if (el) el.classList.add('active');
-  var titles = { command:'Command Center', agents:'AI Workforce', logs:'Operations Log', voice:'Talk to Jarvis', feed:'Feed Jarvis', pipeline:'Pipeline', crew:'Crew Manager', progress:'Build Progress' };
-  document.getElementById('pageTitle').textContent = titles[name] || name;
-}
+function showSection(n,el){document.querySelectorAll('.section').forEach(function(s){s.classList.remove('active')});document.querySelectorAll('.nav-btn').forEach(function(b){b.classList.remove('active')});document.getElementById('sec-'+n).classList.add('active');if(el)el.classList.add('active');var t={command:'◆ COMMAND CENTER',agents:'◈ AI WORKFORCE',logs:'▤ OPERATIONS LOG',voice:'◉ TALK TO JARVIS',feed:'▲ FEED JARVIS',crew:'◫ CREW MANAGER',progress:'◩ BUILD PROGRESS'};document.getElementById('pageTitle').textContent=t[n]||n;}
+setInterval(function(){document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',second:'2-digit'})+' ET';},1000);
+function fmt(n){return n!=null?n.toLocaleString():'—';}
+function fmtUp(s){var d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60);return d>0?d+'d '+h+'h':h>0?h+'h '+m+'m':m+'m';}
+function ago(i){if(!i)return'';var d=(Date.now()-new Date(i).getTime())/1000;return d<60?'now':d<3600?Math.floor(d/60)+'m':d<86400?Math.floor(d/3600)+'h':Math.floor(d/86400)+'d';}
+function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 
-// ── Clock ──
-setInterval(function() {
-  document.getElementById('clockTime').textContent = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' ET';
-}, 1000);
+async function loadHealth(){try{var r=await fetch('/dashboard/api/health');var d=await r.json();if(d.error)return;document.getElementById('ohCpu').textContent=d.cpu.percent+'%';document.getElementById('ohMem').textContent=d.memory.usedPercent+'%';document.getElementById('ohUp').textContent=fmtUp(d.uptime);document.getElementById('ohUsers').textContent=fmt(d.stats?.users);document.getElementById('uptime').textContent=fmtUp(d.uptime);document.getElementById('rMessages').textContent=fmt(d.stats?.messages);document.getElementById('rMemories').textContent=fmt(d.stats?.memories);var bd=d.stats?.memoryBreakdown;document.getElementById('statusText').textContent='ONLINE';}catch(e){document.getElementById('statusText').textContent='OFFLINE';}}
 
-// ── Helpers ──
-function fmt(n) { return n != null ? n.toLocaleString() : '—'; }
-function fmtUptime(s) {
-  var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
-  if (d > 0) return d + 'd ' + h + 'h';
-  if (h > 0) return h + 'h ' + m + 'm';
-  return m + 'm';
-}
-function timeAgo(iso) {
-  if (!iso) return '';
-  var diff = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-  return Math.floor(diff / 86400) + 'd ago';
-}
-function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+async function loadCrew(){try{var r=await fetch('/dashboard/api/crew');var d=await r.json();if(d.workers){d.workers.forEach(function(w){var n=(w.name||'').toLowerCase();var b=document.getElementById(n+'Badge');var c=document.getElementById(n+'Done');var f=document.getElementById(n+'Fail');if(b){b.textContent=(w.status||'STANDBY').toUpperCase();b.className='room-badge '+(w.status==='active'?'badge-online':'badge-standby');}if(c)c.textContent=w.tasks_completed||0;if(f)f.textContent=w.tasks_failed||0;var room=document.getElementById(n+'Room');if(room&&w.status==='active')room.classList.add('active-glow');else if(room)room.classList.remove('active-glow');});}
+var cards='';if(d.workers)d.workers.forEach(function(w){cards+='<div class="crew-card"><h4>'+esc(w.name)+'</h4><div class="crew-role">'+esc((w.system_prompt||'').substring(0,60))+'</div><div class="crew-row"><span>Done</span><span class="crew-val">'+(w.tasks_completed||0)+'</span></div><div class="crew-row"><span>Failed</span><span class="crew-val">'+(w.tasks_failed||0)+'</span></div><div class="crew-row"><span>Status</span><span class="crew-val">'+(w.status||'—')+'</span></div></div>';});document.getElementById('crewCards').innerHTML=cards||'<div class="ops-empty">No workers</div>';
+var jobs='';if(d.recentJobs)d.recentJobs.slice(0,10).forEach(function(j){jobs+='<div class="ops-line"><span class="ops-msg">'+esc(j.title)+'</span><span class="ops-tag" style="background:rgba(167,139,250,0.1);color:#a78bfa;">'+(j.status||'?')+'</span><span class="ops-time">'+ago(j.created_at)+'</span></div>';});document.getElementById('crewJobs').innerHTML=jobs||'<div class="ops-empty">No jobs</div>';}catch(e){}}
 
-// ── Load Command Center ──
-async function loadHealth() {
-  try {
-    var r = await fetch('/dashboard/api/health');
-    var d = await r.json();
-    if (d.error) return;
+async function loadActivity(){try{var r=await fetch('/dashboard/api/logs');var d=await r.json();var ops='',logs='';if(d.logs){d.logs.slice(0,12).forEach(function(l){var tag='<span class="ops-tag tag-'+(l.platform||'')+'">'+((l.platform||'?').toUpperCase())+'</span>';ops+='<div class="ops-line">'+tag+'<span class="ops-msg">'+esc(l.message)+'</span><span class="ops-time">'+ago(l.created_at)+'</span></div>';});document.getElementById('opsActivity').innerHTML=ops||'<div class="ops-empty">No activity</div>';d.logs.forEach(function(l){var ts=l.created_at?new Date(l.created_at).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):'';logs+='<div class="log-line"><span class="log-ts">'+ts+'</span><span class="log-role '+l.role+'">'+l.role+'</span><span class="log-msg">'+esc(l.message)+'</span></div>';});document.getElementById('logTerminal').innerHTML=logs||'<div class="ops-empty">No logs</div>';}}catch(e){}}
 
-    document.getElementById('ohCpu').textContent = d.cpu.percent + '%';
-    document.getElementById('ohMem').textContent = d.memory.usedPercent + '%';
-    document.getElementById('ohUptime').textContent = fmtUptime(d.uptime);
-    document.getElementById('ohUsers').textContent = fmt(d.stats?.users);
-    document.getElementById('uptime').textContent = fmtUptime(d.uptime);
+async function loadAgent(){try{var r=await fetch('/dashboard/api/agent');var d=await r.json();var h='';if(d.cycles&&d.cycles.length>0){d.cycles.forEach(function(c){h+='<div style="background:rgba(8,8,20,0.8);border:1px solid rgba(100,100,255,0.1);border-radius:8px;padding:14px;margin-bottom:10px;"><div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#557;font-size:11px;">'+ago(c.created_at)+'</span><span style="font-size:10px;color:#335;">'+(c.tool_log?.length||0)+' tools</span></div>';if(c.tool_log)c.tool_log.forEach(function(t){h+='<div style="padding:4px 8px;margin:2px 0;background:rgba(0,0,0,0.3);border-radius:4px;border-left:2px solid #a78bfa;font-size:10px;"><span style="color:#a78bfa;">'+esc(t.tool||'')+'</span> <span style="color:#335;">'+esc(JSON.stringify(t.input||{}).substring(0,80))+'</span></div>';});h+='</div>';});}document.getElementById('agentCycles').innerHTML=h||'<div class="ops-empty">No cycles. Use !agent run in Discord.</div>';}catch(e){}}
 
-    document.getElementById('rMessages').textContent = fmt(d.stats?.messages);
-    document.getElementById('rMemories').textContent = fmt(d.stats?.memories);
-    var bd = d.stats?.memoryBreakdown;
-    if (bd) document.getElementById('rMemBreakdown').textContent = (bd.fact||0) + ' facts · ' + (bd.task||0) + ' tasks';
+async function loadProgress(){try{var r=await fetch('/dashboard/api/progress');var d=await r.json();var total=0,done=0,h='';d.phases.forEach(function(p){var pd=p.features.filter(function(f){return f.status==='done';}).length;var pt=p.features.length;total+=pt;done+=pd;var pct=Math.round((pd/pt)*100);var bc=p.status==='complete'?'complete':p.status==='in-progress'?'in-progress':'planned';var fc=p.status==='complete'?'g':p.status==='in-progress'?'p':'d';h+='<div class="phase"><div class="phase-hdr"><span class="phase-name">'+p.name+'</span><span class="phase-badge '+bc+'">'+pd+'/'+pt+'</span></div><div class="prog-bar"><div class="prog-fill '+fc+'" style="width:'+pct+'%"></div></div><div class="feat-grid">';p.features.forEach(function(f){var ic=f.status==='done'?'✓':f.status==='in-progress'?'◉':'○';var cl=f.status==='done'?'#0f0':f.status==='in-progress'?'#a78bfa':'#223';h+='<div class="feat"><span class="fi" style="color:'+cl+'">'+ic+'</span>'+f.name+'</div>';});h+='</div></div>';});document.getElementById('phases').innerHTML=h;document.getElementById('overallPct').textContent=Math.round((done/total)*100)+'%';}catch(e){}}
 
-    document.getElementById('statusDot').className = 'dot';
-    document.getElementById('statusDot').style.background = '#22c55e';
-    document.getElementById('statusText').textContent = 'Online';
-  } catch(e) {
-    document.getElementById('statusDot').style.background = '#ef4444';
-    document.getElementById('statusText').textContent = 'Offline';
-  }
-}
+async function delegateJob(){var w=document.getElementById('crewWorker').value,t=document.getElementById('crewJobTitle').value,d=document.getElementById('crewJobDesc').value;if(!t)return;var r=await fetch('/dashboard/api/crew/job',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({worker:w,title:t,description:d,priority:7})});var res=await r.json();if(res.success){document.getElementById('crewJobTitle').value='';document.getElementById('crewJobDesc').value='';loadCrew();}else{alert('Failed: '+(res.error||''));}}
+async function runCrewNow(){var r=await fetch('/dashboard/api/crew/run',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});var d=await r.json();alert(d.success?'Queue processed! '+(d.results?.length||0)+' jobs.':'Failed');loadCrew();}
 
-// ── Load Agent Stats ──
-async function loadCrew() {
-  try {
-    var r = await fetch('/dashboard/api/crew');
-    var d = await r.json();
-    if (d.workers) {
-      d.workers.forEach(function(w) {
-        var n = (w.name || '').toLowerCase();
-        var badge = document.getElementById(n + 'Badge');
-        var comp = document.getElementById(n + 'Completed');
-        var fail = document.getElementById(n + 'Failed');
-        if (badge) { badge.textContent = (w.status || 'standby').toUpperCase(); badge.className = 'agent-badge ' + (w.status === 'active' ? 'badge-active' : 'badge-standby'); }
-        if (comp) comp.textContent = w.tasks_completed || 0;
-        if (fail) fail.textContent = w.tasks_failed || 0;
-      });
-    }
-    // Crew manager cards
-    var cards = '';
-    if (d.workers) d.workers.forEach(function(w) {
-      cards += '<div class="crew-card"><h3>' + esc(w.name) + '</h3><div class="crew-role">' + esc((w.system_prompt||'').substring(0,80)) + '</div>';
-      cards += '<div class="crew-stat-row"><span>Completed</span><span class="crew-stat-val">' + (w.tasks_completed||0) + '</span></div>';
-      cards += '<div class="crew-stat-row"><span>Failed</span><span class="crew-stat-val">' + (w.tasks_failed||0) + '</span></div>';
-      cards += '<div class="crew-stat-row"><span>Status</span><span class="crew-stat-val">' + (w.status||'—') + '</span></div></div>';
-    });
-    document.getElementById('crewCards').innerHTML = cards || '<div class="empty-state">No workers found</div>';
-    // Recent jobs
-    var jobs = '';
-    if (d.recentJobs) d.recentJobs.slice(0,10).forEach(function(j) {
-      jobs += '<div class="ops-item"><span class="ops-text">' + esc(j.title) + '</span><span class="ops-tag" style="background:#1a1a2e;color:#a78bfa;">' + (j.status||'?') + '</span><span class="ops-time">' + timeAgo(j.created_at) + '</span></div>';
-    });
-    document.getElementById('crewJobs').innerHTML = jobs || '<div class="empty-state">No jobs yet</div>';
-  } catch(e) {}
-}
+var dz=document.getElementById('dropZone');if(dz){dz.addEventListener('dragover',function(e){e.preventDefault();dz.classList.add('dragover');});dz.addEventListener('dragleave',function(){dz.classList.remove('dragover');});dz.addEventListener('drop',function(e){e.preventDefault();dz.classList.remove('dragover');if(e.dataTransfer.files.length>0)handleFileSelect(e.dataTransfer.files[0]);});}
+async function handleFileSelect(f){if(!f)return;var rd=document.getElementById('feedResults');var ctx=document.getElementById('feedContext').value.trim();rd.innerHTML='<div class="feed-processing">Processing '+esc(f.name)+'...</div>';var fd=new FormData();fd.append('file',f);if(ctx)fd.append('context',ctx);try{var r=await fetch('/dashboard/api/feed/upload',{method:'POST',body:fd});var d=await r.json();if(d.error)throw new Error(d.error);rd.innerHTML='<div class="feed-result"><div class="src">'+esc(d.source||f.name)+'</div><div class="txt">'+esc(d.analysis)+'</div></div>';}catch(e){rd.innerHTML='<div class="feed-result"><div class="src" style="color:#f00;">ERROR</div><div class="txt" style="color:#f00;">'+esc(e.message)+'</div></div>';}document.getElementById('feedContext').value='';}
+async function submitFeedUrl(){var u=document.getElementById('feedUrlInput').value.trim();if(!u)return;var ctx=document.getElementById('feedContext').value.trim();var rd=document.getElementById('feedResults');rd.innerHTML='<div class="feed-processing">Processing...</div>';document.getElementById('feedUrlInput').value='';try{var r=await fetch('/dashboard/api/feed/url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:u,context:ctx})});var d=await r.json();if(d.error)throw new Error(d.error);rd.innerHTML='<div class="feed-result"><div class="src">'+esc(d.source||u)+'</div><div class="txt">'+esc(d.analysis)+'</div></div>';}catch(e){rd.innerHTML='<div class="feed-result"><div class="src" style="color:#f00;">ERROR</div><div class="txt" style="color:#f00;">'+esc(e.message)+'</div></div>';}document.getElementById('feedContext').value='';}
 
-// ── Load Activity ──
-async function loadActivity() {
-  try {
-    var r = await fetch('/dashboard/api/logs');
-    var d = await r.json();
-    var html = '';
-    if (d.logs) {
-      // Ops activity for command center
-      var ops = d.logs.slice(0,15).map(function(l) {
-        var tag = '<span class="ops-tag tag-' + (l.platform||'') + '">' + (l.platform||'?') + '</span>';
-        return '<div class="ops-item">' + tag + '<span class="ops-text">' + esc(l.message) + '</span><span class="ops-time">' + timeAgo(l.created_at) + '</span></div>';
-      }).join('');
-      document.getElementById('opsActivity').innerHTML = ops || '<div class="empty-state">No activity yet</div>';
+var voiceRecognition=null,isRecording=false,jarvisAudio=null;
+function initSR(){var S=window.SpeechRecognition||window.webkitSpeechRecognition;if(!S)return null;var r=new S();r.continuous=false;r.interimResults=false;r.lang='en-US';r.onresult=function(e){var t=e.results[0][0].transcript;document.getElementById('voiceInput').value=t;stopMic();sendVM(t,true);};r.onerror=function(e){stopMic();document.getElementById('voiceStatus').textContent='Error: '+e.error;};r.onend=function(){if(isRecording)stopMic();};return r;}
+function toggleMic(){if(isRecording){stopMic();return;}if(!voiceRecognition)voiceRecognition=initSR();if(!voiceRecognition)return;if(jarvisAudio){jarvisAudio.pause();jarvisAudio=null;}isRecording=true;document.getElementById('micBtn').classList.add('recording');document.getElementById('voiceStatus').textContent='Listening...';voiceRecognition.start();}
+function stopMic(){isRecording=false;document.getElementById('micBtn').classList.remove('recording');if(voiceRecognition)try{voiceRecognition.stop();}catch(e){}}
+function sendVoiceText(){var i=document.getElementById('voiceInput');var t=i.value.trim();if(!t)return;i.value='';sendVM(t,false);}
+async function sendVM(text,audio){var log=document.getElementById('voiceChatLog');log.innerHTML+='<div class="v-msg user"><div class="v-sender">YOU</div><div class="v-bubble">'+esc(text)+'</div></div>';log.scrollTop=log.scrollHeight;document.getElementById('micBtn').classList.add('thinking');document.getElementById('voiceStatus').textContent='Jarvis thinking...';try{var ep=audio?'/dashboard/api/voice':'/dashboard/api/chat';var r=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})});var d=await r.json();if(d.error)throw new Error(d.error);log.innerHTML+='<div class="v-msg jarvis"><div class="v-sender">JARVIS</div><div class="v-bubble">'+esc(d.reply)+'</div></div>';log.scrollTop=log.scrollHeight;if(jarvisAudio){jarvisAudio.pause();jarvisAudio=null;}if(d.audio){jarvisAudio=new Audio('data:audio/mpeg;base64,'+d.audio);jarvisAudio.play().catch(function(){});document.getElementById('voiceStatus').textContent='Speaking...';jarvisAudio.onended=function(){document.getElementById('voiceStatus').textContent='Click mic to talk';};}else{document.getElementById('voiceStatus').textContent='Click mic to talk';}}catch(e){log.innerHTML+='<div class="v-msg jarvis"><div class="v-sender">JARVIS</div><div class="v-bubble" style="color:#f00;">'+esc(e.message)+'</div></div>';document.getElementById('voiceStatus').textContent='Error';}document.getElementById('micBtn').classList.remove('thinking');}
 
-      // Full log terminal
-      html = d.logs.map(function(l) {
-        var ts = l.created_at ? new Date(l.created_at).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' }) : '';
-        return '<div class="log-line"><span class="log-ts">' + ts + '</span><span class="log-role ' + l.role + '">' + l.role + '</span><span class="ops-tag tag-' + (l.platform||'') + '">' + (l.platform||'') + '</span><span class="log-msg">' + esc(l.message) + '</span></div>';
-      }).join('');
-    }
-    document.getElementById('logTerminal').innerHTML = html || '<div class="empty-state">No logs</div>';
-  } catch(e) {}
-}
-
-// ── Load Agent Cycles ──
-async function loadAgent() {
-  try {
-    var r = await fetch('/dashboard/api/agent');
-    var d = await r.json();
-    var html = '';
-    if (d.cycles && d.cycles.length > 0) {
-      d.cycles.forEach(function(c) {
-        html += '<div style="background:#0e0e1a;border:1px solid #1a1a2e;border-radius:12px;padding:16px;margin-bottom:12px;">';
-        html += '<div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:#aaa;font-size:13px;">' + timeAgo(c.created_at) + '</span><span style="font-size:11px;color:#555;">' + (c.tool_log?.length||0) + ' tools used</span></div>';
-        if (c.tool_log) c.tool_log.forEach(function(t) {
-          html += '<div style="padding:6px 10px;margin:3px 0;background:#060610;border-radius:6px;border-left:2px solid #a78bfa;font-size:12px;"><span style="color:#a78bfa;font-weight:600;">' + esc(t.tool||'') + '</span> <span style="color:#555;">' + esc(JSON.stringify(t.input||{}).substring(0,100)) + '</span></div>';
-        });
-        html += '</div>';
-      });
-    }
-    document.getElementById('agentCycles').innerHTML = html || '<div class="empty-state">No agent cycles yet. Use !agent run in Discord.</div>';
-  } catch(e) {}
-}
-
-// ── Load Progress ──
-async function loadProgress() {
-  try {
-    var r = await fetch('/dashboard/api/progress');
-    var d = await r.json();
-    var total = 0, done = 0, html = '';
-    d.phases.forEach(function(p) {
-      var pDone = p.features.filter(function(f){ return f.status === 'done'; }).length;
-      var pTotal = p.features.length;
-      total += pTotal; done += pDone;
-      var pct = Math.round((pDone / pTotal) * 100);
-      var badgeClass = p.status === 'complete' ? 'complete' : p.status === 'in-progress' ? 'in-progress' : 'planned';
-      var barClass = p.status === 'complete' ? 'green-bg' : p.status === 'in-progress' ? 'purple-bg' : 'gray-bg';
-      html += '<div class="phase"><div class="phase-header"><span class="phase-name">' + p.name + '</span><span class="phase-badge ' + badgeClass + '">' + pDone + '/' + pTotal + '</span></div>';
-      html += '<div class="prog-bar"><div class="prog-fill ' + barClass + '" style="width:' + pct + '%"></div></div>';
-      html += '<div class="feature-list">';
-      p.features.forEach(function(f) {
-        var icon = f.status === 'done' ? '✓' : f.status === 'in-progress' ? '◉' : '○';
-        var color = f.status === 'done' ? '#22c55e' : f.status === 'in-progress' ? '#a78bfa' : '#333';
-        html += '<div class="feature"><span class="icon" style="color:' + color + '">' + icon + '</span>' + f.name + '</div>';
-      });
-      html += '</div></div>';
-    });
-    document.getElementById('phases').innerHTML = html;
-    document.getElementById('overallPct').textContent = Math.round((done / total) * 100) + '%';
-  } catch(e) {}
-}
-
-// ── Stubs for pipeline/drip (keep API calls minimal) ──
-function loadPipeline() {}
-function loadDrip() {}
-
-// ── Crew Job Delegation ──
-async function delegateJob() {
-  var worker = document.getElementById('crewWorker').value;
-  var title = document.getElementById('crewJobTitle').value;
-  var desc = document.getElementById('crewJobDesc').value;
-  if (!title) return alert('Enter a task title');
-  var r = await fetch('/dashboard/api/crew/job', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({worker:worker,title:title,description:desc,priority:7}) });
-  var d = await r.json();
-  if (d.success) { document.getElementById('crewJobTitle').value = ''; document.getElementById('crewJobDesc').value = ''; loadCrew(); } else { alert('Failed: ' + (d.error||'unknown')); }
-}
-async function runCrewNow() {
-  var r = await fetch('/dashboard/api/crew/run', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
-  var d = await r.json();
-  alert(d.success ? 'Queue processed! ' + (d.results?.length||0) + ' jobs.' : 'Failed: ' + (d.error||''));
-  loadCrew();
-}
-
-// ── Feed ──
-var dropZone = document.getElementById('dropZone');
-if (dropZone) {
-  dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('dragover'); });
-  dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('dragover'); });
-  dropZone.addEventListener('drop', function(e) { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files.length > 0) handleFileSelect(e.dataTransfer.files[0]); });
-}
-async function handleFileSelect(file) {
-  if (!file) return;
-  var resultsDiv = document.getElementById('feedResults');
-  var context = document.getElementById('feedContext').value.trim();
-  resultsDiv.innerHTML = '<div class="feed-processing">Processing ' + esc(file.name) + '...</div>';
-  var formData = new FormData(); formData.append('file', file); if (context) formData.append('context', context);
-  try {
-    var r = await fetch('/dashboard/api/feed/upload', { method:'POST', body: formData });
-    var d = await r.json();
-    if (d.error) throw new Error(d.error);
-    resultsDiv.innerHTML = '<div class="feed-result-card"><div class="source">' + esc(d.source||file.name) + '</div><div class="analysis">' + esc(d.analysis) + '</div></div>';
-  } catch(e) { resultsDiv.innerHTML = '<div class="feed-result-card"><div class="source" style="color:#ef4444">Error</div><div class="analysis" style="color:#ef4444">' + esc(e.message) + '</div></div>'; }
-  document.getElementById('feedContext').value = '';
-}
-async function submitFeedUrl() {
-  var url = document.getElementById('feedUrlInput').value.trim(); if (!url) return;
-  var context = document.getElementById('feedContext').value.trim();
-  var resultsDiv = document.getElementById('feedResults');
-  resultsDiv.innerHTML = '<div class="feed-processing">Processing...</div>';
-  document.getElementById('feedUrlInput').value = '';
-  try {
-    var r = await fetch('/dashboard/api/feed/url', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({url:url,context:context}) });
-    var d = await r.json();
-    if (d.error) throw new Error(d.error);
-    resultsDiv.innerHTML = '<div class="feed-result-card"><div class="source">' + esc(d.source||url) + '</div><div class="analysis">' + esc(d.analysis) + '</div></div>';
-  } catch(e) { resultsDiv.innerHTML = '<div class="feed-result-card"><div class="source" style="color:#ef4444">Error</div><div class="analysis" style="color:#ef4444">' + esc(e.message) + '</div></div>'; }
-  document.getElementById('feedContext').value = '';
-}
-
-// ── Voice ──
-var voiceRecognition = null, isRecording = false, jarvisAudio = null;
-function initSpeechRecognition() {
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { document.getElementById('voiceStatus').textContent = 'Speech not supported — use Chrome'; return null; }
-  var recognition = new SR(); recognition.continuous = false; recognition.interimResults = false; recognition.lang = 'en-US';
-  recognition.onresult = function(e) { var text = e.results[0][0].transcript; document.getElementById('voiceInput').value = text; stopMic(); sendVoiceMessage(text, true); };
-  recognition.onerror = function(e) { stopMic(); document.getElementById('voiceStatus').textContent = 'Error: ' + e.error; };
-  recognition.onend = function() { if (isRecording) stopMic(); };
-  return recognition;
-}
-function toggleMic() {
-  if (isRecording) { stopMic(); return; }
-  if (!voiceRecognition) voiceRecognition = initSpeechRecognition();
-  if (!voiceRecognition) return;
-  if (jarvisAudio) { jarvisAudio.pause(); jarvisAudio = null; }
-  isRecording = true; document.getElementById('micBtn').classList.add('recording'); document.getElementById('voiceStatus').textContent = 'Listening...';
-  voiceRecognition.start();
-}
-function stopMic() { isRecording = false; document.getElementById('micBtn').classList.remove('recording'); if (voiceRecognition) try { voiceRecognition.stop(); } catch(e) {} }
-function sendVoiceText() { var input = document.getElementById('voiceInput'); var text = input.value.trim(); if (!text) return; input.value = ''; sendVoiceMessage(text, false); }
-async function sendVoiceMessage(text, withAudio) {
-  var log = document.getElementById('voiceChatLog');
-  log.innerHTML += '<div class="voice-msg user"><div class="sender">You</div><div class="bubble">' + esc(text) + '</div></div>';
-  log.scrollTop = log.scrollHeight;
-  document.getElementById('micBtn').classList.add('thinking'); document.getElementById('voiceStatus').textContent = 'Jarvis is thinking...';
-  try {
-    var endpoint = withAudio ? '/dashboard/api/voice' : '/dashboard/api/chat';
-    var r = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text:text}) });
-    var d = await r.json();
-    if (d.error) throw new Error(d.error);
-    log.innerHTML += '<div class="voice-msg jarvis"><div class="sender">Jarvis</div><div class="bubble">' + esc(d.reply) + '</div></div>';
-    log.scrollTop = log.scrollHeight;
-    if (jarvisAudio) { jarvisAudio.pause(); jarvisAudio = null; }
-    if (d.audio) {
-      jarvisAudio = new Audio('data:audio/mpeg;base64,' + d.audio);
-      jarvisAudio.play().catch(function(e){}); document.getElementById('voiceStatus').textContent = 'Speaking...';
-      jarvisAudio.onended = function() { document.getElementById('voiceStatus').textContent = 'Click mic to talk'; };
-    } else { document.getElementById('voiceStatus').textContent = 'Click mic to talk'; }
-  } catch(e) {
-    log.innerHTML += '<div class="voice-msg jarvis"><div class="sender">Jarvis</div><div class="bubble" style="color:#ef4444;">' + esc(e.message) + '</div></div>';
-    document.getElementById('voiceStatus').textContent = 'Error';
-  }
-  document.getElementById('micBtn').classList.remove('thinking');
-}
-
-// ── Init ──
-function loadAll() { loadHealth(); loadActivity(); loadCrew(); loadAgent(); loadProgress(); }
+function loadAll(){loadHealth();loadActivity();loadCrew();loadAgent();loadProgress();}
 loadAll();
-setInterval(loadHealth, 15000);
-setInterval(loadActivity, 10000);
-setInterval(loadCrew, 30000);
+setInterval(loadHealth,15000);
+setInterval(loadActivity,10000);
+setInterval(loadCrew,30000);
 </script>
 </body>
 </html>
