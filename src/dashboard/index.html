@@ -605,7 +605,7 @@
         <div class="drop-text">Drop videos, PDFs, screen recordings, or any file</div>
         <div class="drop-sub">MP4, MOV, PDF, images — up to 100MB. Videos get Whisper transcription.</div>
       </div>
-      <input type="file" id="fileInput" style="display:none" accept="video/*,application/pdf,image/*,.mp4,.mov,.webm,.avi,.mkv" onchange="handleFileSelect(this.files[0])">
+      <input type="file" id="fileInput" style="display:none" accept="*/*" onchange="handleFileSelect(this.files[0])">
 
       <div class="feed-url-row">
         <input type="text" class="feed-url-input" id="feedUrlInput" placeholder="Paste a YouTube, TikTok, Instagram, or any URL..." onkeydown="if(event.key==='Enter')submitFeedUrl()">
