@@ -7,10 +7,11 @@ const multer = require('multer');
 const router = express.Router();
 const upload = multer({ dest: '/tmp/jarvis-uploads/', limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB max
 
-// Serve dashboard HTML
+// Serve dashboard HTML + static assets
 router.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
+router.use('/dashboard/assets', express.static(path.join(__dirname, 'assets')));
 
 // API: system health + DB stats
 router.get('/dashboard/api/health', async (req, res) => {
