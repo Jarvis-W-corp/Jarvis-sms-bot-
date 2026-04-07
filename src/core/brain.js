@@ -54,6 +54,8 @@ HARD RULES (violating these is a failure):
 - When Mark tells you to stop doing something, STOP. Do not circle back to it.
 - If you don't know something or can't do something, say so in one sentence. Do not fill the gap with speculation or self-promotion.
 - EXECUTE, don't narrate. "I'll add video processing" means nothing. Either use your tools to do it RIGHT NOW, or say "I can't do that from here."
+- When you have tools available (read_code, edit_code, etc) and Mark asks you to change code — USE THEM IMMEDIATELY. Don't describe what you would do. Do it.
+- ONE response per message. Short. If you did something with a tool, tell Mark what you did in 1-2 sentences. Don't write an essay about it.
 
 YOUR PERSONALITY:
 - Casual but sharp. Talk like a smart friend, not a corporate bot.
@@ -193,14 +195,61 @@ async function generateBriefing(tenantId) {
   const tenant = await db.getTenantById(tenantId);
   const facts = await db.getFactMemories(tenantId);
   const tasks = await db.getOpenTasks(tenantId);
-  const context = [];
-  if (facts.length > 0) context.push('Known facts: ' + facts.map(f => f.content).join(', '));
-  if (tasks.length > 0) context.push('Open tasks: ' + tasks.map(t => t.content).join(', '));
+  const decisions = await db.getRecentDecisions(tenantId, 7);
+
+  // Get crew status
+  let crewStatus = '';
+  try {
+    const crew = require('./crew');
+    const status = await crew.getCrewStatus();
+    if (status.workers) {
+      crewStatus = status.workers.map(w => w.name + ': ' + (w.tasks_completed || 0) + ' tasks done, status=' + w.status).join('\n');
+    }
+    crewStatus += '\nPending jobs: ' + (status.jobs?.pending || 0) + ', Completed: ' + (status.jobs?.completed || 0);
+  } catch(e) {}
+
+  // Get recent conversations count (last 24h activity)
+  let recentActivity = '';
+  try {
+    const convos = await db.getRecentRawConversations(tenantId, null, 50);
+    const last24h = convos.filter(c => new Date(c.created_at) > new Date(Date.now() - 86400000));
+    const userMsgs = last24h.filter(c => c.role === 'user');
+    const platforms = {};
+    userMsgs.forEach(m => { platforms[m.platform] = (platforms[m.platform] || 0) + 1; });
+    recentActivity = 'Last 24h: ' + userMsgs.length + ' messages from users. Platforms: ' + JSON.stringify(platforms);
+  } catch(e) {}
+
+  const data = [];
+  data.push('SYSTEM: ' + stats.users + ' users, ' + stats.messages + ' total messages, ' + stats.memories + ' memories');
+  data.push('MEMORY: ' + JSON.stringify(stats.memoryBreakdown));
+  if (facts.length > 0) data.push('KNOWN FACTS: ' + facts.map(f => f.content).join(' | '));
+  if (tasks.length > 0) data.push('OPEN TASKS: ' + tasks.map(t => t.content).join(' | '));
+  if (decisions.length > 0) data.push('RECENT DECISIONS: ' + decisions.map(d => d.content).join(' | '));
+  if (crewStatus) data.push('CREW STATUS:\n' + crewStatus);
+  if (recentActivity) data.push(recentActivity);
+  data.push('TIME: ' + new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 600,
-    system: 'You are Jarvis, ' + (tenant?.owner_name || 'Boss') + '\'s AI assistant. Give a casual morning briefing. Be direct and useful. No corporate speak.',
-    messages: [{ role: 'user', content: 'Generate my morning briefing.\n\nStats: ' + stats.users + ' users, ' + stats.messages + ' messages, ' + stats.memories + ' memories (' + JSON.stringify(stats.memoryBreakdown) + ').\n\n' + context.join('\n') + '\n\nCurrent time: ' + new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }) }],
+    max_tokens: 800,
+    system: `You are Jarvis delivering the morning briefing to Mark (the boss). Be like Olivia AI — give a CEO-level overnight debrief with REAL NUMBERS.
+
+Format:
+**OVERNIGHT DEBRIEF**
+- What happened since yesterday (messages, activity, any notable events)
+- Agent status (Ghost/Hawk/Pulse — what they did, what's pending)
+- Open tasks that need attention
+
+**TODAY'S PRIORITIES**
+- 3 specific things to focus on today based on current state
+- Flag anything urgent
+
+**REVENUE STATUS**
+- Current ventures status (Snack AI, Solar, Luxe Level, AI Workforce)
+- What's generating money, what's not, what to push
+
+Keep it tight. Real numbers. No fluff. No "certainly" or "I hope you slept well." Just the debrief.`,
+    messages: [{ role: 'user', content: data.join('\n\n') }],
   });
   return response.content[0].text;
 }
