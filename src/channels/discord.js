@@ -41,7 +41,7 @@ function isBoss(message, tenant) {
   return message.author.id === tenant.config?.boss_discord_id;
 }
 
-const BOSS_ONLY = ['!forget', '!agent', '!drip', '!remittance', '!gmail', '!drive', '!code', '!spy', '!adpipeline'];
+const BOSS_ONLY = ['!forget', '!agent', '!drip', '!remittance', '!gmail', '!drive', '!code', '!spy', '!adpipeline', '!shop'];
 
 async function handleCommand(message, command, args, tenant) {
   const tenantId = tenant.id;
@@ -399,6 +399,60 @@ async function handleCommand(message, command, args, tenant) {
       const reply = await brain.chat(tenant.id, userId, 'discord', 'UPDATE MY CODE: ' + instruction, message.author.displayName || message.author.username);
       await sendLongMessage(message, reply);
       return;
+    }
+    case '!shop': {
+      if (!isBoss(message, tenant)) return message.reply('Boss only.');
+      const sub = args[0];
+      const ecom = require('../core/ecommerce');
+      const printifyMod = require('../core/printify');
+      if (sub === 'research') {
+        const niche = args.slice(1).join(' ') || 'trending';
+        await message.reply('🔍 Researching trending products for "' + niche + '"...');
+        await message.channel.sendTyping();
+        const research = await ecom.researchTrending(niche, 5);
+        await sendLongMessage(message, '🛍️ **Product Research: ' + niche + '**\n\n' + research);
+        return;
+      }
+      if (sub === 'create') {
+        const designPrompt = args.slice(1).join(' ');
+        if (!designPrompt) return message.reply('Usage: !shop create <design description>\nExample: !shop create minimalist mountain sunset design');
+        await message.reply('🎨 Generating design + creating product...');
+        await message.channel.sendTyping();
+        const result = await ecom.createAndListProduct({
+          title: designPrompt.substring(0, 60),
+          description: designPrompt,
+          tags: designPrompt.split(' ').slice(0, 5),
+          designPrompt,
+          productType: 'tshirt',
+          price: 1999,
+        });
+        return message.reply('✅ Product created on Printify!\nTitle: ' + result.title + '\nVariants: ' + result.variantCount + '\nPublish with: !shop publish ' + result.productId);
+      }
+      if (sub === 'publish') {
+        const productId = args[1];
+        if (!productId) return message.reply('Usage: !shop publish <productId>');
+        await printifyMod.publishProduct(productId);
+        return message.reply('✅ Product published to connected store!');
+      }
+      if (sub === 'pipeline') {
+        const niche = args.slice(1).join(' ') || 'trending';
+        await message.reply('🚀 Running full product pipeline: research → design → create...');
+        await message.channel.sendTyping();
+        const result = await ecom.runProductPipeline(niche, 3, tenantId);
+        let response = '🛍️ **Product Pipeline Complete**\n\n';
+        response += '**Products Created:** ' + result.products.filter(p => !p.error).length + '\n\n';
+        result.products.forEach(p => {
+          if (p.error) response += '❌ ' + p.title + ': ' + p.error + '\n';
+          else response += '✅ ' + p.title + ' (ID: ' + p.productId + ')\n';
+        });
+        await sendLongMessage(message, response);
+        return;
+      }
+      if (sub === 'stats') {
+        const stats = await printifyMod.getStats();
+        return message.reply('🛍️ **Store Stats**\nProducts: ' + stats.totalProducts + '\nOrders: ' + stats.totalOrders);
+      }
+      return message.reply('Usage:\n`!shop research <niche>` — Find trending products\n`!shop create <design>` — Generate design + create product\n`!shop pipeline <niche>` — Full auto: research → design → list\n`!shop publish <id>` — Publish product to store\n`!shop stats` — Store overview');
     }
     case '!help': {
       const embed = new EmbedBuilder().setTitle('Super Jarvis Commands').setColor(0x0099ff)

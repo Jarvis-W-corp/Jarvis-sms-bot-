@@ -96,6 +96,23 @@ const workerTools = {
     return output;
   },
 
+  research_products: async ({ niche, count }) => {
+    const ecom = require('./ecommerce');
+    return ecom.researchTrending(niche, count || 5);
+  },
+
+  create_product: async ({ title, designPrompt, productType, price, tags }) => {
+    const ecom = require('./ecommerce');
+    const result = await ecom.createAndListProduct({ title, designPrompt, productType: productType || 'tshirt', price: price || 1999, tags, description: title });
+    return 'Created: ' + result.title + ' (ID: ' + result.productId + ')';
+  },
+
+  product_pipeline: async ({ niche, count }) => {
+    const ecom = require('./ecommerce');
+    const result = await ecom.runProductPipeline(niche, count || 3);
+    return 'Pipeline done. Created ' + result.products.filter(p => !p.error).length + ' products.';
+  },
+
   store_finding: async ({ category, content, importance }) => {
     const memory = require('./memory');
     const { supabase: db } = require('../db/supabase');

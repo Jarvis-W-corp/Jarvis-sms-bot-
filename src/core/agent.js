@@ -495,6 +495,43 @@ const tools = {
     },
   },
 
+  // ── E-Commerce (Printify + Etsy) ──
+  research_products: {
+    description: 'Research trending products for print-on-demand. Input: { "niche": "minimalist art", "count": 5 }',
+    execute: async ({ niche, count }, tenantId) => {
+      const ecom = require('./ecommerce');
+      return ecom.researchTrending(niche, count || 5);
+    },
+  },
+
+  create_product: {
+    description: 'Create a print-on-demand product on Printify. Generates AI design and creates listing. Input: { "title": "Mountain Sunset Tee", "designPrompt": "minimalist mountain sunset gradient", "productType": "tshirt", "price": 1999, "tags": ["nature","sunset"] }',
+    execute: async ({ title, designPrompt, designUrl, productType, price, tags }) => {
+      const ecom = require('./ecommerce');
+      const result = await ecom.createAndListProduct({ title, designPrompt, designUrl, productType: productType || 'tshirt', price: price || 1999, tags, description: title });
+      return 'Product created: ' + result.title + ' (ID: ' + result.productId + ', Variants: ' + result.variantCount + ')';
+    },
+  },
+
+  product_pipeline: {
+    description: 'Full e-commerce pipeline: research trending products → generate AI designs → create listings on Printify. Input: { "niche": "funny cat designs", "count": 3 }',
+    execute: async ({ niche, count }, tenantId) => {
+      const ecom = require('./ecommerce');
+      const result = await ecom.runProductPipeline(niche, count || 3, tenantId);
+      const ok = result.products.filter(p => !p.error);
+      return 'Pipeline complete. Created ' + ok.length + '/' + result.products.length + ' products: ' + ok.map(p => p.title).join(', ');
+    },
+  },
+
+  shop_stats: {
+    description: 'Get Printify store stats — products, orders, revenue. Input: {}',
+    execute: async () => {
+      const printify = require('./printify');
+      const stats = await printify.getStats();
+      return 'Products: ' + stats.totalProducts + ', Orders: ' + stats.totalOrders + '. Recent: ' + stats.products.map(p => p.title).join(', ');
+    },
+  },
+
   // ── Voice AI ──
   make_call: {
     description: 'Make an outbound phone call using Jarvis voice AI. Input: { "to": "+1234567890", "message": "Hi, this is Jarvis calling about..." }',
