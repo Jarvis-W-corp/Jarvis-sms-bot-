@@ -66,6 +66,19 @@ function scheduleCrewProcessing() {
   console.log('[SCHEDULER] Crew queue: every 4h');
 }
 
+// ── Shop Optimizer: daily at 10 AM ET ──
+// Checks Etsy/Printify listings, fixes SEO, tracks performance, auto-rotates
+function scheduleShopOptimizer() {
+  const { dailyShopCheck } = require('../core/shop-optimizer');
+  const next10am = getNextETHour(10);
+  const delay = next10am.getTime() - Date.now();
+  setTimeout(() => {
+    dailyShopCheck();
+    setInterval(dailyShopCheck, 24 * 60 * 60 * 1000);
+  }, delay);
+  console.log('[SCHEDULER] Shop optimizer: 10 AM ET daily');
+}
+
 // ══════════════════════════════════════════════
 // KILLED (was burning API credits for nothing):
 // - Ideas engine (daily) — not generating revenue
@@ -90,7 +103,8 @@ function startAllJobs() {
   scheduleDailyBriefing();
   startAppMonitoring();
   scheduleCrewProcessing();
-  console.log('[SCHEDULER] Lean mode — 1 briefing/day + keep-alive + crew queue');
+  scheduleShopOptimizer();
+  console.log('[SCHEDULER] Lean mode — briefing + shop optimizer + keep-alive + crew queue');
 }
 
 module.exports = { startAllJobs, sendDailyBriefing };

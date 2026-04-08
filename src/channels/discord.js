@@ -452,7 +452,21 @@ async function handleCommand(message, command, args, tenant) {
         const stats = await printifyMod.getStats();
         return message.reply('🛍️ **Store Stats**\nProducts: ' + stats.totalProducts + '\nOrders: ' + stats.totalOrders);
       }
-      return message.reply('Usage:\n`!shop research <niche>` — Find trending products\n`!shop create <design>` — Generate design + create product\n`!shop pipeline <niche>` — Full auto: research → design → list\n`!shop publish <id>` — Publish product to store\n`!shop stats` — Store overview');
+      if (sub === 'report') {
+        await message.reply('📊 Running shop performance report...');
+        const shopOpt = require('../core/shop-optimizer');
+        const report = await shopOpt.smartRotation(tenantId);
+        await sendLongMessage(message, '🏪 ' + report);
+        return;
+      }
+      if (sub === 'fix') {
+        await message.reply('🔧 Optimizing all listings...');
+        const shopOpt = require('../core/shop-optimizer');
+        const results = await shopOpt.optimizeAllListings();
+        const summary = results.map(r => r.title + ' → ' + r.status).join('\n');
+        return message.reply('✅ **SEO Optimization**\n' + summary);
+      }
+      return message.reply('Usage:\n`!shop research <niche>` — Find trending products\n`!shop create <design>` — Generate design + create product\n`!shop pipeline <niche>` — Full auto: research → design → list\n`!shop publish <id>` — Publish product to store\n`!shop stats` — Store overview\n`!shop report` — Performance report + recommendations\n`!shop fix` — Fix SEO tags on all listings');
     }
     case '!help': {
       const embed = new EmbedBuilder().setTitle('Super Jarvis Commands').setColor(0x0099ff)
