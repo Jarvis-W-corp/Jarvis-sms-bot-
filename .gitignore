@@ -1,6 +1,5 @@
 .env
-.env.swp
-.env.bak
+.env.*
 *.swp
 node_modules/
 jarvis_memory.json
@@ -8,3 +7,9 @@ jarvis_memory.db
 index.backup.js
 gmail-credentials.json
 gmail-token.json
+*.p8
+*.p12
+.jarvis-backups/
+downloads/
+/tmp/
+jarvis-feed/

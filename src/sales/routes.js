@@ -9,6 +9,19 @@ router.get('/sales', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// === AUTH ===
+router.post('/sales/api/login', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) return res.json({ success: false, error: 'Username and password required' });
+  const { data } = await supabase.from('hc_users').select('*').eq('username', username).single();
+  if (!data) return res.json({ success: false, error: 'User not found' });
+  const bcrypt = require('bcryptjs');
+  // Support both hashed and legacy plaintext passwords
+  const match = data.password.startsWith('$2') ? bcrypt.compareSync(password, data.password) : (password === data.password);
+  if (!match) return res.json({ success: false, error: 'Wrong password' });
+  res.json({ success: true, user: mapUser(data) });
+});
+
 // === USERS ===
 
 router.get('/sales/api/users', async (req, res) => {
@@ -20,7 +33,7 @@ router.get('/sales/api/users', async (req, res) => {
 router.post('/sales/api/users', async (req, res) => {
   const u = req.body;
   const { error } = await supabase.from('hc_users').insert({
-    id: u.id, username: u.username, password: u.password,
+    id: u.id, username: u.username, password: require('bcryptjs').hashSync(u.password || '', 10),
     name: u.name, role: u.role || 'Sales Rep', team_id: u.teamId || '', status: u.status || 'active'
   });
   if (error) return res.json({ success: false, error: error.message });
@@ -34,7 +47,7 @@ router.put('/sales/api/users/:id', async (req, res) => {
   if (u.teamId !== undefined) update.team_id = u.teamId;
   if (u.status !== undefined) update.status = u.status;
   if (u.name !== undefined) update.name = u.name;
-  if (u.password !== undefined) update.password = u.password;
+  if (u.password !== undefined) update.password = require('bcryptjs').hashSync(u.password, 10);
   const { error } = await supabase.from('hc_users').update(update).eq('id', req.params.id);
   if (error) return res.json({ success: false, error: error.message });
   res.json({ success: true });
@@ -261,7 +274,7 @@ router.get('/sales/api/crew', async (req, res) => {
 function int(v) { return parseInt(v) || 0; }
 
 function mapUser(r) {
-  return { id: r.id, username: r.username, password: r.password, name: r.name, role: r.role, teamId: r.team_id, status: r.status };
+  return { id: r.id, username: r.username, name: r.name, role: r.role, teamId: r.team_id, status: r.status };
 }
 function mapTeam(r) {
   return { id: r.id, name: r.name, managerId: r.manager_id };

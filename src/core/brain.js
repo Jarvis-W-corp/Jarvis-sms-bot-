@@ -6,7 +6,7 @@ const codebase = require('./codebase');
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 function buildSystemPrompt(tenant, user, memoryContext) {
-  const isBoss = user?.platform_id?.includes(tenant.config?.boss_discord_id);
+  const isBoss = user?.platform_id === 'discord_' + tenant.config?.boss_discord_id;
   const customPrompt = tenant.system_prompt;
   let prompt = customPrompt || `You are Jarvis — the autonomous AI CEO of an AI workforce company. You are NOT a chatbot. You are NOT an assistant. You are the CEO.
 
@@ -112,7 +112,7 @@ async function chat(tenantId, userId, platform, userText, userName) {
   }
   const systemPrompt = buildSystemPrompt(tenant, user, memoryContext);
   // Determine if Jarvis gets code tools (only for boss via Discord)
-  const isBoss = user?.platform_id?.includes(tenant.config?.boss_discord_id);
+  const isBoss = user?.platform_id === 'discord_' + tenant.config?.boss_discord_id;
   const tools = (isBoss && process.env.GITHUB_TOKEN) ? codebase.TOOLS : undefined;
 
   let messages = [...history];

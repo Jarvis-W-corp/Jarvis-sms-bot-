@@ -1,15 +1,25 @@
 require('dotenv').config();
 const express = require('express');
+const cookieParser = require('cookie-parser');
 const db = require('./src/db/queries');
+const { apiKeyAuth } = require('./src/middleware/auth');
+const { generalLimiter, aiLimiter } = require('./src/middleware/ratelimit');
 
 const path = require('path');
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
-// Debug: check Discord token on startup
-console.log('[STARTUP] Discord token starts with:', process.env.DISCORD_BOT_TOKEN?.substring(0, 10) + '...');
+// Security: API key auth on all routes
+app.use(apiKeyAuth);
+// Security: general rate limiting
+app.use(generalLimiter);
+
+// Startup log (no secrets)
+console.log('[STARTUP] Discord token set:', !!process.env.DISCORD_BOT_TOKEN);
 console.log('[STARTUP] ElevenLabs key set:', !!process.env.ELEVENLABS_API_KEY);
+console.log('[STARTUP] Dashboard API key set:', !!process.env.DASHBOARD_API_KEY);
 
 // Snack AI privacy policy (live URL for App Store)
 app.get('/privacy', (req, res) => {

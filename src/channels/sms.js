@@ -13,6 +13,18 @@ function getTwilioClient() {
 }
 
 function initSMS(app) {
+  // Twilio signature verification
+  app.post('/sms', (req, res, next) => {
+    if (!process.env.TWILIO_AUTH_TOKEN) return next();
+    const twilio = require('twilio');
+    const sig = req.headers['x-twilio-signature'];
+    const url = (process.env.RENDER_EXTERNAL_URL || 'https://jarvis-sms-bot.onrender.com') + '/sms';
+    if (!sig || !twilio.validateRequest(process.env.TWILIO_AUTH_TOKEN, sig, url, req.body)) {
+      console.log('[SMS] Invalid Twilio signature — rejected');
+      return res.status(403).send('Forbidden');
+    }
+    next();
+  });
   app.post('/sms', async (req, res) => {
     const from = req.body.From;
     const body = req.body.Body;

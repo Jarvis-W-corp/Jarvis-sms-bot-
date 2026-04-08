@@ -3,12 +3,20 @@ const path = require('path');
 const os = require('os');
 const db = require('../db/queries');
 const multer = require('multer');
+const { aiLimiter, uploadLimiter } = require('../middleware/ratelimit');
 
 const router = express.Router();
-const upload = multer({ dest: '/tmp/jarvis-uploads/', limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB max
+const upload = multer({ dest: '/tmp/jarvis-uploads/', limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB max (reduced from 100)
 
-// Serve dashboard HTML + static assets
+// Serve dashboard HTML + inject API key + static assets
 router.get('/dashboard', (req, res) => {
+  // If API key is set, require it as query param to access dashboard
+  const key = process.env.DASHBOARD_API_KEY;
+  if (key && req.query.key !== key) {
+    return res.status(401).send('<html><body style="background:#0b1120;color:#fff;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;"><div style="text-align:center"><h1>JARVIS</h1><p>Access denied. Add ?key=YOUR_KEY to the URL.</p></div></body></html>');
+  }
+  // Set cookie so subsequent API calls are authenticated
+  if (key) res.cookie('jarvis_key', key, { httpOnly: true, sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000 });
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 router.use('/dashboard/assets', express.static(path.join(__dirname, 'assets')));
@@ -206,7 +214,7 @@ router.post('/dashboard/api/crew/run', async (req, res) => {
 });
 
 // API: voice chat — browser sends text (from Web Speech API), Jarvis replies with text + audio
-router.post('/dashboard/api/voice', async (req, res) => {
+router.post('/dashboard/api/voice', aiLimiter, async (req, res) => {
   try {
     const { text } = req.body;
     if (!text) return res.status(400).json({ error: 'No text provided' });
@@ -236,7 +244,7 @@ router.post('/dashboard/api/voice', async (req, res) => {
 });
 
 // API: text chat — same as voice but no audio
-router.post('/dashboard/api/chat', async (req, res) => {
+router.post('/dashboard/api/chat', aiLimiter, async (req, res) => {
   try {
     const { text } = req.body;
     if (!text) return res.status(400).json({ error: 'No text provided' });
@@ -253,7 +261,7 @@ router.post('/dashboard/api/chat', async (req, res) => {
 });
 
 // API: feed — file upload (video, PDF, images)
-router.post('/dashboard/api/feed/upload', upload.single('file'), async (req, res) => {
+router.post('/dashboard/api/feed/upload', uploadLimiter, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const tenant = await db.getDefaultTenant();

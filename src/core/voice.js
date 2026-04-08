@@ -127,14 +127,27 @@ async function makeCall(to, message) {
 function initVoiceRoutes(app) {
   const renderUrl = process.env.RENDER_EXTERNAL_URL || 'https://jarvis-sms-bot.onrender.com';
 
+  // Twilio signature verification for voice webhooks
+  const verifyTwilio = (req, res, next) => {
+    if (!process.env.TWILIO_AUTH_TOKEN) return next();
+    const twilio = require('twilio');
+    const sig = req.headers['x-twilio-signature'];
+    const url = renderUrl + req.path;
+    if (!sig || !twilio.validateRequest(process.env.TWILIO_AUTH_TOKEN, sig, url, req.body)) {
+      console.log('[VOICE] Invalid Twilio signature — rejected');
+      return res.status(403).send('Forbidden');
+    }
+    next();
+  };
+
   // Inbound call webhook
-  app.post('/voice/inbound', (req, res) => {
+  app.post('/voice/inbound', verifyTwilio, (req, res) => {
     console.log('[VOICE] Inbound call from ' + req.body.From);
     res.type('text/xml').send(generateInboundTwiML());
   });
 
   // Speech response handler
-  app.post('/voice/respond', async (req, res) => {
+  app.post('/voice/respond', verifyTwilio, async (req, res) => {
     const speech = req.body.SpeechResult;
     const from = req.body.From || 'unknown';
     const callSid = req.body.CallSid;

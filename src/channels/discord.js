@@ -37,8 +37,17 @@ async function sendBossMessage(text) {
   }
 }
 
+function isBoss(message, tenant) {
+  return message.author.id === tenant.config?.boss_discord_id;
+}
+
+const BOSS_ONLY = ['!forget', '!agent', '!drip', '!remittance', '!gmail', '!drive', '!code', '!spy', '!adpipeline'];
+
 async function handleCommand(message, command, args, tenant) {
   const tenantId = tenant.id;
+  if (BOSS_ONLY.includes(command) && !isBoss(message, tenant)) {
+    return message.reply('That command is restricted to the boss.');
+  }
   switch (command) {
     case '!stats': {
       const stats = await db.getStats(tenantId);
