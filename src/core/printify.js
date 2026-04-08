@@ -159,10 +159,10 @@ async function getStats() {
 const POPULAR_BLUEPRINTS = {
   tshirt: 6,           // Unisex Heavy Cotton Tee
   hoodie: 77,          // Unisex Heavy Blend Hoodie
-  mug: 175,            // White Glossy Mug
-  poster: 1,           // Enhanced Matte Poster
-  sticker: 667,        // Kiss-Cut Stickers
-  tote: 127,           // Canvas Tote Bag
+  mug: 68,             // Mug 11oz
+  poster: 282,         // Matte Vertical Posters
+  sticker: 400,        // Kiss-Cut Stickers
+  tote: 553,           // Cotton Tote Bag
   phonecase: 20,       // iPhone Case
   pillow: 98,          // Spun Polyester Pillow
 };
