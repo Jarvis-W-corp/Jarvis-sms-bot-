@@ -178,15 +178,18 @@ export async function fetchLeads(filters?: LeadFilters): Promise<Lead[] | null> 
     const qs = params.toString();
     if (qs) path += `?${qs}`;
   }
-  return request<Lead[]>(path);
+  const res = await request<{ leads: Lead[] } | Lead[]>(path);
+  if (!res) return null;
+  return Array.isArray(res) ? res : res.leads ?? [];
 }
 
 export async function fetchLeadStats(): Promise<LeadStats | null> {
-  return request<LeadStats>('/dashboard/api/leads/stats');
+  const res = await request<LeadStats>('/dashboard/api/leads/stats');
+  return res;
 }
 
-export async function fetchCrew(): Promise<CrewMember[] | null> {
-  return request<CrewMember[]>('/dashboard/api/crew');
+export async function fetchCrew(): Promise<Record<string, unknown> | null> {
+  return request<Record<string, unknown>>('/dashboard/api/crew');
 }
 
 export async function fetchCosts(hours?: number): Promise<CostData | null> {
@@ -194,12 +197,14 @@ export async function fetchCosts(hours?: number): Promise<CostData | null> {
   return request<CostData>(path);
 }
 
-export async function fetchWorkflows(): Promise<{ active: Workflow[]; templates: WorkflowTemplate[] } | null> {
-  return request<{ active: Workflow[]; templates: WorkflowTemplate[] }>('/dashboard/api/workflows');
+export async function fetchWorkflows(): Promise<Record<string, unknown> | null> {
+  return request<Record<string, unknown>>('/dashboard/api/workflows');
 }
 
 export async function fetchWorkflowHistory(): Promise<Workflow[] | null> {
-  return request<Workflow[]>('/dashboard/api/workflow/history');
+  const res = await request<{ workflows: Workflow[] } | Workflow[]>('/dashboard/api/workflow/history');
+  if (!res) return null;
+  return Array.isArray(res) ? res : res.workflows ?? [];
 }
 
 export async function startWorkflow(template: string, params: Record<string, unknown>): Promise<Workflow | null> {
@@ -210,15 +215,21 @@ export async function startWorkflow(template: string, params: Record<string, unk
 }
 
 export async function fetchActiveTasks(): Promise<Task[] | null> {
-  return request<Task[]>('/dashboard/api/tasks/active');
+  const res = await request<{ tasks: Task[] } | Task[]>('/dashboard/api/tasks/active');
+  if (!res) return null;
+  return Array.isArray(res) ? res : res.tasks ?? [];
 }
 
 export async function fetchAppointments(): Promise<Appointment[] | null> {
-  return request<Appointment[]>('/dashboard/api/appointments');
+  const res = await request<{ appointments: Appointment[] } | Appointment[]>('/dashboard/api/appointments');
+  if (!res) return null;
+  return Array.isArray(res) ? res : res.appointments ?? [];
 }
 
 export async function fetchSequences(): Promise<Sequence[] | null> {
-  return request<Sequence[]>('/dashboard/api/sequences');
+  const res = await request<{ sequences: Sequence[] } | Sequence[]>('/dashboard/api/sequences');
+  if (!res) return null;
+  return Array.isArray(res) ? res : res.sequences ?? [];
 }
 
 export async function fetchProactiveStatus(): Promise<ProactiveStatus | null> {

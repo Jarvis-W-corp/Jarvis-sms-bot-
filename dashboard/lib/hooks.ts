@@ -11,10 +11,7 @@ import {
   fetchAppointments,
   type HealthData,
   type Lead,
-  type CrewMember,
   type CostData,
-  type Workflow,
-  type WorkflowTemplate,
   type Task,
   type Appointment,
   type LeadFilters,
@@ -75,7 +72,8 @@ export function useLeads(filters?: LeadFilters): HookResult<Lead[]> {
   return usePolling(fetcher, 30_000);
 }
 
-export function useCrew(): HookResult<CrewMember[]> {
+// Crew returns { workers, jobs, recentJobs, costs, runningNow }
+export function useCrew(): HookResult<Record<string, unknown>> {
   return usePolling(fetchCrew, 15_000);
 }
 
@@ -83,7 +81,8 @@ export function useCosts(): HookResult<CostData> {
   return usePolling(fetchCosts, 60_000);
 }
 
-export function useWorkflows(): HookResult<{ active: Workflow[]; templates: WorkflowTemplate[] }> {
+// Workflows returns { templates: [...] }
+export function useWorkflows(): HookResult<Record<string, unknown>> {
   return usePolling(fetchWorkflows, 20_000);
 }
 

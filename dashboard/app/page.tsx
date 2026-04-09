@@ -205,7 +205,9 @@ function CrewPanel() {
 
   if (loading) return <PanelLoading label="Loading crew..." />;
 
-  const members = crew ?? [];
+  const crewData = crew as Record<string, any> | null;
+  const members: any[] = crewData?.workers ?? [];
+  const recentJobs: any[] = crewData?.recentJobs ?? [];
 
   const agentColors: Record<string, string> = {
     ghost: 'purple',
@@ -296,8 +298,9 @@ function WorkflowsPanel() {
 
   if (loading) return <PanelLoading label="Loading workflows..." />;
 
-  const active = data?.active ?? [];
-  const templates = data?.templates ?? [];
+  const wfData = data as Record<string, any> | null;
+  const active: any[] = wfData?.active ?? wfData?.workflows ?? [];
+  const templates: any[] = wfData?.templates ?? [];
 
   async function handleLaunch(templateId: string) {
     await startWorkflow(templateId, {});
