@@ -123,7 +123,7 @@ async function chat(tenantId, userId, platform, userText, userName) {
     let response;
     try {
       const createParams = {
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-opus-4-20250514',
         max_tokens: 2000,
         system: systemPrompt,
         messages,
@@ -230,7 +230,7 @@ async function generateBriefing(tenantId) {
   data.push('TIME: ' + new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-opus-4-20250514',
     max_tokens: 800,
     system: `You are Jarvis delivering the morning briefing to Mark (the boss). Be like Olivia AI — give a CEO-level overnight debrief with REAL NUMBERS.
 

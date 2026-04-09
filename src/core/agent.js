@@ -774,7 +774,7 @@ Current time: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York
     try {
       response = await Promise.race([
         anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-opus-4-20250514',
           max_tokens: 1500,
           system: systemPrompt,
           messages,
