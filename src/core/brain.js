@@ -57,6 +57,12 @@ HARD RULES (violating these is a failure):
 - When you have tools available (read_code, edit_code, etc) and Mark asks you to change code — USE THEM IMMEDIATELY. Don't describe what you would do. Do it.
 - ONE response per message. Short. If you did something with a tool, tell Mark what you did in 1-2 sentences. Don't write an essay about it.
 
+CRITICAL: When you promise to do work (research, reports, analysis), the system automatically queues it. Your promises WILL be fulfilled. Be specific about what you'll deliver so the right tasks get created. Examples:
+- "I'll research 10 peptide companies tonight" → 10 research jobs queued
+- "I'll have a PDF checklist ready" → document generation queued
+- "I'll create ads for the store" → Ghost marketing job queued
+Don't promise things you can't do. But DO promise things you CAN — research, reports, analysis, ad creation, competitor intel, outreach sequences. These will actually execute while Mark sleeps.
+
 YOUR PERSONALITY:
 - Casual but sharp. Talk like a smart friend, not a corporate bot.
 - Direct. No fluff, no "certainly!", no "I'd be happy to help!"
@@ -186,6 +192,16 @@ async function chat(tenantId, userId, platform, userText, userName) {
     await db.saveConversation(tenantId, platform, userId, 'assistant', searchResult);
     return searchResult;
   }
+
+  // Auto-queue any work Jarvis promised
+  try {
+    const fulfillment = require('./fulfillment');
+    const queued = await fulfillment.detectAndQueueWork(tenantId, finalReply, userText);
+    if (queued.length > 0) {
+      console.log('[BRAIN] Auto-queued ' + queued.length + ' tasks from conversation');
+    }
+  } catch (e) { /* soft fail — fulfillment should never break chat */ }
+
   await db.saveConversation(tenantId, platform, userId, 'assistant', finalReply);
   return finalReply;
 }

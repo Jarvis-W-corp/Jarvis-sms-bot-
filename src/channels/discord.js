@@ -41,7 +41,7 @@ function isBoss(message, tenant) {
   return message.author.id === tenant.config?.boss_discord_id;
 }
 
-const BOSS_ONLY = ['!forget', '!agent', '!drip', '!remittance', '!gmail', '!drive', '!code', '!spy', '!adpipeline', '!shop'];
+const BOSS_ONLY = ['!forget', '!agent', '!drip', '!remittance', '!gmail', '!drive', '!code', '!spy', '!adpipeline', '!shop', '!task'];
 
 async function handleCommand(message, command, args, tenant) {
   const tenantId = tenant.id;
@@ -468,6 +468,97 @@ async function handleCommand(message, command, args, tenant) {
       }
       return message.reply('Usage:\n`!shop research <niche>` — Find trending products\n`!shop create <design>` — Generate design + create product\n`!shop pipeline <niche>` — Full auto: research → design → list\n`!shop publish <id>` — Publish product to store\n`!shop stats` — Store overview\n`!shop report` — Performance report + recommendations\n`!shop fix` — Fix SEO tags on all listings');
     }
+    case '!task': {
+      const sub = args[0];
+      const taskText = args.slice(1).join(' ');
+      if (!sub || !taskText) {
+        return message.reply('Usage:\n`!task research <topic>` — Queue Hawk research job\n`!task create <content>` — Queue Ghost content job\n`!task report <topic>` — Queue full research report pipeline\nExamples:\n`!task research 10 peptide companies like Hims`\n`!task create PDF checklist of FDA requirements for peptide sales`\n`!task report competitor analysis for med spa industry`');
+      }
+      await message.channel.sendTyping();
+      try {
+        const fulfillment = require('../core/fulfillment');
+        const crew = require('../core/crew');
+
+        if (sub === 'research') {
+          // Check for count pattern like "10 peptide companies"
+          const countMatch = taskText.match(/^(\d+)\s+(.+)/);
+          if (countMatch) {
+            const count = parseInt(countMatch[1]);
+            const topic = countMatch[2];
+            const queued = await fulfillment.queueResearchReport(tenantId, topic, null, count);
+            return message.reply('**Queued ' + queued.length + ' research jobs:**\n' + queued.map(q => '> ' + q.title + ' (' + q.worker + ')').join('\n') + '\n\nJobs will execute in the next crew cycle.');
+          }
+          const jobId = await crew.createJob('hawk', 'Research: ' + taskText, 'Research ' + taskText + '. Provide detailed analysis with data, pricing, and actionable insights.', { tenant_id: tenantId, source: 'task_command' }, 7);
+          return message.reply('**Research job queued** (ID: ' + jobId + ')\nHawk will research: ' + taskText);
+        }
+
+        if (sub === 'create') {
+          const jobId = await crew.createJob('ghost', 'Create: ' + taskText, 'Create ' + taskText + '. Make it professional, detailed, and ready to use.', { tenant_id: tenantId, source: 'task_command' }, 7);
+          return message.reply('**Content job queued** (ID: ' + jobId + ')\nGhost will create: ' + taskText);
+        }
+
+        if (sub === 'report') {
+          const queued = await fulfillment.queueResearchReport(tenantId, taskText, null, null);
+          return message.reply('**Report pipeline queued** (' + queued.length + ' jobs):\n' + queued.map(q => '> ' + q.title + ' (' + q.worker + ')').join('\n') + '\n\nResearch + compilation will run in the next crew cycle.');
+        }
+
+        if (sub === 'build') {
+          const jobId = await crew.createJob('ghost', 'Build: ' + taskText, 'Build ' + taskText + '. Create all necessary content, copy, and structure.', { tenant_id: tenantId, source: 'task_command' }, 7);
+          return message.reply('**Build job queued** (ID: ' + jobId + ')\nGhost will build: ' + taskText);
+        }
+
+        // Default: try to auto-detect worker
+        const isResearch = /research|find|analyze|competitor|market|companies/i.test(taskText);
+        const worker = isResearch ? 'hawk' : 'ghost';
+        const jobId = await crew.createJob(worker, sub + ': ' + taskText, sub + ' ' + taskText + '. Context from !task command.', { tenant_id: tenantId, source: 'task_command' }, 7);
+        return message.reply('**Job queued** → ' + (worker === 'hawk' ? 'Hawk' : 'Ghost') + ' (ID: ' + jobId + ')\nTask: ' + sub + ' ' + taskText);
+      } catch (err) {
+        return message.reply('Task queue error: ' + err.message);
+      }
+    }
+    case '!status': {
+      try {
+        const crew = require('../core/crew');
+        const status = await crew.getCrewStatus();
+
+        let msg = '**Job Status**\n\n';
+        msg += '**Queue:** ' + status.jobs.pending + ' pending | ' + status.jobs.running + ' running | ' + status.jobs.completed + ' completed | ' + status.jobs.failed + ' failed\n\n';
+
+        if (status.runningNow && status.runningNow.length > 0) {
+          msg += '**Running Now:**\n';
+          status.runningNow.forEach(j => {
+            msg += '> ' + j.worker + ': ' + j.title + ' (' + j.elapsed + 's, ' + j.iterations + ' iterations)\n';
+          });
+          msg += '\n';
+        }
+
+        if (status.recentJobs && status.recentJobs.length > 0) {
+          msg += '**Recent Jobs:**\n';
+          status.recentJobs.slice(0, 8).forEach(j => {
+            const statusIcon = j.status === 'completed' ? '**done**' : j.status === 'pending' ? '**pending**' : j.status === 'running' ? '**running**' : '**' + j.status + '**';
+            const result = j.result ? ' — ' + j.result.substring(0, 80) : '';
+            msg += '> [' + statusIcon + '] ' + j.title + result + '\n';
+          });
+          msg += '\n';
+        }
+
+        if (status.workers && status.workers.length > 0) {
+          msg += '**Workers:**\n';
+          status.workers.forEach(w => {
+            msg += '> ' + w.name + ': ' + w.tasks_completed + ' done, ' + w.tasks_failed + ' failed (' + w.successRate + '% success)\n';
+          });
+        }
+
+        if (status.costs) {
+          msg += '\n**24h Cost:** $' + ((status.costs.total_cost || 0).toFixed(4));
+        }
+
+        if (msg.length > 2000) msg = msg.substring(0, 1997) + '...';
+        return message.reply(msg);
+      } catch (err) {
+        return message.reply('Status error: ' + err.message);
+      }
+    }
     case '!help': {
       const embed = new EmbedBuilder().setTitle('Super Jarvis Commands').setColor(0x0099ff)
         .addFields(
@@ -500,6 +591,9 @@ async function handleCommand(message, command, args, tenant) {
           { name: '!voice <message>', value: 'Jarvis speaks it as an audio clip' },
           { name: '--- Agent ---', value: '\u200b' },
           { name: '!agent', value: 'Agent status / !agent run / !agent tasks' },
+          { name: '--- Tasks ---', value: '\u200b' },
+          { name: '!task research/create/report <desc>', value: 'Queue work for agents directly' },
+          { name: '!status', value: 'Show all pending/running/completed jobs' },
           { name: '--- Self-Edit ---', value: '\u200b' },
           { name: '!code <instruction>', value: 'Tell Jarvis to edit his own code (boss only)' },
         ).setFooter({ text: 'Super Jarvis v2.0 — AI Workforce' }).setTimestamp();
