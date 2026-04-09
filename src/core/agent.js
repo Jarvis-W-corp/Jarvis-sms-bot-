@@ -125,6 +125,24 @@ const tools = {
     },
   },
 
+  process_drive_folder: {
+    description: 'Process ALL files in a Google Drive folder in the background (videos get Whisper transcription, PDFs/docs get analyzed). This runs async so it won\'t block you. Returns a task ID you can check later. Input: { "folderId": "...", "purpose": "what to focus on in analysis" }',
+    execute: async ({ folderId, purpose }, tenantId) => {
+      const tasks = require('./tasks');
+      const result = await tasks.startTask(tenantId, 'drive_folder', 'Process Drive folder', { folderId, purpose }, tasks.processDriveFolder);
+      return 'Background task started: ' + result.taskId + '. Files are being processed with timeouts. Use check_task to see progress.';
+    },
+  },
+
+  check_task: {
+    description: 'Check the status of a background task. Input: { "taskId": "uuid" }',
+    execute: async ({ taskId }) => {
+      const tasks = require('./tasks');
+      const status = await tasks.getTaskStatus(taskId);
+      return JSON.stringify(status);
+    },
+  },
+
   drive_upload: {
     description: 'Upload a local file to Google Drive. Input: { "localPath": "/path/to/file", "folderId": "optional-folder-id", "name": "optional-filename" }',
     execute: async ({ localPath, folderId, name }, tenantId) => {

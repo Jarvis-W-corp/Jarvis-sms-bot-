@@ -325,6 +325,44 @@ router.post('/dashboard/api/feed/url-video', async (req, res) => {
   }
 });
 
+// API: background tasks — start a long-running job
+router.post('/dashboard/api/task/start', aiLimiter, async (req, res) => {
+  try {
+    const { type, params } = req.body;
+    if (!type) return res.status(400).json({ error: 'Task type required' });
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+
+    const tasks = require('../core/tasks');
+    let result;
+    if (type === 'drive_folder') {
+      result = await tasks.startTask(tenant.id, 'drive_folder', 'Process Drive folder', params, tasks.processDriveFolder);
+    } else {
+      return res.status(400).json({ error: 'Unknown task type: ' + type });
+    }
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API: background task status
+router.get('/dashboard/api/task/:id/status', async (req, res) => {
+  try {
+    const tasks = require('../core/tasks');
+    const status = await tasks.getTaskStatus(req.params.id);
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API: list all active background tasks
+router.get('/dashboard/api/tasks/active', (req, res) => {
+  const tasks = require('../core/tasks');
+  res.json({ tasks: tasks.getActiveTasks() });
+});
+
 // API: feature progress (static manifest)
 router.get('/dashboard/api/progress', (req, res) => {
   res.json({
