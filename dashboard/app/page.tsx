@@ -89,14 +89,17 @@ function VoiceOverlay({ onClose }: { onClose: () => void }) {
         const voiceRes = await sendVoice(text.trim());
         let reply = '';
 
-        if (voiceRes?.audioUrl) {
-          reply = voiceRes.text || 'Audio response received.';
+        const vRes = voiceRes as any;
+        reply = vRes?.reply || vRes?.text || '';
+
+        if (vRes?.audio) {
+          // API returns base64 audio
           setSpeaking(true);
-          const audio = new Audio(voiceRes.audioUrl);
+          const audio = new Audio('data:audio/mpeg;base64,' + vRes.audio);
           audio.onended = () => setSpeaking(false);
           audio.onerror = () => setSpeaking(false);
           audio.play().catch(() => setSpeaking(false));
-        } else {
+        } else if (!reply) {
           const chatRes: ChatResponse | null = await sendChat(text.trim());
           reply = chatRes?.reply || 'No response.';
         }
