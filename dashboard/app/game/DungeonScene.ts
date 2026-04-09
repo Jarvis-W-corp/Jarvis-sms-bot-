@@ -34,16 +34,17 @@ export default class DungeonScene extends Phaser.Scene {
       this.stars.push({ x: Math.random() * 1400, y: Math.random() * 900, a: Math.random() * 0.6 + 0.1, s: Math.random() * 2 + 0.5 });
     }
 
-    // 7 rooms — command center large in middle, 3 on each side
+    // 8 rooms — command center large in middle, 3 left, 4 right
     const cx = 700, cy = 420;
     this.rooms = [
       { id: 'command', name: 'COMMAND CENTER', x: cx - 180, y: cy - 130, w: 360, h: 260, color: C.command },
       { id: 'research', name: 'RESEARCH LAB', x: 30, y: 30, w: 280, h: 200, color: C.research },
       { id: 'marketing', name: 'MARKETING BAY', x: 30, y: 270, w: 280, h: 200, color: C.marketing },
       { id: 'ops', name: 'OPS DECK', x: 30, y: 510, w: 280, h: 200, color: C.ops },
-      { id: 'etsy', name: 'ETSY STORE', x: 1090, y: 30, w: 280, h: 200, color: C.etsy, icon: '🛍️' },
-      { id: 'printify', name: 'PRINTIFY SHOP', x: 1090, y: 270, w: 280, h: 200, color: C.printify, icon: '🖨️' },
-      { id: 'solar', name: 'SOLAR PIPELINE', x: 1090, y: 510, w: 280, h: 200, color: C.solar, icon: '☀️' },
+      { id: 'etsy', name: 'ETSY STORE', x: 1090, y: 20, w: 280, h: 160, color: C.etsy, icon: '🛍️' },
+      { id: 'printify', name: 'PRINTIFY SHOP', x: 1090, y: 200, w: 280, h: 160, color: C.printify, icon: '🖨️' },
+      { id: 'solar', name: 'SOLAR PIPELINE', x: 1090, y: 380, w: 280, h: 160, color: C.solar, icon: '☀️' },
+      { id: 'roofing', name: 'PREMIUM ROOFING', x: 1090, y: 560, w: 280, h: 160, color: 0x1a3a6b, icon: '🏠' },
     ];
 
     // Create agents at their desks

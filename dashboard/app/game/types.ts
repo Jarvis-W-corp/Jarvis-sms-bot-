@@ -33,6 +33,7 @@ export const DEFAULT_CONFIG: DungeonConfig = {
     { id: 'etsy', name: 'ETSY STORE', type: 'business', revenue: 2100, agentCount: 1, status: 'active', icon: '🛍️' },
     { id: 'printify', name: 'PRINTIFY SHOP', type: 'business', revenue: 450, agentCount: 1, status: 'active', icon: '🖨️' },
     { id: 'solar', name: 'SOLAR PIPELINE', type: 'business', revenue: 0, agentCount: 0, status: 'idle', icon: '☀️' },
+    { id: 'roofing', name: 'PREMIUM ROOFING', type: 'business', revenue: 82400, agentCount: 1, status: 'active', icon: '🏠' },
   ],
   agents: [
     { id: 'jarvis', name: 'JARVIS', room: 'command', status: 'working', currentTask: 'Orchestrating agents' },
@@ -41,5 +42,6 @@ export const DEFAULT_CONFIG: DungeonConfig = {
     { id: 'pulse', name: 'PULSE', room: 'ops', status: 'working', currentTask: 'Monitoring systems' },
     { id: 'forge', name: 'FORGE', room: 'etsy', status: 'working', currentTask: 'Creating listings' },
     { id: 'pixel', name: 'PIXEL', room: 'printify', status: 'working', currentTask: 'Designing products' },
+    { id: 'roofer', name: 'ROOFER', room: 'roofing', status: 'working', currentTask: 'Managing pipeline — 47 leads' },
   ],
 };

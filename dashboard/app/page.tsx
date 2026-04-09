@@ -256,6 +256,17 @@ export default function MissionControl() {
 
   const onPhaserReady = useCallback((h: PhaserGameHandle) => {
     h.onRoomClick((roomId) => {
+      // Business rooms with their own apps open in new tab
+      const API_KEY = process.env.NEXT_PUBLIC_API_KEY || '';
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://jarvis-sms-bot.onrender.com';
+      if (roomId === 'roofing') {
+        window.open(API_URL + '/roofing?key=' + API_KEY, '_blank');
+        return;
+      }
+      if (roomId === 'solar') {
+        window.open(API_URL + '/sales?key=' + API_KEY, '_blank');
+        return;
+      }
       setActiveRoom(roomId);
     });
   }, []);

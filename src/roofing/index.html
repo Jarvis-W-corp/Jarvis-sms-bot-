@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Premium Roofing CRM PRO</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy: #1a3a6b;
+  --navy-light: #e8eef6;
+  --gold: #c8971a;
+  --gold-light: #fdf4e0;
+  --bg: #f4f6f9;
+  --white: #ffffff;
+  --text: #1e293b;
+  --text-light: #64748b;
+  --border: #e2e8f0;
+  --green: #16a34a;
+  --red: #dc2626;
+  --orange: #ea580c;
+  --blue: #2563eb;
+  --sidebar-w: 220px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); display:flex; min-height:100vh; }
+
+/* Sidebar */
+.sidebar {
+  width:var(--sidebar-w); background:var(--navy); color:white; display:flex; flex-direction:column;
+  position:fixed; top:0; left:0; bottom:0; z-index:100;
+}
+.sidebar-brand {
+  padding:20px 16px; border-bottom:1px solid rgba(255,255,255,0.1);
+}
+.sidebar-brand h2 { font-size:15px; font-weight:700; line-height:1.3; }
+.sidebar-brand span { font-size:10px; color:var(--gold); font-weight:600; letter-spacing:1px; }
+.sidebar-nav { flex:1; padding:12px 0; }
+.sidebar-nav a {
+  display:flex; align-items:center; gap:10px; padding:10px 18px; color:rgba(255,255,255,0.65);
+  text-decoration:none; font-size:13px; font-weight:500; cursor:pointer; transition:all 0.15s;
+}
+.sidebar-nav a:hover { color:white; background:rgba(255,255,255,0.08); }
+.sidebar-nav a.active { color:white; background:rgba(255,255,255,0.12); border-left:3px solid var(--gold); }
+.sidebar-nav a .icon { width:18px; text-align:center; font-size:14px; }
+
+.sidebar-bottom { padding:16px; border-top:1px solid rgba(255,255,255,0.1); }
+.jarvis-status {
+  display:flex; align-items:center; gap:8px; padding:8px 0; margin-bottom:12px;
+  font-size:11px; color:rgba(255,255,255,0.7);
+}
+.jarvis-status .dot { width:8px; height:8px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+.user-info { display:flex; align-items:center; gap:10px; }
+.user-avatar {
+  width:34px; height:34px; border-radius:50%; background:var(--gold); display:flex; align-items:center;
+  justify-content:center; font-size:12px; font-weight:700; color:var(--navy);
+}
+.user-meta { font-size:12px; }
+.user-meta .name { font-weight:600; }
+.user-meta .role { font-size:10px; color:rgba(255,255,255,0.5); }
+
+/* Main */
+.main { margin-left:var(--sidebar-w); flex:1; display:flex; flex-direction:column; min-height:100vh; }
+.topbar {
+  background:var(--white); border-bottom:1px solid var(--border); padding:14px 28px;
+  display:flex; align-items:center; gap:16px; position:sticky; top:0; z-index:50;
+}
+.topbar h1 { font-size:18px; font-weight:700; }
+.topbar .search {
+  margin-left:auto; padding:7px 14px; border:1px solid var(--border); border-radius:6px;
+  font-size:13px; font-family:inherit; width:220px; background:var(--bg);
+}
+.btn {
+  padding:7px 16px; border-radius:6px; font-size:12px; font-weight:600; border:none;
+  cursor:pointer; font-family:inherit; display:inline-flex; align-items:center; gap:6px; transition:all 0.15s;
+}
+.btn-primary { background:var(--navy); color:white; }
+.btn-primary:hover { background:#15305a; }
+.btn-gold { background:var(--gold); color:white; }
+.btn-gold:hover { background:#b5880f; }
+.btn-outline { background:transparent; border:1px solid var(--border); color:var(--text); }
+.btn-outline:hover { background:var(--bg); }
+.btn-sm { padding:4px 10px; font-size:11px; }
+.btn-xs { padding:3px 8px; font-size:10px; border-radius:4px; }
+
+.content { padding:24px 28px; flex:1; }
+.page { display:none; }
+.page.active { display:block; }
+
+/* Cards & Panels */
+.stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+.stat-card {
+  background:var(--white); border-radius:10px; padding:18px 20px; border:1px solid var(--border);
+}
+.stat-card .label { font-size:12px; color:var(--text-light); font-weight:500; margin-bottom:6px; }
+.stat-card .value { font-size:26px; font-weight:700; }
+.stat-card .change { font-size:11px; font-weight:600; margin-top:4px; }
+.stat-card .change.up { color:var(--green); }
+.stat-card .change.down { color:var(--red); }
+
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px; }
+.panel {
+  background:var(--white); border-radius:10px; border:1px solid var(--border); overflow:hidden;
+}
+.panel-head {
+  padding:14px 18px; border-bottom:1px solid var(--border); display:flex;
+  align-items:center; justify-content:space-between;
+}
+.panel-head h3 { font-size:14px; font-weight:600; }
+.panel-body { padding:14px 18px; }
+
+/* Table */
+.table { width:100%; border-collapse:collapse; }
+.table th { text-align:left; font-size:11px; font-weight:600; color:var(--text-light); text-transform:uppercase; letter-spacing:0.5px; padding:10px 12px; border-bottom:1px solid var(--border); }
+.table td { padding:10px 12px; font-size:13px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.table tr:last-child td { border-bottom:none; }
+.table tr:hover { background:var(--bg); }
+
+/* Badges */
+.badge {
+  display:inline-block; padding:3px 10px; border-radius:20px; font-size:10px; font-weight:600;
+}
+.badge-new { background:#dbeafe; color:#1d4ed8; }
+.badge-sent { background:#fef3c7; color:#92400e; }
+.badge-signed { background:#d1fae5; color:#065f46; }
+.badge-prod { background:#ede9fe; color:#5b21b6; }
+.badge-complete { background:#d1fae5; color:#065f46; }
+.badge-insurance { background:#fee2e2; color:#991b1b; }
+.badge-overdue { background:#fee2e2; color:#991b1b; }
+.badge-ok { background:#d1fae5; color:#065f46; }
+.badge-draft { background:#f1f5f9; color:#475569; }
+.badge-opened { background:#dbeafe; color:#1d4ed8; }
+
+/* Job row */
+.job-row { display:flex; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); gap:12px; }
+.job-row:last-child { border-bottom:none; }
+.job-name { font-size:13px; font-weight:600; flex:1; }
+.job-amount { font-size:13px; font-weight:500; color:var(--text-light); width:80px; text-align:right; }
+
+/* Alert row */
+.alert-row {
+  padding:12px 0; border-bottom:1px solid var(--border);
+}
+.alert-row:last-child { border-bottom:none; }
+.alert-top { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.alert-name { font-size:13px; font-weight:600; }
+.alert-days { font-size:11px; color:var(--red); font-weight:500; }
+.alert-actions { display:flex; gap:6px; }
+
+/* Tasks */
+.task-item { display:flex; align-items:center; gap:10px; padding:8px 0; font-size:13px; }
+.task-item input[type=checkbox] { accent-color:var(--navy); width:16px; height:16px; }
+
+/* Leaderboard */
+.leader-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); }
+.leader-row:last-child { border-bottom:none; }
+.leader-rank { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; }
+.leader-rank.gold { background:var(--gold); color:white; }
+.leader-rank.silver { background:#94a3b8; color:white; }
+.leader-rank.bronze { background:#b45309; color:white; }
+.leader-name { font-size:13px; font-weight:600; flex:1; }
+.leader-score { font-size:20px; font-weight:700; color:var(--navy); }
+
+/* Kanban */
+.kanban-filters { display:flex; gap:12px; margin-bottom:18px; }
+.kanban-filters select { padding:6px 12px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; background:var(--white); }
+.kanban { display:flex; gap:16px; overflow-x:auto; padding-bottom:12px; }
+.kanban-col { min-width:240px; flex:1; background:var(--bg); border-radius:10px; padding:12px; }
+.kanban-col-head { font-size:12px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+.kanban-col-head .count { background:var(--navy); color:white; padding:1px 7px; border-radius:10px; font-size:10px; }
+.kanban-card {
+  background:var(--white); border:1px solid var(--border); border-radius:8px; padding:12px;
+  margin-bottom:10px; cursor:grab; transition:box-shadow 0.15s;
+}
+.kanban-card:hover { box-shadow:0 4px 12px rgba(0,0,0,0.08); }
+.kanban-card .kc-name { font-size:13px; font-weight:600; margin-bottom:2px; }
+.kanban-card .kc-addr { font-size:11px; color:var(--text-light); margin-bottom:6px; }
+.kanban-card .kc-bottom { display:flex; justify-content:space-between; align-items:center; }
+.kanban-card .kc-amount { font-size:12px; font-weight:700; color:var(--navy); }
+.kanban-card .kc-days { font-size:10px; color:var(--orange); font-weight:500; }
+
+/* Contacts avatar */
+.contact-avatar {
+  width:30px; height:30px; border-radius:50%; display:inline-flex; align-items:center;
+  justify-content:center; font-size:11px; font-weight:700; color:white; background:var(--navy);
+}
+
+/* Estimates */
+.estimate-row {
+  display:flex; align-items:center; padding:14px 18px; background:var(--white); border:1px solid var(--border);
+  border-radius:8px; margin-bottom:10px; gap:16px;
+}
+.estimate-row .est-id { font-size:12px; color:var(--text-light); width:70px; }
+.estimate-row .est-name { font-size:13px; font-weight:600; flex:1; }
+.estimate-row .est-amount { font-size:13px; font-weight:700; width:90px; }
+.estimate-row .est-date { font-size:12px; color:var(--text-light); width:90px; }
+
+/* Calendar */
+.cal-header { display:flex; align-items:center; gap:16px; margin-bottom:18px; }
+.cal-header h3 { font-size:15px; font-weight:600; }
+.cal-grid { display:grid; grid-template-columns:60px repeat(7,1fr); background:var(--white); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.cal-day-head { padding:10px 6px; font-size:11px; font-weight:700; text-align:center; background:var(--navy); color:white; }
+.cal-time { padding:8px 6px; font-size:10px; color:var(--text-light); text-align:right; border-bottom:1px solid var(--border); background:var(--bg); }
+.cal-cell { padding:4px; border-bottom:1px solid var(--border); border-left:1px solid var(--border); min-height:44px; position:relative; }
+.cal-event {
+  background:var(--navy-light); border-left:3px solid var(--navy); border-radius:4px; padding:3px 6px;
+  font-size:10px; font-weight:500; margin-bottom:2px; line-height:1.3;
+}
+.cal-event.gold { background:var(--gold-light); border-left-color:var(--gold); }
+.cal-event.green { background:#d1fae5; border-left-color:var(--green); }
+
+.mini-cal { background:var(--white); border:1px solid var(--border); border-radius:10px; padding:14px; margin-bottom:18px; }
+.mini-cal-head { font-size:13px; font-weight:600; text-align:center; margin-bottom:10px; }
+.mini-cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; text-align:center; font-size:11px; }
+.mini-cal-grid .day-label { font-weight:600; color:var(--text-light); padding:4px; }
+.mini-cal-grid .day { padding:4px; border-radius:4px; cursor:pointer; }
+.mini-cal-grid .day:hover { background:var(--navy-light); }
+.mini-cal-grid .day.today { background:var(--navy); color:white; font-weight:700; border-radius:50%; }
+
+/* Insights */
+.kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+.kpi-card { background:var(--white); border:1px solid var(--border); border-radius:10px; padding:18px; text-align:center; }
+.kpi-card .kpi-val { font-size:28px; font-weight:700; color:var(--navy); }
+.kpi-card .kpi-label { font-size:12px; color:var(--text-light); margin-top:4px; }
+.chart-area {
+  background:var(--white); border:1px solid var(--border); border-radius:10px; padding:20px;
+}
+.chart-area h3 { font-size:14px; font-weight:600; margin-bottom:16px; }
+.bar-chart { display:flex; align-items:flex-end; gap:12px; height:180px; padding-top:10px; }
+.bar-group { flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; }
+.bar {
+  width:100%; border-radius:4px 4px 0 0; transition:height 0.4s; position:relative;
+}
+.bar.navy { background:var(--navy); }
+.bar.gold { background:var(--gold); }
+.bar-label { font-size:10px; color:var(--text-light); font-weight:500; }
+.bar-val { font-size:10px; font-weight:700; color:var(--text); }
+
+/* Automations */
+.auto-card {
+  background:var(--white); border:1px solid var(--border); border-radius:10px; padding:18px;
+  margin-bottom:14px; display:flex; align-items:center; gap:16px;
+}
+.auto-card .auto-icon { width:40px; height:40px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:18px; }
+.auto-card .auto-info { flex:1; }
+.auto-card .auto-name { font-size:14px; font-weight:600; margin-bottom:2px; }
+.auto-card .auto-desc { font-size:12px; color:var(--text-light); }
+.toggle { position:relative; width:42px; height:24px; cursor:pointer; }
+.toggle input { display:none; }
+.toggle .slider {
+  position:absolute; top:0; left:0; right:0; bottom:0; background:#cbd5e1; border-radius:24px; transition:0.2s;
+}
+.toggle .slider:before {
+  content:''; position:absolute; height:18px; width:18px; left:3px; bottom:3px; background:white;
+  border-radius:50%; transition:0.2s;
+}
+.toggle input:checked + .slider { background:var(--green); }
+.toggle input:checked + .slider:before { transform:translateX(18px); }
+
+.flow-diagram {
+  display:flex; align-items:center; gap:0; margin:24px 0; justify-content:center;
+}
+.flow-node {
+  padding:10px 18px; border-radius:8px; font-size:12px; font-weight:600; text-align:center;
+}
+.flow-node.trigger { background:var(--navy); color:white; }
+.flow-node.condition { background:var(--gold-light); color:var(--gold); border:2px solid var(--gold); }
+.flow-node.action { background:#d1fae5; color:#065f46; border:2px solid var(--green); }
+.flow-arrow { font-size:18px; color:var(--text-light); padding:0 8px; }
+
+/* Modal */
+.modal-overlay {
+  display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.4);
+  z-index:200; align-items:center; justify-content:center;
+}
+.modal-overlay.active { display:flex; }
+.modal {
+  background:var(--white); border-radius:12px; padding:24px; width:480px; max-width:90vw;
+  max-height:80vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.2);
+}
+.modal h3 { font-size:16px; font-weight:700; margin-bottom:16px; }
+.modal label { display:block; font-size:12px; font-weight:600; margin-bottom:4px; margin-top:12px; }
+.modal input, .modal select, .modal textarea {
+  width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:13px; font-family:inherit;
+}
+.modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <h2>Premium Roofing CRM</h2>
+    <span>PRO</span>
+  </div>
+  <nav class="sidebar-nav" id="sidebar-nav">
+    <a class="active" data-page="dashboard" onclick="nav('dashboard')">
+      <span class="icon">&#9632;</span> Dashboard
+    </a>
+    <a data-page="engagement" onclick="nav('engagement')">
+      <span class="icon">&#9829;</span> Engagement
+    </a>
+    <a data-page="boards" onclick="nav('boards')">
+      <span class="icon">&#9638;</span> Boards
+    </a>
+    <a data-page="contacts" onclick="nav('contacts')">
+      <span class="icon">&#9787;</span> Contacts
+    </a>
+    <a data-page="estimates" onclick="nav('estimates')">
+      <span class="icon">&#9998;</span> Estimates
+    </a>
+    <a data-page="calendar" onclick="nav('calendar')">
+      <span class="icon">&#9776;</span> Calendar
+    </a>
+    <a data-page="insights" onclick="nav('insights')">
+      <span class="icon">&#9733;</span> Insights
+    </a>
+    <a data-page="automations" onclick="nav('automations')">
+      <span class="icon">&#9881;</span> Automations
+    </a>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="jarvis-status">
+      <span class="dot"></span> Jarvis AI Active
+    </div>
+    <div class="user-info">
+      <div class="user-avatar">MJ</div>
+      <div class="user-meta">
+        <div class="name">Mark J.</div>
+        <div class="role">Admin</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <h1 id="page-title">Dashboard</h1>
+    <input class="search" type="text" placeholder="Search leads, contacts...">
+    <button class="btn btn-outline" onclick="alert('Exporting data...')">Export</button>
+    <button class="btn btn-gold" onclick="openModal('new-lead-modal')">+ New Lead</button>
+  </div>
+
+  <div class="content">
+
+    <!-- ==================== DASHBOARD ==================== -->
+    <div class="page active" id="page-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="label">Active Leads</div>
+          <div class="value">47</div>
+          <div class="change up">+12 new this week</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Close Rate</div>
+          <div class="value">34%</div>
+          <div class="change up">+4% vs last month</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Revenue MTD</div>
+          <div class="value">$82,400</div>
+          <div class="change up">+$18k from last month</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Overdue Follow-ups</div>
+          <div class="value" style="color:var(--red);">4</div>
+          <div class="change down">Needs attention</div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <!-- Recent Jobs -->
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Recent Jobs</h3>
+            <button class="btn btn-xs btn-outline">View all</button>
+          </div>
+          <div class="panel-body">
+            <div class="job-row"><span class="job-name">Williams</span><span class="badge badge-new">New lead</span><span class="job-amount">$14,200</span></div>
+            <div class="job-row"><span class="job-name">Chen</span><span class="badge badge-sent">Estimate sent</span><span class="job-amount">$8,750</span></div>
+            <div class="job-row"><span class="job-name">Ramirez</span><span class="badge badge-prod">In production</span><span class="job-amount">$22,000</span></div>
+            <div class="job-row"><span class="job-name">Thompson</span><span class="badge badge-prod">In production</span><span class="job-amount">$3,400</span></div>
+            <div class="job-row"><span class="job-name">Patel</span><span class="badge badge-complete">Complete</span><span class="job-amount">$18,600</span></div>
+            <div class="job-row"><span class="job-name">Jurtras</span><span class="badge badge-insurance">Insurance</span><span class="job-amount">TBD</span></div>
+          </div>
+        </div>
+
+        <!-- Rep Engagement Alerts -->
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Rep Engagement Alerts</h3>
+            <span class="badge badge-overdue">4 Overdue</span>
+          </div>
+          <div class="panel-body">
+            <div class="alert-row">
+              <div class="alert-top">
+                <span class="alert-name">Linda Chen</span>
+                <span class="alert-days">5 days no contact</span>
+              </div>
+              <div class="alert-actions">
+                <button class="btn btn-xs btn-primary" onclick="generateSMS('Linda Chen','5 day follow up')">SMS now</button>
+                <button class="btn btn-xs btn-outline" onclick="generateCallScript('Linda Chen','re-engagement')">Call script</button>
+                <button class="btn btn-xs btn-outline">Schedule</button>
+                <button class="btn btn-xs btn-outline">First touch</button>
+              </div>
+            </div>
+            <div class="alert-row">
+              <div class="alert-top">
+                <span class="alert-name">Paul Nguyen</span>
+                <span class="alert-days">4 days no contact</span>
+              </div>
+              <div class="alert-actions">
+                <button class="btn btn-xs btn-primary" onclick="generateSMS('Paul Nguyen','4 day follow up')">SMS now</button>
+                <button class="btn btn-xs btn-outline" onclick="generateCallScript('Paul Nguyen','re-engagement')">Call script</button>
+                <button class="btn btn-xs btn-outline">Schedule</button>
+                <button class="btn btn-xs btn-outline">First touch</button>
+              </div>
+            </div>
+            <div class="alert-row">
+              <div class="alert-top">
+                <span class="alert-name">Karen Foster</span>
+                <span class="alert-days">2 days no contact</span>
+              </div>
+              <div class="alert-actions">
+                <button class="btn btn-xs btn-primary" onclick="generateSMS('Karen Foster','2 day follow up')">SMS now</button>
+                <button class="btn btn-xs btn-outline" onclick="generateCallScript('Karen Foster','estimate follow-up')">Call script</button>
+                <button class="btn btn-xs btn-outline">Schedule</button>
+                <button class="btn btn-xs btn-outline">First touch</button>
+              </div>
+            </div>
+            <div class="alert-row">
+              <div class="alert-top">
+                <span class="alert-name">Miguel Alvarez</span>
+                <span class="alert-days">2 days no contact</span>
+              </div>
+              <div class="alert-actions">
+                <button class="btn btn-xs btn-primary" onclick="generateSMS('Miguel Alvarez','2 day follow up')">SMS now</button>
+                <button class="btn btn-xs btn-outline" onclick="generateCallScript('Miguel Alvarez','new lead intro')">Call script</button>
+                <button class="btn btn-xs btn-outline">Schedule</button>
+                <button class="btn btn-xs btn-outline">First touch</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <!-- Tasks due today -->
+        <div class="panel">
+          <div class="panel-head"><h3>Tasks Due Today</h3></div>
+          <div class="panel-body">
+            <div class="task-item"><input type="checkbox"> Follow up with Williams on new lead estimate</div>
+            <div class="task-item"><input type="checkbox"> Send revised estimate to Chen ($8,750)</div>
+            <div class="task-item"><input type="checkbox"> Confirm production schedule with Ramirez crew</div>
+            <div class="task-item"><input type="checkbox"> Call insurance adjuster re: Jurtras claim</div>
+            <div class="task-item"><input type="checkbox"> Review Paul Nguyen's overdue contacts</div>
+          </div>
+        </div>
+
+        <!-- Rep Leaderboard -->
+        <div class="panel">
+          <div class="panel-head"><h3>Rep Leaderboard &mdash; April</h3></div>
+          <div class="panel-body">
+            <div class="leader-row">
+              <div class="leader-rank gold">1</div>
+              <div class="leader-name">Sarah K.</div>
+              <div class="leader-score">94</div>
+            </div>
+            <div class="leader-row">
+              <div class="leader-rank silver">2</div>
+              <div class="leader-name">Mike D.</div>
+              <div class="leader-score">71</div>
+            </div>
+            <div class="leader-row">
+              <div class="leader-rank bronze">3</div>
+              <div class="leader-name">Jake M.</div>
+              <div class="leader-score">38</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== ENGAGEMENT ==================== -->
+    <div class="page" id="page-engagement">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="label">Total Touchpoints (Week)</div><div class="value">126</div><div class="change up">+18 vs prior</div></div>
+        <div class="stat-card"><div class="label">Avg Response Time</div><div class="value">2.4h</div><div class="change up">-0.8h improvement</div></div>
+        <div class="stat-card"><div class="label">SMS Sent</div><div class="value">54</div><div class="change up">+12 this week</div></div>
+        <div class="stat-card"><div class="label">Calls Logged</div><div class="value">72</div><div class="change up">+6 this week</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Recent Engagement Activity</h3></div>
+        <div class="panel-body">
+          <table class="table">
+            <thead><tr><th>Rep</th><th>Contact</th><th>Type</th><th>Time</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>Sarah K.</td><td>Williams</td><td><span class="badge badge-new">SMS</span></td><td>10 min ago</td><td>Sent estimate follow-up</td></tr>
+              <tr><td>Mike D.</td><td>Patel</td><td><span class="badge badge-complete">Call</span></td><td>1h ago</td><td>Confirmed final walkthrough</td></tr>
+              <tr><td>Sarah K.</td><td>Chen</td><td><span class="badge badge-sent">Email</span></td><td>2h ago</td><td>Revised estimate attached</td></tr>
+              <tr><td>Jake M.</td><td>Ramirez</td><td><span class="badge badge-prod">Call</span></td><td>3h ago</td><td>Production update call</td></tr>
+              <tr><td>Mike D.</td><td>Thompson</td><td><span class="badge badge-new">SMS</span></td><td>4h ago</td><td>Material delivery confirmation</td></tr>
+              <tr><td>Sarah K.</td><td>Jurtras</td><td><span class="badge badge-insurance">Call</span></td><td>Yesterday</td><td>Insurance adjuster follow-up</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== BOARDS ==================== -->
+    <div class="page" id="page-boards">
+      <div class="kanban-filters">
+        <select><option>All Boards</option><option>Residential</option><option>Commercial</option><option>Insurance</option></select>
+        <select><option>All Reps</option><option>Sarah K.</option><option>Mike D.</option><option>Jake M.</option></select>
+      </div>
+      <div class="kanban">
+        <div class="kanban-col">
+          <div class="kanban-col-head">New Lead <span class="count">3</span></div>
+          <div class="kanban-card">
+            <div class="kc-name">Williams</div>
+            <div class="kc-addr">42 Oak Street, Hartford</div>
+            <div class="kc-bottom"><span class="kc-amount">$14,200</span><span class="kc-days">1d ago</span></div>
+          </div>
+          <div class="kanban-card">
+            <div class="kc-name">Foster</div>
+            <div class="kc-addr">88 Elm Ave, Glastonbury</div>
+            <div class="kc-bottom"><span class="kc-amount">$9,800</span><span class="kc-days">2d ago</span></div>
+          </div>
+          <div class="kanban-card">
+            <div class="kc-name">Alvarez</div>
+            <div class="kc-addr">15 Birch Ln, Farmington</div>
+            <div class="kc-bottom"><span class="kc-amount">$11,500</span><span class="kc-days">2d ago</span></div>
+          </div>
+        </div>
+        <div class="kanban-col">
+          <div class="kanban-col-head">Estimate Sent <span class="count">2</span></div>
+          <div class="kanban-card">
+            <div class="kc-name">Chen</div>
+            <div class="kc-addr">301 Maple Dr, West Hartford</div>
+            <div class="kc-bottom"><span class="kc-amount">$8,750</span><span class="kc-days">3d - follow up</span></div>
+          </div>
+          <div class="kanban-card">
+            <div class="kc-name">Nguyen</div>
+            <div class="kc-addr">77 Cedar Ct, Avon</div>
+            <div class="kc-bottom"><span class="kc-amount">$16,300</span><span class="kc-days" style="color:var(--red);">4d - overdue</span></div>
+          </div>
+        </div>
+        <div class="kanban-col">
+          <div class="kanban-col-head">Signed <span class="count">1</span></div>
+          <div class="kanban-card">
+            <div class="kc-name">Morrison</div>
+            <div class="kc-addr">200 Pine St, Simsbury</div>
+            <div class="kc-bottom"><span class="kc-amount">$19,400</span><span class="kc-days" style="color:var(--green);">Signed yesterday</span></div>
+          </div>
+        </div>
+        <div class="kanban-col">
+          <div class="kanban-col-head">In Production <span class="count">2</span></div>
+          <div class="kanban-card">
+            <div class="kc-name">Ramirez</div>
+            <div class="kc-addr">550 Main St, Bristol</div>
+            <div class="kc-bottom"><span class="kc-amount">$22,000</span><span class="kc-days" style="color:var(--green);">On schedule</span></div>
+          </div>
+          <div class="kanban-card">
+            <div class="kc-name">Thompson</div>
+            <div class="kc-addr">12 River Rd, Canton</div>
+            <div class="kc-bottom"><span class="kc-amount">$3,400</span><span class="kc-days">Starts Mon</span></div>
+          </div>
+        </div>
+        <div class="kanban-col">
+          <div class="kanban-col-head">Complete <span class="count">3</span></div>
+          <div class="kanban-card">
+            <div class="kc-name">Patel</div>
+            <div class="kc-addr">8 Summit Ave, Newington</div>
+            <div class="kc-bottom"><span class="kc-amount">$18,600</span><span class="kc-days" style="color:var(--green);">Paid</span></div>
+          </div>
+          <div class="kanban-card">
+            <div class="kc-name">Garcia</div>
+            <div class="kc-addr">45 Valley View, Wethersfield</div>
+            <div class="kc-bottom"><span class="kc-amount">$7,200</span><span class="kc-days" style="color:var(--green);">Paid</span></div>
+          </div>
+          <div class="kanban-card">
+            <div class="kc-name">Brown</div>
+            <div class="kc-addr">120 Highland Dr, Rocky Hill</div>
+            <div class="kc-bottom"><span class="kc-amount">$13,100</span><span class="kc-days" style="color:var(--orange);">Invoice sent</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== CONTACTS ==================== -->
+    <div class="page" id="page-contacts">
+      <div class="panel">
+        <div class="panel-head">
+          <h3>All Contacts</h3>
+          <button class="btn btn-sm btn-primary">+ Add Contact</button>
+        </div>
+        <div class="panel-body" style="overflow-x:auto;">
+          <table class="table">
+            <thead><tr><th></th><th>Name</th><th>Phone</th><th>Assigned Rep</th><th>Last Contact</th><th>Status</th><th>Follow-up</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><div class="contact-avatar">RW</div></td>
+                <td style="font-weight:600;">Robert Williams</td>
+                <td>(860) 555-0142</td>
+                <td>Sarah K.</td>
+                <td>Apr 8</td>
+                <td><span class="badge badge-new">New lead</span></td>
+                <td><span class="badge badge-ok">On track</span></td>
+                <td style="font-weight:600;">$14,200</td>
+              </tr>
+              <tr>
+                <td><div class="contact-avatar" style="background:var(--gold);">LC</div></td>
+                <td style="font-weight:600;">Linda Chen</td>
+                <td>(860) 555-0287</td>
+                <td>Mike D.</td>
+                <td>Apr 4</td>
+                <td><span class="badge badge-sent">Estimate sent</span></td>
+                <td><span class="badge badge-overdue">5d overdue</span></td>
+                <td style="font-weight:600;">$8,750</td>
+              </tr>
+              <tr>
+                <td><div class="contact-avatar" style="background:#5b21b6;">MR</div></td>
+                <td style="font-weight:600;">Marco Ramirez</td>
+                <td>(860) 555-0391</td>
+                <td>Jake M.</td>
+                <td>Apr 7</td>
+                <td><span class="badge badge-prod">In production</span></td>
+                <td><span class="badge badge-ok">On track</span></td>
+                <td style="font-weight:600;">$22,000</td>
+              </tr>
+              <tr>
+                <td><div class="contact-avatar" style="background:#0891b2;">DT</div></td>
+                <td style="font-weight:600;">Diane Thompson</td>
+                <td>(860) 555-0455</td>
+                <td>Mike D.</td>
+                <td>Apr 6</td>
+                <td><span class="badge badge-prod">In production</span></td>
+                <td><span class="badge badge-ok">On track</span></td>
+                <td style="font-weight:600;">$3,400</td>
+              </tr>
+              <tr>
+                <td><div class="contact-avatar" style="background:var(--green);">AP</div></td>
+                <td style="font-weight:600;">Anika Patel</td>
+                <td>(860) 555-0518</td>
+                <td>Sarah K.</td>
+                <td>Apr 9</td>
+                <td><span class="badge badge-complete">Complete</span></td>
+                <td><span class="badge badge-ok">Closed</span></td>
+                <td style="font-weight:600;">$18,600</td>
+              </tr>
+              <tr>
+                <td><div class="contact-avatar" style="background:var(--red);">RJ</div></td>
+                <td style="font-weight:600;">Roger Jurtras</td>
+                <td>(860) 555-0673</td>
+                <td>Jake M.</td>
+                <td>Apr 5</td>
+                <td><span class="badge badge-insurance">Insurance</span></td>
+                <td><span class="badge badge-overdue">4d overdue</span></td>
+                <td style="font-weight:600;">TBD</td>
+              </tr>
+              <tr>
+                <td><div class="contact-avatar" style="background:#ea580c;">PN</div></td>
+                <td style="font-weight:600;">Paul Nguyen</td>
+                <td>(860) 555-0744</td>
+                <td>Sarah K.</td>
+                <td>Apr 5</td>
+                <td><span class="badge badge-sent">Estimate sent</span></td>
+                <td><span class="badge badge-overdue">4d overdue</span></td>
+                <td style="font-weight:600;">$16,300</td>
+              </tr>
+              <tr>
+                <td><div class="contact-avatar" style="background:#7c3aed;">KF</div></td>
+                <td style="font-weight:600;">Karen Foster</td>
+                <td>(860) 555-0819</td>
+                <td>Mike D.</td>
+                <td>Apr 7</td>
+                <td><span class="badge badge-new">New lead</span></td>
+                <td><span class="badge badge-overdue">2d overdue</span></td>
+                <td style="font-weight:600;">$9,800</td>
+              </tr>
+              <tr>
+                <td><div class="contact-avatar" style="background:#b45309;">MA</div></td>
+                <td style="font-weight:600;">Miguel Alvarez</td>
+                <td>(860) 555-0902</td>
+                <td>Jake M.</td>
+                <td>Apr 7</td>
+                <td><span class="badge badge-new">New lead</span></td>
+                <td><span class="badge badge-overdue">2d overdue</span></td>
+                <td style="font-weight:600;">$11,500</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== ESTIMATES ==================== -->
+    <div class="page" id="page-estimates">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+        <button class="btn btn-gold" onclick="generateEstimate()">Generate with AI</button>
+        <button class="btn btn-primary">+ New Estimate</button>
+      </div>
+      <div class="estimate-row">
+        <span class="est-id">#EST-041</span>
+        <span class="est-name">Robert Williams &mdash; Full Roof Replacement</span>
+        <span class="badge badge-sent">Sent</span>
+        <span class="est-amount">$14,200</span>
+        <span class="est-date">Apr 8, 2026</span>
+      </div>
+      <div class="estimate-row">
+        <span class="est-id">#EST-040</span>
+        <span class="est-name">Linda Chen &mdash; Shingle Repair + Gutter</span>
+        <span class="badge badge-opened">Opened</span>
+        <span class="est-amount">$8,750</span>
+        <span class="est-date">Apr 5, 2026</span>
+      </div>
+      <div class="estimate-row">
+        <span class="est-id">#EST-039</span>
+        <span class="est-name">Paul Nguyen &mdash; Full Tear-off &amp; Replace</span>
+        <span class="badge badge-sent">Sent</span>
+        <span class="est-amount">$16,300</span>
+        <span class="est-date">Apr 4, 2026</span>
+      </div>
+      <div class="estimate-row">
+        <span class="est-id">#EST-038</span>
+        <span class="est-name">Morrison &mdash; Commercial Flat Roof</span>
+        <span class="badge badge-signed">Signed</span>
+        <span class="est-amount">$19,400</span>
+        <span class="est-date">Apr 3, 2026</span>
+      </div>
+      <div class="estimate-row">
+        <span class="est-id">#EST-037</span>
+        <span class="est-name">Karen Foster &mdash; Roof Inspection + Estimate</span>
+        <span class="badge badge-draft">Draft</span>
+        <span class="est-amount">$9,800</span>
+        <span class="est-date">Apr 7, 2026</span>
+      </div>
+      <div class="estimate-row">
+        <span class="est-id">#EST-036</span>
+        <span class="est-name">Miguel Alvarez &mdash; Storm Damage Assessment</span>
+        <span class="badge badge-draft">Draft</span>
+        <span class="est-amount">$11,500</span>
+        <span class="est-date">Apr 7, 2026</span>
+      </div>
+    </div>
+
+    <!-- ==================== CALENDAR ==================== -->
+    <div class="page" id="page-calendar">
+      <div class="cal-header">
+        <h3>Week of April 7 &ndash; 13, 2026</h3>
+        <button class="btn btn-sm btn-outline">&lt; Prev</button>
+        <button class="btn btn-sm btn-outline">Next &gt;</button>
+        <button class="btn btn-sm btn-primary" onclick="openModal('appt-modal')">+ New Appointment</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 200px;gap:18px;">
+        <div class="cal-grid">
+          <div class="cal-day-head"></div>
+          <div class="cal-day-head">Mon 7</div>
+          <div class="cal-day-head">Tue 8</div>
+          <div class="cal-day-head">Wed 9</div>
+          <div class="cal-day-head">Thu 10</div>
+          <div class="cal-day-head">Fri 11</div>
+          <div class="cal-day-head">Sat 12</div>
+          <div class="cal-day-head">Sun 13</div>
+
+          <!-- 8 AM -->
+          <div class="cal-time">8 AM</div>
+          <div class="cal-cell"><div class="cal-event">Williams - Site Visit</div></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"><div class="cal-event gold">Team Standup</div></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"><div class="cal-event">Foster - Inspection</div></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <!-- 9 AM -->
+          <div class="cal-time">9 AM</div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"><div class="cal-event">Chen - Follow-up Call</div></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"><div class="cal-event green">Ramirez - Production Check</div></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"><div class="cal-event gold">Alvarez - Measure</div></div>
+          <div class="cal-cell"></div>
+          <!-- 10 AM -->
+          <div class="cal-time">10 AM</div>
+          <div class="cal-cell"><div class="cal-event gold">Morrison - Contract Sign</div></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"><div class="cal-event">Nguyen - Estimate Present</div></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"><div class="cal-event green">Thompson - Material Delivery</div></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <!-- 11 AM -->
+          <div class="cal-time">11 AM</div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"><div class="cal-event">Insurance Call - Jurtras</div></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <!-- 12 PM -->
+          <div class="cal-time">12 PM</div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"><div class="cal-event gold">Lunch - Vendor Meeting</div></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <!-- 1 PM -->
+          <div class="cal-time">1 PM</div>
+          <div class="cal-cell"><div class="cal-event green">Patel - Final Walkthrough</div></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"><div class="cal-event">Garcia - Follow-up</div></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <!-- 2 PM -->
+          <div class="cal-time">2 PM</div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"><div class="cal-event">Brown - Invoice Review</div></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"><div class="cal-event gold">Weekly Sales Review</div></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <!-- 3 PM -->
+          <div class="cal-time">3 PM</div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"><div class="cal-event">Alvarez - Site Measure</div></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <!-- 4 PM -->
+          <div class="cal-time">4 PM</div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"><div class="cal-event">End of Day Reports</div></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+          <div class="cal-cell"></div>
+        </div>
+        <!-- Mini Calendar Sidebar -->
+        <div>
+          <div class="mini-cal">
+            <div class="mini-cal-head">April 2026</div>
+            <div class="mini-cal-grid">
+              <div class="day-label">Su</div><div class="day-label">Mo</div><div class="day-label">Tu</div><div class="day-label">We</div><div class="day-label">Th</div><div class="day-label">Fr</div><div class="day-label">Sa</div>
+              <div class="day"></div><div class="day"></div><div class="day"></div><div class="day">1</div><div class="day">2</div><div class="day">3</div><div class="day">4</div>
+              <div class="day">5</div><div class="day">6</div><div class="day">7</div><div class="day">8</div><div class="day today">9</div><div class="day">10</div><div class="day">11</div>
+              <div class="day">12</div><div class="day">13</div><div class="day">14</div><div class="day">15</div><div class="day">16</div><div class="day">17</div><div class="day">18</div>
+              <div class="day">19</div><div class="day">20</div><div class="day">21</div><div class="day">22</div><div class="day">23</div><div class="day">24</div><div class="day">25</div>
+              <div class="day">26</div><div class="day">27</div><div class="day">28</div><div class="day">29</div><div class="day">30</div><div class="day"></div><div class="day"></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h3>Upcoming</h3></div>
+            <div class="panel-body" style="font-size:12px;">
+              <div style="padding:6px 0;border-bottom:1px solid var(--border);"><strong>9:00</strong> &mdash; Chen Follow-up Call</div>
+              <div style="padding:6px 0;border-bottom:1px solid var(--border);"><strong>10:00</strong> &mdash; Nguyen Estimate</div>
+              <div style="padding:6px 0;border-bottom:1px solid var(--border);"><strong>12:00</strong> &mdash; Vendor Lunch</div>
+              <div style="padding:6px 0;"><strong>3:00</strong> &mdash; Alvarez Site Measure</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== INSIGHTS ==================== -->
+    <div class="page" id="page-insights">
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-val">47</div><div class="kpi-label">Leads This Month</div></div>
+        <div class="kpi-card"><div class="kpi-val">$13,245</div><div class="kpi-label">Avg Job Value</div></div>
+        <div class="kpi-card"><div class="kpi-val">34%</div><div class="kpi-label">Close Rate</div></div>
+        <div class="kpi-card"><div class="kpi-val">$82,400</div><div class="kpi-label">Revenue MTD</div></div>
+      </div>
+      <div class="two-col">
+        <div class="chart-area">
+          <h3>Revenue by Month</h3>
+          <div class="bar-chart">
+            <div class="bar-group"><div class="bar-val">$48k</div><div class="bar navy" style="height:53%"></div><div class="bar-label">Nov</div></div>
+            <div class="bar-group"><div class="bar-val">$62k</div><div class="bar navy" style="height:69%"></div><div class="bar-label">Dec</div></div>
+            <div class="bar-group"><div class="bar-val">$41k</div><div class="bar navy" style="height:46%"></div><div class="bar-label">Jan</div></div>
+            <div class="bar-group"><div class="bar-val">$55k</div><div class="bar navy" style="height:61%"></div><div class="bar-label">Feb</div></div>
+            <div class="bar-group"><div class="bar-val">$72k</div><div class="bar navy" style="height:80%"></div><div class="bar-label">Mar</div></div>
+            <div class="bar-group"><div class="bar-val">$82k</div><div class="bar gold" style="height:91%"></div><div class="bar-label">Apr</div></div>
+          </div>
+        </div>
+        <div class="chart-area">
+          <h3>Close Rate by Source</h3>
+          <div class="bar-chart">
+            <div class="bar-group"><div class="bar-val">42%</div><div class="bar navy" style="height:84%"></div><div class="bar-label">Referral</div></div>
+            <div class="bar-group"><div class="bar-val">31%</div><div class="bar navy" style="height:62%"></div><div class="bar-label">Google Ads</div></div>
+            <div class="bar-group"><div class="bar-val">28%</div><div class="bar navy" style="height:56%"></div><div class="bar-label">Facebook</div></div>
+            <div class="bar-group"><div class="bar-val">38%</div><div class="bar gold" style="height:76%"></div><div class="bar-label">Door-to-door</div></div>
+            <div class="bar-group"><div class="bar-val">22%</div><div class="bar navy" style="height:44%"></div><div class="bar-label">Website</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="two-col" style="margin-top:20px;">
+        <div class="panel">
+          <div class="panel-head"><h3>Top Jobs by Value</h3></div>
+          <div class="panel-body">
+            <div class="job-row"><span class="job-name">Ramirez &mdash; Full Replacement</span><span class="job-amount">$22,000</span></div>
+            <div class="job-row"><span class="job-name">Morrison &mdash; Commercial Flat</span><span class="job-amount">$19,400</span></div>
+            <div class="job-row"><span class="job-name">Patel &mdash; Premium Shingle</span><span class="job-amount">$18,600</span></div>
+            <div class="job-row"><span class="job-name">Nguyen &mdash; Tear-off Replace</span><span class="job-amount">$16,300</span></div>
+            <div class="job-row"><span class="job-name">Williams &mdash; Full Replacement</span><span class="job-amount">$14,200</span></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h3>Pipeline Forecast</h3></div>
+          <div class="panel-body">
+            <div class="job-row"><span class="job-name">New Leads (weighted 20%)</span><span class="job-amount">$7,100</span></div>
+            <div class="job-row"><span class="job-name">Estimate Sent (weighted 50%)</span><span class="job-amount">$12,525</span></div>
+            <div class="job-row"><span class="job-name">Signed (weighted 90%)</span><span class="job-amount">$17,460</span></div>
+            <div class="job-row"><span class="job-name">In Production (weighted 95%)</span><span class="job-amount">$24,130</span></div>
+            <div class="job-row" style="font-weight:700;"><span class="job-name">Total Weighted Pipeline</span><span class="job-amount" style="color:var(--navy);">$61,215</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== AUTOMATIONS ==================== -->
+    <div class="page" id="page-automations">
+      <div style="margin-bottom:24px;">
+        <h3 style="font-size:15px;font-weight:600;margin-bottom:6px;">Automation Flow</h3>
+        <p style="font-size:12px;color:var(--text-light);margin-bottom:14px;">Visual overview of how Jarvis AI automation rules work.</p>
+        <div class="flow-diagram">
+          <div class="flow-node trigger">Trigger</div>
+          <div class="flow-arrow">&#10140;</div>
+          <div class="flow-node condition">Condition</div>
+          <div class="flow-arrow">&#10140;</div>
+          <div class="flow-node action">Action 1</div>
+          <div class="flow-arrow">&#10140;</div>
+          <div class="flow-node action">Action 2</div>
+        </div>
+      </div>
+
+      <div class="auto-card">
+        <div class="auto-icon" style="background:var(--navy-light);color:var(--navy);">&#9889;</div>
+        <div class="auto-info">
+          <div class="auto-name">New Lead Auto-Assign</div>
+          <div class="auto-desc">When a new lead is created, auto-assign to the rep with the fewest active leads using round-robin.</div>
+        </div>
+        <label class="toggle"><input type="checkbox" checked><span class="slider"></span></label>
+      </div>
+      <div class="auto-card">
+        <div class="auto-icon" style="background:var(--gold-light);color:var(--gold);">&#9200;</div>
+        <div class="auto-info">
+          <div class="auto-name">3-Day Follow-up Reminder</div>
+          <div class="auto-desc">If no contact logged within 3 days of estimate sent, send rep a reminder SMS and flag on dashboard.</div>
+        </div>
+        <label class="toggle"><input type="checkbox" checked><span class="slider"></span></label>
+      </div>
+      <div class="auto-card">
+        <div class="auto-icon" style="background:#dbeafe;color:#1d4ed8;">&#9993;</div>
+        <div class="auto-info">
+          <div class="auto-name">Estimate Opened Notification</div>
+          <div class="auto-desc">When a customer opens an estimate email, instantly notify assigned rep via SMS to follow up while hot.</div>
+        </div>
+        <label class="toggle"><input type="checkbox" checked><span class="slider"></span></label>
+      </div>
+      <div class="auto-card">
+        <div class="auto-icon" style="background:#fee2e2;color:var(--red);">&#9888;</div>
+        <div class="auto-info">
+          <div class="auto-name">No Contact 5-Day Escalation</div>
+          <div class="auto-desc">If no touchpoint in 5 days, escalate to manager, flag as overdue, and generate AI re-engagement message.</div>
+        </div>
+        <label class="toggle"><input type="checkbox" checked><span class="slider"></span></label>
+      </div>
+      <div class="auto-card">
+        <div class="auto-icon" style="background:#d1fae5;color:var(--green);">&#10003;</div>
+        <div class="auto-info">
+          <div class="auto-name">Job Complete &rarr; Review Request</div>
+          <div class="auto-desc">When a job is marked Complete, wait 2 days then send customer a Google review request via SMS.</div>
+        </div>
+        <label class="toggle"><input type="checkbox"><span class="slider"></span></label>
+      </div>
+      <div class="auto-card">
+        <div class="auto-icon" style="background:var(--navy-light);color:var(--navy);">&#128200;</div>
+        <div class="auto-info">
+          <div class="auto-name">Weekly Performance Digest</div>
+          <div class="auto-desc">Every Monday at 8 AM, generate and send a rep performance summary to the admin dashboard and email.</div>
+        </div>
+        <label class="toggle"><input type="checkbox" checked><span class="slider"></span></label>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- ==================== MODALS ==================== -->
+<div class="modal-overlay" id="new-lead-modal">
+  <div class="modal">
+    <h3>Add New Lead</h3>
+    <label>Full Name</label><input type="text" placeholder="e.g. John Smith">
+    <label>Phone</label><input type="tel" placeholder="(860) 555-0000">
+    <label>Address</label><input type="text" placeholder="123 Main St, Hartford, CT">
+    <label>Job Type</label>
+    <select><option>Full Roof Replacement</option><option>Repair</option><option>Inspection</option><option>Insurance Claim</option><option>Commercial</option></select>
+    <label>Estimated Value</label><input type="text" placeholder="$0.00">
+    <label>Assign To</label>
+    <select><option>Sarah K.</option><option>Mike D.</option><option>Jake M.</option></select>
+    <label>Notes</label><textarea rows="3" placeholder="Any additional details..."></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('new-lead-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="closeModal('new-lead-modal')">Save Lead</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="appt-modal">
+  <div class="modal">
+    <h3>New Appointment</h3>
+    <label>Title</label><input type="text" placeholder="e.g. Site Inspection - Williams">
+    <label>Date</label><input type="date" value="2026-04-10">
+    <label>Time</label><input type="time" value="09:00">
+    <label>Duration</label>
+    <select><option>30 min</option><option>1 hour</option><option>1.5 hours</option><option>2 hours</option></select>
+    <label>Contact</label>
+    <select><option>Robert Williams</option><option>Linda Chen</option><option>Marco Ramirez</option><option>Diane Thompson</option><option>Anika Patel</option><option>Roger Jurtras</option><option>Paul Nguyen</option><option>Karen Foster</option><option>Miguel Alvarez</option></select>
+    <label>Rep</label>
+    <select><option>Sarah K.</option><option>Mike D.</option><option>Jake M.</option></select>
+    <label>Notes</label><textarea rows="2" placeholder="Appointment notes..."></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('appt-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="closeModal('appt-modal')">Create Appointment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== JARVIS CHAT WIDGET ==================== -->
+<div id="jarvis-widget" style="position:fixed;bottom:20px;right:20px;z-index:999;">
+  <button onclick="toggleJarvis()" style="width:56px;height:56px;border-radius:50%;background:var(--navy);border:2px solid var(--gold);color:white;font-size:20px;cursor:pointer;box-shadow:0 4px 20px rgba(26,58,107,0.3);font-family:DM Sans,sans-serif;">&#9889;</button>
+</div>
+<div id="jarvis-panel" style="display:none;position:fixed;bottom:90px;right:20px;width:380px;height:500px;background:white;border-radius:12px;border:1px solid var(--border);box-shadow:0 20px 60px rgba(0,0,0,0.15);z-index:999;flex-direction:column;overflow:hidden;">
+  <div style="padding:14px 16px;background:var(--navy);color:white;display:flex;align-items:center;gap:10px;">
+    <span style="font-size:14px;font-weight:600;">Jarvis AI</span>
+    <span style="font-size:10px;background:rgba(255,255,255,0.15);padding:2px 8px;border-radius:10px;">Roofing Expert</span>
+    <button onclick="toggleJarvis()" style="margin-left:auto;background:none;border:none;color:white;cursor:pointer;font-size:16px;font-family:DM Sans,sans-serif;">&#215;</button>
+  </div>
+  <div id="jarvis-messages" style="flex:1;overflow-y:auto;padding:12px;"></div>
+  <div style="padding:10px;border-top:1px solid var(--border);display:flex;gap:8px;">
+    <input id="jarvis-input" placeholder="Ask Jarvis anything..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:DM Sans,sans-serif;" onkeydown="if(event.key==='Enter')sendToJarvis()">
+    <button onclick="sendToJarvis()" style="background:var(--navy);color:white;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif;">Send</button>
+  </div>
+</div>
+
+<!-- ==================== JAVASCRIPT ==================== -->
+<script>
+// Page titles
+var pageTitles = {
+  dashboard: 'Dashboard',
+  engagement: 'Engagement',
+  boards: 'Boards',
+  contacts: 'Contacts',
+  estimates: 'Estimates',
+  calendar: 'Calendar',
+  insights: 'Insights',
+  automations: 'Automations'
+};
+
+// Navigation
+function nav(page) {
+  // Hide all pages
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  // Show target
+  var target = document.getElementById('page-' + page);
+  if (target) target.classList.add('active');
+  // Update nav active state
+  document.querySelectorAll('.sidebar-nav a').forEach(function(a) {
+    a.classList.toggle('active', a.getAttribute('data-page') === page);
+  });
+  // Update title
+  document.getElementById('page-title').textContent = pageTitles[page] || page;
+}
+
+// Modals
+function openModal(id) {
+  document.getElementById(id).classList.add('active');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+// Close modal on overlay click
+document.querySelectorAll('.modal-overlay').forEach(function(el) {
+  el.addEventListener('click', function(e) {
+    if (e.target === el) el.classList.remove('active');
+  });
+});
+
+// Jarvis AI Chat
+function toggleJarvis() {
+  var p = document.getElementById('jarvis-panel');
+  p.style.display = p.style.display === 'none' ? 'flex' : 'none';
+  if (p.style.display === 'flex' && document.getElementById('jarvis-messages').innerHTML === '') {
+    addJarvisMsg('jarvis', 'Hey Mark! I\'m Jarvis, your roofing AI assistant. I can help with estimates, follow-ups, call scripts, lead analysis, and more. What do you need?');
+  }
+}
+
+async function sendToJarvis() {
+  var input = document.getElementById('jarvis-input');
+  var text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  addJarvisMsg('you', text);
+  try {
+    var r = await fetch('/roofing/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text: text})
+    });
+    var d = await r.json();
+    addJarvisMsg('jarvis', d.reply || d.error || 'No response');
+  } catch(e) {
+    addJarvisMsg('jarvis', 'Error: ' + e.message);
+  }
+}
+
+function addJarvisMsg(role, text) {
+  var el = document.getElementById('jarvis-messages');
+  var isUser = role === 'you';
+  el.innerHTML += '<div style="margin-bottom:10px;text-align:' + (isUser ? 'right' : 'left') + '">' +
+    '<div style="display:inline-block;max-width:80%;padding:8px 12px;border-radius:10px;font-size:12px;line-height:1.5;' +
+    (isUser ? 'background:var(--navy-light);color:var(--navy);' : 'background:var(--bg);color:var(--text);') +
+    '">' + text.replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</div></div>';
+  el.scrollTop = el.scrollHeight;
+}
+
+// SMS Generation
+async function generateSMS(contact, context) {
+  try {
+    var r = await fetch('/roofing/api/sms', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({contact: contact, context: context || 'follow up on roofing estimate'})
+    });
+    var d = await r.json();
+    alert('AI SMS for ' + contact + ':\n\n' + d.message);
+  } catch(e) {
+    alert('SMS generation failed: ' + e.message);
+  }
+}
+
+// Call Script Generation
+async function generateCallScript(contact, jobType) {
+  try {
+    var r = await fetch('/roofing/api/call-script', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({contact: contact, jobType: jobType || 'estimate follow-up'})
+    });
+    var d = await r.json();
+    alert('Call Script for ' + contact + ':\n\n' + d.script);
+  } catch(e) {
+    alert('Script generation failed: ' + e.message);
+  }
+}
+
+// AI Estimate Generation
+async function generateEstimate() {
+  try {
+    var r = await fetch('/roofing/api/estimate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({type: 'new'})
+    });
+    var d = await r.json();
+    alert('AI Estimate Generated:\n\n' + (d.estimate || d.error || JSON.stringify(d)));
+  } catch(e) {
+    alert('Estimate generation failed: ' + e.message);
+  }
+}
+</script>
+</body>
+</html>

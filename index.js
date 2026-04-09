@@ -51,6 +51,10 @@ app.use(dashboard);
 const sales = require('./src/sales/routes');
 app.use(sales);
 
+// Premium Roofing CRM
+const roofing = require('./src/roofing/routes');
+app.use(roofing);
+
 // ── Gmail OAuth Callback (no more localhost!) ──
 app.get('/auth/gmail', async (req, res) => {
   const gmail = require('./src/core/gmail');
