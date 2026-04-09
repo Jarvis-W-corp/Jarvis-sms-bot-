@@ -149,7 +149,7 @@ export default function RoomInterior({ roomId, roomName, roomColor, onClose }: R
 
       const costData = await fetchCosts();
       if (costData) {
-        setTotalCost(costData.total24h ?? 0);
+        setTotalCost(costData.total_cost ?? 0);
       }
 
       if (isBusiness || roomId === 'research') {

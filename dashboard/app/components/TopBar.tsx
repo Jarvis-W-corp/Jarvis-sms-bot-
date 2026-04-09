@@ -54,7 +54,7 @@ export default function TopBar({
   }, []);
 
   const isOnline = health.data?.status === 'ok' || health.data?.status === 'healthy';
-  const totalCost = costs.data?.total24h ?? 0;
+  const totalCost = costs.data?.total_cost ?? 0;
 
   return (
     <header className="flex items-center justify-between px-5 py-3 border-b border-[#1a2744] bg-[#0d1424]/60 backdrop-blur-sm z-50 relative">

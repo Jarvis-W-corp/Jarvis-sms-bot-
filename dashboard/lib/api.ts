@@ -78,7 +78,7 @@ export interface CrewMember {
 
 export interface CostData {
   agents: Record<string, number>;
-  total24h: number;
+  total_cost: number;
   breakdown?: Array<{ agent: string; cost: number }>;
   [key: string]: unknown;
 }
