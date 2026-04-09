@@ -435,6 +435,55 @@ router.get('/dashboard/api/processed', async (req, res) => {
   }
 });
 
+// ═══ WORKFLOWS (Agent Chaining Pipelines) ═══
+
+// List available workflow templates
+router.get('/dashboard/api/workflows', (req, res) => {
+  try {
+    const workflows = require('../core/workflows');
+    res.json({ templates: workflows.getTemplates() });
+  } catch (error) {
+    res.json({ templates: [], error: error.message });
+  }
+});
+
+// Start a workflow
+router.post('/dashboard/api/workflow/start', async (req, res) => {
+  try {
+    const workflows = require('../core/workflows');
+    const { template, params } = req.body;
+    if (!template) return res.status(400).json({ error: 'Template ID required (e.g. solar_pipeline)' });
+    const result = await workflows.startWorkflow(template, params || {});
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get workflow status
+router.get('/dashboard/api/workflow/:id/status', async (req, res) => {
+  try {
+    const workflows = require('../core/workflows');
+    const status = await workflows.getWorkflowStatus(req.params.id);
+    if (!status) return res.status(404).json({ error: 'Workflow not found' });
+    res.json(status);
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
+// List recent workflows
+router.get('/dashboard/api/workflow/history', async (req, res) => {
+  try {
+    const workflows = require('../core/workflows');
+    const limit = parseInt(req.query.limit) || 20;
+    const list = await workflows.listWorkflows(limit);
+    res.json({ workflows: list });
+  } catch (error) {
+    res.json({ workflows: [], error: error.message });
+  }
+});
+
 // API: feature progress (static manifest)
 router.get('/dashboard/api/progress', (req, res) => {
   res.json({
@@ -505,9 +554,17 @@ router.get('/dashboard/api/progress', (req, res) => {
           { name: 'Proactive monitoring (morning plan, EOD recap, alerts)', status: 'done' },
           { name: 'Auto-delegate (Jarvis assigns crew work on schedule)', status: 'done' },
           { name: 'Lead scraping + outreach pipeline', status: 'in-progress' },
+          { name: 'Workflow pipelines — agent chaining (Hawk→Ghost→Pulse)', status: 'done' },
+          { name: 'Per-agent tool scoping (Ghost/Hawk/Pulse isolated)', status: 'done' },
+          { name: 'Per-tool + per-job + per-cycle timeouts', status: 'done' },
+          { name: 'Kill switch (stop any job/task from dashboard)', status: 'done' },
+          { name: 'API cost tracking per agent ($USD)', status: 'done' },
+          { name: 'Idempotent file processing (never re-process)', status: 'done' },
+          { name: 'Background task runner with progress tracking', status: 'done' },
+          { name: 'Crew follow-up + stale job cleanup', status: 'done' },
+          { name: '4 workflow templates (solar, medspa, AI workforce, content)', status: 'done' },
           { name: 'Dialer Agent (AI phone calls, appt setting)', status: 'planned' },
           { name: 'Agent learning system (get smarter over time)', status: 'planned' },
-          { name: 'Agent performance metrics + kill switch', status: 'planned' },
         ],
       },
       {

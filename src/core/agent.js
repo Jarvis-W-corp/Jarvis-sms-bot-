@@ -587,6 +587,47 @@ const tools = {
       return 'Unknown action. Use buy, sell, or status.';
     },
   },
+
+  // ── Workflow Pipelines (Agent Chaining) ──
+  run_workflow: {
+    description: 'Start a workflow pipeline — chains agents together automatically. Hawk researches → Ghost creates → Pulse executes. Input: { "workflow": "solar_pipeline|medspa_pipeline|ai_workforce_pipeline|content_pipeline", "params": { "location": "Connecticut", "niche": "solar installers" } }. Available workflows: solar_pipeline (lead gen), medspa_pipeline (competitor intel + ads), ai_workforce_pipeline (B2B outreach), content_pipeline (trending content creation).',
+    execute: async ({ workflow, params }) => {
+      const workflows = require('./workflows');
+      const templates = workflows.getTemplates();
+      if (!workflow) {
+        return 'Available workflows:\n' + templates.map(t => '- ' + t.id + ': ' + t.description + ' (params: ' + t.params.join(', ') + ')').join('\n');
+      }
+      try {
+        const result = await workflows.startWorkflow(workflow, params || {});
+        return 'WORKFLOW STARTED: ' + result.name + '\nID: ' + result.workflowId + '\nSteps: ' + result.totalSteps + '\nFirst job: ' + result.jobId + '\n\nThe pipeline will run automatically — each agent hands off to the next when done. Use check_workflow to monitor progress.';
+      } catch (err) {
+        return 'Failed to start workflow: ' + err.message;
+      }
+    },
+  },
+
+  check_workflow: {
+    description: 'Check the progress of a running workflow pipeline. Input: { "workflow_id": "wf_..." } or { "list": true } to see all recent workflows.',
+    execute: async ({ workflow_id, list }) => {
+      const workflows = require('./workflows');
+      if (list) {
+        const all = await workflows.listWorkflows(10);
+        if (!all.length) return 'No workflows found.';
+        return all.map(w => '[' + w.status + '] ' + w.name + ' (ID: ' + w.id + ') — step ' + w.current_step + '/' + w.total_steps).join('\n');
+      }
+      if (!workflow_id) return 'Provide workflow_id or set list: true.';
+      const status = await workflows.getWorkflowStatus(workflow_id);
+      if (!status) return 'Workflow not found: ' + workflow_id;
+      let report = 'WORKFLOW: ' + status.name + ' [' + status.status + ']\n';
+      report += 'Progress: step ' + status.current_step + '/' + status.total_steps + '\n\n';
+      status.steps.forEach((s, i) => {
+        const icon = s.status === 'completed' ? 'DONE' : s.status === 'running' ? 'RUNNING' : s.status === 'failed' ? 'FAILED' : 'PENDING';
+        report += (i + 1) + '. [' + icon + '] ' + s.worker.toUpperCase() + ': ' + s.title + '\n';
+        if (s.result) report += '   Result: ' + s.result.substring(0, 200) + '\n';
+      });
+      return report;
+    },
+  },
 };
 
 // ── Agent Cycle ──

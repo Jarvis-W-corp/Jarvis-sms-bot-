@@ -86,6 +86,21 @@ async function processCrewAndFollowUp() {
     if (followups.length > 0) {
       console.log('[SCHEDULER] Followed up on ' + followups.length + ' completed jobs');
     }
+
+    // 4. Check for stale workflows (running but no progress for 30 min)
+    try {
+      const { data: staleWorkflows } = await require('../db/supabase').supabase
+        .from('workflows').select('id, name, current_step, total_steps')
+        .eq('status', 'running')
+        .lt('updated_at', new Date(Date.now() - 30 * 60 * 1000).toISOString());
+
+      if (staleWorkflows && staleWorkflows.length > 0) {
+        console.log('[SCHEDULER] Found ' + staleWorkflows.length + ' stale workflows');
+        // Don't auto-fail — just log. The jobs themselves handle failures.
+      }
+    } catch (e) {
+      // Workflow table may not exist yet — that's fine
+    }
   } catch (err) {
     console.error('[SCHEDULER] Crew processing error:', err.message);
   }

@@ -287,6 +287,11 @@ async function executeJob(job) {
   const worker = await getWorker(job.worker_id);
   if (!worker) {
     await updateJob(job.id, { status: 'failed', error: 'Worker not found: ' + job.worker_id });
+    // Fail workflow if part of one
+    try {
+      const wfId = job.workflow_id || (job.input && job.input.workflow_id);
+      if (wfId) { const wf = require('./workflows'); await wf.updateWorkflow(wfId, { status: 'failed', completed_at: new Date().toISOString() }); }
+    } catch (e) { /* soft fail */ }
     return null;
   }
 
@@ -425,9 +430,9 @@ async function executeJob(job) {
   }
 
   // Finalize
-  const status = finalResult ? 'completed' : 'completed';
+  const completionStatus = finalResult ? 'completed' : 'completed';
   await updateJob(job.id, {
-    status,
+    status: completionStatus,
     output: {
       result: (finalResult || 'Max iterations reached — partial work done').substring(0, 5000),
       tools_used: toolLog.length,
@@ -437,6 +442,21 @@ async function executeJob(job) {
   });
   await updateWorkerStats(worker.id, !!finalResult);
   console.log('[CREW] ' + worker.name + ' completed: ' + job.title + ' (' + toolLog.length + ' tools, $' + totalCost.toFixed(4) + ')');
+
+  // ═══ WORKFLOW CHAINING — advance to next step if this job is part of a workflow ═══
+  try {
+    const workflowId = job.workflow_id || (job.input && job.input.workflow_id);
+    const stepIndex = job.step_index ?? (job.input && job.input.step_index);
+    if (workflowId && stepIndex !== undefined && stepIndex !== null) {
+      const workflows = require('./workflows');
+      const result = (finalResult || '').substring(0, 3000);
+      console.log('[CREW] Job is part of workflow ' + workflowId + ' step ' + stepIndex + ' — advancing...');
+      await workflows.advanceWorkflow(workflowId, stepIndex, result);
+    }
+  } catch (e) {
+    console.error('[CREW] Workflow advance error:', e.message);
+  }
+
   return finalResult;
 }
 
@@ -461,6 +481,16 @@ async function processQueue() {
       await updateJob(job.id, { status: 'failed', error: err.message, completed_at: new Date().toISOString() });
       await updateWorkerStats(job.worker_id, false);
       results.push({ jobId: job.id, worker: job.worker_id, title: job.title, status: 'error', error: err.message });
+
+      // Mark workflow as failed if this job was part of one
+      try {
+        const wfId = job.workflow_id || (job.input && job.input.workflow_id);
+        if (wfId) {
+          const workflows = require('./workflows');
+          await workflows.updateWorkflow(wfId, { status: 'failed', completed_at: new Date().toISOString() });
+          console.log('[CREW] Workflow ' + wfId + ' marked as failed due to job error');
+        }
+      } catch (e) { /* soft fail */ }
     }
   }
 
