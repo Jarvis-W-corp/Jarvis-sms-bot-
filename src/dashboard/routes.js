@@ -634,6 +634,142 @@ router.post('/dashboard/api/business/launch', aiLimiter, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══ ADD AGENT (from dashboard) ═══
+
+router.post('/dashboard/api/agents/add', async (req, res) => {
+  try {
+    const { name, role, room, tools, apiKeys } = req.body;
+    if (!name) return res.status(400).json({ error: 'Agent name required' });
+
+    // Create worker in agent_workers table
+    const { supabase } = require('../db/supabase');
+    const { data, error } = await supabase.from('agent_workers').insert({
+      name,
+      type: role || 'custom',
+      system_prompt: `You are ${name}, a specialized AI agent. Role: ${role || 'general assistant'}. You work autonomously inside the Jarvis ecosystem.`,
+      tools: tools || ['brave_search', 'analyze', 'store_finding'],
+      status: 'active',
+      tasks_completed: 0,
+      tasks_failed: 0,
+    }).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+
+    // Store API keys in env-like config (saved to worker config)
+    if (apiKeys && Object.keys(apiKeys).length > 0) {
+      await supabase.from('agent_workers').update({
+        config: { api_keys: apiKeys, room: room || 'custom' },
+      }).eq('id', data.id);
+    }
+
+    res.json({ success: true, agent: data });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// List all agents/workers
+router.get('/dashboard/api/agents', async (req, res) => {
+  try {
+    const { supabase } = require('../db/supabase');
+    const { data } = await supabase.from('agent_workers').select('*').order('created_at', { ascending: false });
+    res.json({ agents: data || [] });
+  } catch (e) { res.json({ agents: [], error: e.message }); }
+});
+
+// Delete an agent
+router.delete('/dashboard/api/agents/:id', async (req, res) => {
+  try {
+    const { supabase } = require('../db/supabase');
+    await supabase.from('agent_workers').delete().eq('id', req.params.id);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ ADD BUSINESS (from dashboard) ═══
+
+router.post('/dashboard/api/business/create', async (req, res) => {
+  try {
+    const config = require('../core/business-config');
+    const { slug, name, type, offer, cta, targetCPL, dailyBudget, audiences, meta, email, dialer, sms } = req.body;
+    if (!slug || !name) return res.status(400).json({ error: 'Slug and name required' });
+
+    const newConfig = {
+      id: slug,
+      name,
+      type: type || 'custom',
+      tenantId: null,
+      offer: offer || '',
+      cta: cta || 'Learn More',
+      targetCPL: targetCPL || 30,
+      dailyBudget: dailyBudget || 50,
+      meta: meta || { adAccountId: '', pageId: '', pixelId: '' },
+      audiences: audiences || [],
+      leadScoring: { criteria: ['has_phone', 'has_email', 'location_match'], highPriorityScore: 8, autoDialThreshold: 8 },
+      dialer: dialer || { provider: 'bland', voice: 'maya', maxDuration: 5, callGoal: 'book a consultation' },
+      email: email || { fromName: name, tone: 'friendly', sequenceLength: 5 },
+      sms: sms || { tone: 'casual, friendly' },
+    };
+
+    config.saveConfig(slug, newConfig);
+    res.json({ success: true, config: newConfig });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ ROOM DETAIL (aggregated data for a room) ═══
+
+router.get('/dashboard/api/room/:id', async (req, res) => {
+  try {
+    const roomId = req.params.id;
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+
+    const response = { room: roomId, agents: [], recentJobs: [], stats: {}, apiConnections: [] };
+
+    // Get workers assigned to this room
+    try {
+      const { supabase } = require('../db/supabase');
+      const { data: workers } = await supabase.from('agent_workers').select('*').eq('status', 'active');
+      // Map room names to workers
+      const roomWorkerMap = { command: 'jarvis', research: 'hawk', marketing: 'ghost', ops: 'pulse', etsy: 'forge', printify: 'pixel' };
+      const workerName = roomWorkerMap[roomId] || roomId;
+      response.agents = (workers || []).filter(w => w.name.toLowerCase().includes(workerName));
+    } catch (e) {}
+
+    // Get recent jobs for this room's agents
+    try {
+      const { supabase } = require('../db/supabase');
+      const { data: jobs } = await supabase.from('agent_jobs').select('*')
+        .order('created_at', { ascending: false }).limit(10);
+      response.recentJobs = jobs || [];
+    } catch (e) {}
+
+    // API connection status
+    response.apiConnections = [
+      { name: 'Claude API', key: 'ANTHROPIC_API_KEY', connected: !!process.env.ANTHROPIC_API_KEY },
+      { name: 'Brave Search', key: 'BRAVE_SEARCH_API_KEY', connected: !!process.env.BRAVE_SEARCH_API_KEY },
+      { name: 'ElevenLabs', key: 'ELEVENLABS_API_KEY', connected: !!process.env.ELEVENLABS_API_KEY },
+      { name: 'Twilio SMS', key: 'TWILIO_ACCOUNT_SID', connected: !!process.env.TWILIO_ACCOUNT_SID },
+      { name: 'Gmail', key: 'GMAIL_CLIENT_ID', connected: !!process.env.GMAIL_CLIENT_ID },
+      { name: 'Meta Ads', key: 'META_ACCESS_TOKEN', connected: !!process.env.META_ACCESS_TOKEN },
+      { name: 'Bland.ai Dialer', key: 'BLAND_API_KEY', connected: !!process.env.BLAND_API_KEY },
+      { name: 'Printify', key: 'PRINTIFY_API_KEY', connected: !!process.env.PRINTIFY_API_KEY },
+      { name: 'Discord', key: 'DISCORD_BOT_TOKEN', connected: !!process.env.DISCORD_BOT_TOKEN },
+      { name: 'OpenAI (Whisper)', key: 'OPENAI_API_KEY', connected: !!process.env.OPENAI_API_KEY },
+    ];
+
+    // Lead stats for research room
+    if (roomId === 'research' || roomId === 'solar') {
+      try { response.stats = await db.getLeadStats(tenant.id); } catch (e) {}
+    }
+
+    // Cost stats
+    try {
+      const since = new Date(Date.now() - 86400000).toISOString();
+      response.stats.costs = await db.getApiCostSummary(tenant.id, since);
+    } catch (e) {}
+
+    res.json(response);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ═══ PROACTIVITY STATUS ═══
 
 router.get('/dashboard/api/proactive/status', async (req, res) => {

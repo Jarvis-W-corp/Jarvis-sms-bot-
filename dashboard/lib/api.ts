@@ -279,3 +279,40 @@ export async function launchBusiness(slug: string): Promise<{ success: boolean }
     body: { slug },
   });
 }
+
+// ── Room detail ──
+export async function fetchRoomDetail(roomId: string): Promise<Record<string, any> | null> {
+  return request<Record<string, any>>(`/dashboard/api/room/${roomId}`);
+}
+
+// ── Add agent ──
+export async function addAgent(data: {
+  name: string; role: string; room: string;
+  tools?: string[]; apiKeys?: Record<string, string>;
+}): Promise<Record<string, any> | null> {
+  return request<Record<string, any>>('/dashboard/api/agents/add', { method: 'POST', body: data as any });
+}
+
+// ── List agents ──
+export async function fetchAgents(): Promise<any[] | null> {
+  const res = await request<{ agents: any[] }>('/dashboard/api/agents');
+  if (!res) return null;
+  return (res as any).agents ?? [];
+}
+
+// ── Delete agent ──
+export async function deleteAgent(agentId: string): Promise<{ success: boolean } | null> {
+  return request<{ success: boolean }>(`/dashboard/api/agents/${agentId}`, { method: 'POST' });
+}
+
+// ── Add business ──
+export async function createBusiness(data: Record<string, any>): Promise<Record<string, any> | null> {
+  return request<Record<string, any>>('/dashboard/api/business/create', { method: 'POST', body: data });
+}
+
+// ── Business configs ──
+export async function fetchBusinessConfigs(): Promise<any[] | null> {
+  const res = await request<{ configs: any[] }>('/dashboard/api/business/configs');
+  if (!res) return null;
+  return (res as any).configs ?? [];
+}
