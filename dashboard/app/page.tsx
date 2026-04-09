@@ -8,457 +8,52 @@ import {
   useLeads,
   useCrew,
   useCosts,
-  useWorkflows,
-  useActiveTasks,
-  useAppointments,
 } from '@/lib/hooks';
 import {
   sendChat,
   sendVoice,
-  killJob,
-  killAllJobs,
-  startWorkflow,
-  fetchSequences,
-  type Lead,
-  type Sequence,
   type ChatResponse,
 } from '@/lib/api';
+import TopBar from './components/TopBar';
+import RoomInterior from './components/RoomInterior';
+import AddAgentModal from './components/AddAgentModal';
+import AddBusinessModal from './components/AddBusinessModal';
+import CustomWorkflow from './components/CustomWorkflow';
 
 // Dynamically import PhaserGame with no SSR
 const PhaserGame = dynamic(() => import('./game/PhaserGame'), {
   ssr: false,
   loading: () => (
-    <div className="flex items-center justify-center h-[340px] neon-card">
-      <span className="text-cyan animate-pulse text-sm tracking-widest uppercase">
+    <div className="flex items-center justify-center h-full neon-card">
+      <span className="text-[#00e5ff] animate-pulse text-sm tracking-widest uppercase">
         Initializing Phaser Engine...
       </span>
     </div>
   ),
 });
 
-type Tab = 'leads' | 'crew' | 'workflows' | 'sequences' | 'costs' | 'voice';
+// Room color map
+const ROOM_COLORS: Record<string, string> = {
+  command: '#00e5ff',
+  research: '#b388ff',
+  marketing: '#ff4081',
+  ops: '#69f0ae',
+  etsy: '#f5641e',
+  printify: '#39d4a5',
+  solar: '#ffd740',
+};
 
-const TAB_LIST: { key: Tab; label: string }[] = [
-  { key: 'leads', label: 'LEADS' },
-  { key: 'crew', label: 'CREW' },
-  { key: 'workflows', label: 'WORKFLOWS' },
-  { key: 'sequences', label: 'SEQUENCES' },
-  { key: 'costs', label: 'COSTS' },
-  { key: 'voice', label: 'VOICE' },
-];
+const ROOM_NAMES: Record<string, string> = {
+  command: 'COMMAND CENTER',
+  research: 'RESEARCH LAB',
+  marketing: 'MARKETING BAY',
+  ops: 'OPS DECK',
+  etsy: 'ETSY STORE',
+  printify: 'PRINTIFY SHOP',
+  solar: 'SOLAR PIPELINE',
+};
 
-// ── Top Bar ──────────────────────────────────────────
-
-function TopBar({
-  health,
-  costs,
-}: {
-  health: ReturnType<typeof useHealth>;
-  costs: ReturnType<typeof useCosts>;
-}) {
-  const [clock, setClock] = useState('');
-
-  useEffect(() => {
-    const tick = () => {
-      setClock(
-        new Date().toLocaleTimeString('en-US', {
-          timeZone: 'America/New_York',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-        })
-      );
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  const isOnline = health.data?.status === 'ok' || health.data?.status === 'healthy';
-  const totalCost = costs.data?.total24h ?? 0;
-
-  return (
-    <header className="flex items-center justify-between px-5 py-3 border-b border-card-border bg-card/60 backdrop-blur-sm">
-      <div className="flex items-center gap-3">
-        <h1 className="text-lg font-bold tracking-[0.2em] text-cyan uppercase">JARVIS</h1>
-        <span className="text-[0.65rem] text-dim tracking-wider uppercase">Mission Control</span>
-      </div>
-      <div className="flex items-center gap-5 text-xs">
-        <span className="font-mono text-dim">{clock} ET</span>
-        <span className="flex items-center gap-1.5">
-          <span className={`status-dot ${isOnline ? 'online' : 'offline'}`} />
-          <span className={isOnline ? 'text-green' : 'text-pink'}>
-            {isOnline ? 'ONLINE' : 'OFFLINE'}
-          </span>
-        </span>
-        <span className="text-orange font-mono">
-          ${totalCost.toFixed(2)} <span className="text-dim">/ 24h</span>
-        </span>
-      </div>
-    </header>
-  );
-}
-
-// ── Leads Panel ──────────────────────────────────────
-
-function LeadsPanel() {
-  const { data: leads, loading } = useLeads();
-  const [selected, setSelected] = useState<Lead | null>(null);
-
-  if (loading) return <PanelLoading label="Loading leads..." />;
-
-  const list = leads ?? [];
-
-  function scoreClass(score?: number) {
-    if (!score) return 'text-dim';
-    if (score >= 80) return 'score-hot';
-    if (score >= 50) return 'score-warm';
-    return 'score-cold';
-  }
-
-  function statusBadge(status?: string) {
-    const s = (status || 'new').toLowerCase();
-    const cls =
-      s === 'new'
-        ? 'badge-new'
-        : s === 'contacted'
-          ? 'badge-contacted'
-          : s === 'qualified'
-            ? 'badge-qualified'
-            : s === 'closed'
-              ? 'badge-closed'
-              : 'badge-dead';
-    return <span className={`badge ${cls}`}>{status || 'new'}</span>;
-  }
-
-  return (
-    <div className="flex gap-4 h-full">
-      <div className="flex-1 overflow-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-dim uppercase tracking-wider border-b border-card-border">
-              <th className="text-left py-2 px-3 font-medium">Name</th>
-              <th className="text-center py-2 px-3 font-medium">Score</th>
-              <th className="text-center py-2 px-3 font-medium">Status</th>
-              <th className="text-left py-2 px-3 font-medium">Source</th>
-              <th className="text-left py-2 px-3 font-medium">Phone</th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="py-8 text-center text-dim">
-                  No leads found
-                </td>
-              </tr>
-            ) : (
-              list.map((lead) => (
-                <tr
-                  key={lead.id}
-                  onClick={() => setSelected(lead)}
-                  className={`border-b border-card-border/50 cursor-pointer hover:bg-cyan/5 transition-colors ${
-                    selected?.id === lead.id ? 'bg-cyan/10' : ''
-                  }`}
-                >
-                  <td className="py-2 px-3">{lead.name}</td>
-                  <td className={`py-2 px-3 text-center font-bold ${scoreClass(lead.score)}`}>
-                    {lead.score ?? '\u2014'}
-                  </td>
-                  <td className="py-2 px-3 text-center">{statusBadge(lead.status)}</td>
-                  <td className="py-2 px-3 text-dim">{lead.source ?? '\u2014'}</td>
-                  <td className="py-2 px-3 font-mono text-dim">{lead.phone ?? '\u2014'}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-      {selected && (
-        <div className="w-64 neon-card p-4 overflow-auto">
-          <h3 className="text-sm font-bold text-cyan mb-2">{selected.name}</h3>
-          <p className="text-xs text-dim mb-3">{selected.email ?? 'No email'}</p>
-          <h4 className="text-[0.65rem] uppercase text-dim tracking-wider mb-2">Activities</h4>
-          {selected.activities && selected.activities.length > 0 ? (
-            <ul className="space-y-2">
-              {selected.activities.map((a, i) => (
-                <li key={i} className="text-xs border-l-2 border-purple pl-2">
-                  <span className="text-purple text-[0.65rem] uppercase">{a.type}</span>
-                  <p className="text-dim">{a.detail}</p>
-                  <span className="text-[0.6rem] text-dim">{a.ts}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-xs text-dim">No activity recorded</p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Crew Panel ───────────────────────────────────────
-
-function CrewPanel() {
-  const { data: crew, loading, refetch } = useCrew();
-
-  if (loading) return <PanelLoading label="Loading crew..." />;
-
-  const crewData = crew as Record<string, any> | null;
-  const members: any[] = crewData?.workers ?? [];
-  const recentJobs: any[] = crewData?.recentJobs ?? [];
-
-  const agentColors: Record<string, string> = {
-    ghost: 'purple',
-    hawk: 'cyan',
-    pulse: 'green',
-  };
-
-  async function handleKill(jobId?: string) {
-    if (!jobId) return;
-    await killJob(jobId);
-    refetch();
-  }
-
-  async function handleKillAll() {
-    await killAllJobs();
-    refetch();
-  }
-
-  return (
-    <div>
-      <div className="flex justify-end mb-3">
-        <button onClick={handleKillAll} className="btn-kill">
-          Kill All Jobs
-        </button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {members.map((m) => {
-          const color = agentColors[m.name.toLowerCase()] || 'cyan';
-          const total = (m.tasksCompleted ?? 0) + (m.tasksFailed ?? 0);
-          const rate = total > 0 ? (((m.tasksCompleted ?? 0) / total) * 100).toFixed(0) : '\u2014';
-
-          return (
-            <div key={m.id} className={`neon-card p-4 glow-${color}`}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`status-dot ${
-                      m.status === 'working'
-                        ? 'working'
-                        : m.status === 'idle'
-                          ? 'online'
-                          : 'offline'
-                    }`}
-                  />
-                  <h3 className={`font-bold text-${color} uppercase tracking-wider text-sm`}>
-                    {m.name}
-                  </h3>
-                </div>
-                <span className="text-[0.65rem] text-dim uppercase">{m.status}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-center text-xs mb-3">
-                <div>
-                  <div className="text-green font-bold text-base">{m.tasksCompleted ?? 0}</div>
-                  <div className="text-dim text-[0.6rem]">DONE</div>
-                </div>
-                <div>
-                  <div className="text-pink font-bold text-base">{m.tasksFailed ?? 0}</div>
-                  <div className="text-dim text-[0.6rem]">FAIL</div>
-                </div>
-                <div>
-                  <div className="text-cyan font-bold text-base">{rate}%</div>
-                  <div className="text-dim text-[0.6rem]">RATE</div>
-                </div>
-              </div>
-              {m.currentJob && (
-                <div className="flex items-center justify-between bg-background/50 rounded px-2 py-1.5">
-                  <span className="text-xs text-dim truncate flex-1 mr-2">{m.currentJob}</span>
-                  <button onClick={() => handleKill(m.jobId)} className="btn-kill text-[0.65rem]">
-                    Kill
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-        {members.length === 0 && (
-          <div className="col-span-3 text-center py-8 text-dim text-sm">No crew data available</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Workflows Panel ──────────────────────────────────
-
-function WorkflowsPanel() {
-  const { data, loading, refetch } = useWorkflows();
-
-  if (loading) return <PanelLoading label="Loading workflows..." />;
-
-  const wfData = data as Record<string, any> | null;
-  const active: any[] = wfData?.active ?? wfData?.workflows ?? [];
-  const templates: any[] = wfData?.templates ?? [];
-
-  async function handleLaunch(templateId: string) {
-    await startWorkflow(templateId, {});
-    refetch();
-  }
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-xs uppercase tracking-wider text-dim mb-3">Active Workflows</h3>
-        {active.length === 0 ? (
-          <p className="text-xs text-dim">No active workflows</p>
-        ) : (
-          <div className="space-y-3">
-            {active.map((w) => {
-              const pct = w.totalSteps ? ((w.step ?? 0) / w.totalSteps) * 100 : 0;
-              return (
-                <div key={w.id} className="neon-card p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-cyan">{w.template}</span>
-                    <span className="text-[0.65rem] text-dim">{w.status}</span>
-                  </div>
-                  <div className="progress-bar">
-                    <div className="progress-bar-fill" style={{ width: `${pct}%` }} />
-                  </div>
-                  <div className="text-[0.6rem] text-dim mt-1">
-                    Step {w.step ?? 0} / {w.totalSteps ?? '?'}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-      <div>
-        <h3 className="text-xs uppercase tracking-wider text-dim mb-3">Available Templates</h3>
-        {templates.length === 0 ? (
-          <p className="text-xs text-dim">No templates available</p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {templates.map((t) => (
-              <div key={t.id} className="neon-card p-3 flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-bold text-foreground">{t.name}</div>
-                  {t.description && (
-                    <div className="text-[0.65rem] text-dim mt-0.5">{t.description}</div>
-                  )}
-                </div>
-                <button onClick={() => handleLaunch(t.id)} className="btn-launch">
-                  Launch
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Sequences Panel ──────────────────────────────────
-
-function SequencesPanel() {
-  const [sequences, setSequences] = useState<Sequence[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchSequences().then((data) => {
-      setSequences(data ?? []);
-      setLoading(false);
-    });
-  }, []);
-
-  if (loading) return <PanelLoading label="Loading sequences..." />;
-
-  return (
-    <div>
-      {sequences.length === 0 ? (
-        <p className="text-xs text-dim text-center py-8">No active sequences</p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {sequences.map((s) => (
-            <div key={s.id} className="neon-card p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-bold text-purple">{s.name}</h4>
-                <span
-                  className={`badge ${s.status === 'active' ? 'badge-qualified' : 'badge-dead'}`}
-                >
-                  {s.status ?? 'unknown'}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-center text-xs">
-                <div>
-                  <div className="text-cyan font-bold text-lg">{s.enrolled ?? 0}</div>
-                  <div className="text-dim text-[0.6rem]">ENROLLED</div>
-                </div>
-                <div>
-                  <div className="text-green font-bold text-lg">{s.completed ?? 0}</div>
-                  <div className="text-dim text-[0.6rem]">COMPLETED</div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Costs Panel ──────────────────────────────────────
-
-function CostsPanel() {
-  const { data, loading } = useCosts();
-
-  if (loading) return <PanelLoading label="Loading costs..." />;
-
-  if (!data) return <p className="text-xs text-dim text-center py-8">No cost data available</p>;
-
-  const costData = data as Record<string, any>;
-  const byAgent = costData?.by_agent ?? costData?.agents ?? {};
-  const totalCost = costData?.total_cost ?? costData?.total24h ?? 0;
-  const entries = Object.entries(byAgent).sort((a: any, b: any) => (b[1]?.cost ?? b[1] ?? 0) - (a[1]?.cost ?? a[1] ?? 0));
-  const maxCost = Math.max(...entries.map(([, v]: any) => v?.cost ?? v ?? 0), 0.01);
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-xs uppercase tracking-wider text-dim">Cost by Agent (24h)</h3>
-        <span className="text-orange font-mono font-bold text-sm">${(totalCost || 0).toFixed(2)}</span>
-      </div>
-      {entries.length === 0 ? (
-        <p className="text-xs text-dim text-center py-8">No agent costs recorded — run setup-v2.sql in Supabase</p>
-      ) : (
-        <div className="space-y-3">
-          {entries.map(([agent, val]: any) => {
-            const cost = val?.cost ?? val ?? 0;
-            return (
-              <div key={agent}>
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="text-foreground font-medium uppercase">{agent}</span>
-                  <span className="text-orange font-mono">${(cost || 0).toFixed(4)}</span>
-                </div>
-                <div className="h-2 bg-card-border/30 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-orange to-pink"
-                    style={{ width: `${(cost / maxCost) * 100}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Voice Panel ──────────────────────────────────────
+// ── Voice Overlay ──────────────────────────────────────
 
 interface ChatMessage {
   role: 'user' | 'jarvis';
@@ -466,7 +61,7 @@ interface ChatMessage {
   ts: number;
 }
 
-function VoicePanel() {
+function VoiceOverlay({ onClose }: { onClose: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [listening, setListening] = useState(false);
@@ -491,7 +86,6 @@ function VoicePanel() {
       setSending(true);
 
       try {
-        // Try voice first for TTS, fall back to chat
         const voiceRes = await sendVoice(text.trim());
         let reply = '';
 
@@ -552,86 +146,90 @@ function VoicePanel() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-4 h-full">
-      {/* Orb */}
-      <div className="flex items-center justify-center py-4">
-        <div
-          className={`voice-orb ${listening ? 'listening' : speaking ? 'speaking' : ''}`}
-        />
-      </div>
-
-      {/* Chat Log */}
-      <div
-        ref={logRef}
-        className="flex-1 w-full max-w-2xl overflow-auto neon-card p-4 space-y-3 min-h-[200px] max-h-[300px]"
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-2xl max-h-[80vh] bg-[#0a0e1a] border border-[#1a2744] rounded-xl shadow-2xl flex flex-col overflow-hidden"
+        style={{ boxShadow: '0 0 60px rgba(0, 229, 255, 0.1)' }}
       >
-        {messages.length === 0 && (
-          <p className="text-dim text-xs text-center py-4">Say something to Jarvis...</p>
-        )}
-        {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div
-              className={`max-w-[70%] rounded-lg px-3 py-2 text-xs ${
-                m.role === 'user'
-                  ? 'bg-cyan/10 border border-cyan/20 text-foreground'
-                  : 'bg-purple/10 border border-purple/20 text-foreground'
-              }`}
-            >
-              <div className="text-[0.6rem] text-dim mb-0.5 uppercase">
-                {m.role === 'user' ? 'You' : 'Jarvis'}
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-3 border-b border-[#1a2744]">
+          <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-[#00e5ff]">Voice Chat</h2>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg border border-[#1a2744] bg-[#0d1424] flex items-center justify-center text-[#6b7fa3] hover:text-[#ff4081] hover:border-[#ff4081] transition-all text-sm"
+          >
+            X
+          </button>
+        </div>
+
+        {/* Orb */}
+        <div className="flex items-center justify-center py-4 shrink-0">
+          <div className={`voice-orb ${listening ? 'listening' : speaking ? 'speaking' : ''}`} />
+        </div>
+
+        {/* Chat Log */}
+        <div
+          ref={logRef}
+          className="flex-1 overflow-auto px-6 py-2 space-y-3 min-h-[150px]"
+        >
+          {messages.length === 0 && (
+            <p className="text-[#6b7fa3] text-xs text-center py-4">Say something to Jarvis...</p>
+          )}
+          {messages.map((m, i) => (
+            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-[70%] rounded-lg px-3 py-2 text-xs ${
+                  m.role === 'user'
+                    ? 'bg-[#00e5ff]/10 border border-[#00e5ff]/20 text-[#c8d6e5]'
+                    : 'bg-[#b388ff]/10 border border-[#b388ff]/20 text-[#c8d6e5]'
+                }`}
+              >
+                <div className="text-[0.6rem] text-[#6b7fa3] mb-0.5 uppercase">
+                  {m.role === 'user' ? 'You' : 'Jarvis'}
+                </div>
+                {m.text}
               </div>
-              {m.text}
             </div>
-          </div>
-        ))}
-        {sending && (
-          <div className="flex justify-start">
-            <div className="bg-purple/10 border border-purple/20 rounded-lg px-3 py-2 text-xs text-dim animate-pulse">
-              Jarvis is thinking...
+          ))}
+          {sending && (
+            <div className="flex justify-start">
+              <div className="bg-[#b388ff]/10 border border-[#b388ff]/20 rounded-lg px-3 py-2 text-xs text-[#6b7fa3] animate-pulse">
+                Jarvis is thinking...
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* Input */}
+        <div className="p-4 border-t border-[#1a2744] flex gap-2 shrink-0">
+          <button
+            onClick={toggleMic}
+            className={`shrink-0 w-10 h-10 rounded-lg border flex items-center justify-center text-lg transition-all ${
+              listening
+                ? 'bg-[#69f0ae]/20 border-[#69f0ae]/40 text-[#69f0ae] glow-green'
+                : 'bg-[#0d1424] border-[#1a2744] text-[#6b7fa3] hover:text-[#00e5ff] hover:border-[#00e5ff]'
+            }`}
+            title={listening ? 'Stop listening' : 'Start listening'}
+          >
+            {listening ? '\u23F9' : '\uD83C\uDFA4'}
+          </button>
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
+            placeholder="Talk to Jarvis..."
+            className="flex-1 bg-[#0d1424] border border-[#1a2744] rounded-lg px-3 py-2 text-sm text-[#c8d6e5] placeholder:text-[#6b7fa3]/50 focus:outline-none focus:border-[#00e5ff]"
+          />
+          <button
+            onClick={() => handleSend(input)}
+            disabled={sending || !input.trim()}
+            className="shrink-0 px-4 py-2 rounded-lg bg-[#00e5ff]/10 border border-[#00e5ff]/30 text-[#00e5ff] text-sm font-medium hover:bg-[#00e5ff]/20 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            Send
+          </button>
+        </div>
       </div>
-
-      {/* Input */}
-      <div className="w-full max-w-2xl flex gap-2">
-        <button
-          onClick={toggleMic}
-          className={`shrink-0 w-10 h-10 rounded-lg border flex items-center justify-center text-lg transition-all ${
-            listening
-              ? 'bg-green/20 border-green/40 text-green glow-green'
-              : 'bg-card border-card-border text-dim hover:text-cyan hover:border-cyan'
-          }`}
-          title={listening ? 'Stop listening' : 'Start listening'}
-        >
-          {listening ? '\u23F9' : '\uD83C\uDFA4'}
-        </button>
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
-          placeholder="Talk to Jarvis..."
-          className="flex-1 bg-card border border-card-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-dim focus:outline-none focus:border-cyan"
-        />
-        <button
-          onClick={() => handleSend(input)}
-          disabled={sending || !input.trim()}
-          className="shrink-0 px-4 py-2 rounded-lg bg-cyan/10 border border-cyan/30 text-cyan text-sm font-medium hover:bg-cyan/20 disabled:opacity-30 disabled:cursor-not-allowed"
-        >
-          Send
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── Loading Component ────────────────────────────────
-
-function PanelLoading({ label }: { label: string }) {
-  return (
-    <div className="flex items-center justify-center py-12">
-      <span className="text-dim text-xs animate-pulse tracking-widest uppercase">{label}</span>
     </div>
   );
 }
@@ -639,10 +237,19 @@ function PanelLoading({ label }: { label: string }) {
 // ── Main Page ────────────────────────────────────────
 
 export default function MissionControl() {
-  const [activeTab, setActiveTab] = useState<Tab>('leads');
   const [activeRoom, setActiveRoom] = useState<string | null>(null);
+  const [showAddAgent, setShowAddAgent] = useState(false);
+  const [showAddBusiness, setShowAddBusiness] = useState(false);
+  const [showVoice, setShowVoice] = useState(false);
+
   const health = useHealth();
   const costs = useCosts();
+  const { data: leads } = useLeads();
+  const { data: crew } = useCrew();
+
+  const leadsCount = leads?.length ?? 0;
+  const workers: any[] = (crew as any)?.workers ?? [];
+  const activeAgents = workers.filter((w: any) => w.status === 'working').length;
 
   const onPhaserReady = useCallback((h: PhaserGameHandle) => {
     h.onRoomClick((roomId) => {
@@ -651,58 +258,54 @@ export default function MissionControl() {
   }, []);
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <TopBar health={health} costs={costs} />
+    <div className="flex flex-col h-screen overflow-hidden">
+      {/* Top Bar */}
+      <TopBar
+        health={health}
+        costs={costs}
+        leadsCount={leadsCount}
+        activeAgents={activeAgents}
+        onAddAgent={() => setShowAddAgent(true)}
+        onAddBusiness={() => setShowAddBusiness(true)}
+        onVoiceToggle={() => setShowVoice(true)}
+      />
 
-      {/* Phaser Game Canvas */}
-      <div className="px-4 pt-4">
-        <PhaserGame
-          onReady={onPhaserReady}
-          className="rounded-xl border border-card-border overflow-hidden"
-        />
+      {/* Phaser Dungeon — main view */}
+      <div className="flex-1 relative min-h-0">
+        <div className="h-full px-4 py-3">
+          <PhaserGame
+            onReady={onPhaserReady}
+            className="rounded-xl border border-[#1a2744] overflow-hidden h-full"
+          />
+        </div>
+
+        {/* Room click hint overlay — only when no room is open */}
+        {!activeRoom && (
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none">
+            <div className="px-4 py-2 rounded-full bg-[#0d1424]/80 backdrop-blur-sm border border-[#1a2744] text-[0.65rem] text-[#6b7fa3] uppercase tracking-widest animate-pulse">
+              Click a room to enter
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Room selection toast */}
+      {/* Room Interior — slides up when a room is clicked */}
       {activeRoom && (
-        <div className="mx-4 mt-2 flex items-center justify-between neon-card px-4 py-2 text-xs">
-          <span>
-            Room: <span className="text-cyan font-bold">{activeRoom}</span>
-          </span>
-          <button
-            className="text-dim hover:text-foreground ml-3"
-            onClick={() => setActiveRoom(null)}
-          >
-            dismiss
-          </button>
-        </div>
+        <RoomInterior
+          roomId={activeRoom}
+          roomName={ROOM_NAMES[activeRoom] ?? activeRoom.toUpperCase()}
+          roomColor={ROOM_COLORS[activeRoom] ?? '#00e5ff'}
+          onClose={() => setActiveRoom(null)}
+        />
       )}
 
-      {/* Tab Bar */}
-      <nav className="flex items-center gap-0 px-4 pt-4 border-b border-card-border">
-        {TAB_LIST.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2.5 text-xs font-bold tracking-[0.15em] transition-all ${
-              activeTab === tab.key
-                ? 'tab-active'
-                : 'text-dim hover:text-foreground border-b-2 border-transparent'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
+      {/* Custom Workflow — fixed at bottom */}
+      <CustomWorkflow />
 
-      {/* Panel Content */}
-      <div className="flex-1 p-4 overflow-auto">
-        {activeTab === 'leads' && <LeadsPanel />}
-        {activeTab === 'crew' && <CrewPanel />}
-        {activeTab === 'workflows' && <WorkflowsPanel />}
-        {activeTab === 'sequences' && <SequencesPanel />}
-        {activeTab === 'costs' && <CostsPanel />}
-        {activeTab === 'voice' && <VoicePanel />}
-      </div>
+      {/* Modals */}
+      {showAddAgent && <AddAgentModal onClose={() => setShowAddAgent(false)} />}
+      {showAddBusiness && <AddBusinessModal onClose={() => setShowAddBusiness(false)} />}
+      {showVoice && <VoiceOverlay onClose={() => setShowVoice(false)} />}
     </div>
   );
 }
