@@ -90,14 +90,13 @@ body{background:#0b1120;color:#c8d6e5;font-family:-apple-system,BlinkMacSystemFo
 
 /* ═══ JARVIS VOICE INTERFACE ═══ */
 .jarvis-voice{max-width:700px;margin:0 auto;text-align:center;}
-.jarvis-orb{width:120px;height:120px;border-radius:50%;margin:20px auto;position:relative;background:radial-gradient(circle,rgba(0,180,216,0.15),transparent 70%);border:2px solid rgba(0,180,216,0.2);display:flex;align-items:center;justify-content:center;transition:all 0.3s;}
-.jarvis-orb.speaking{border-color:rgba(0,180,216,0.5);box-shadow:0 0 40px rgba(0,180,216,0.2),0 0 80px rgba(0,180,216,0.1);background:radial-gradient(circle,rgba(0,180,216,0.25),transparent 70%);}
-.jarvis-orb.listening{border-color:rgba(255,64,129,0.5);box-shadow:0 0 40px rgba(255,64,129,0.2);background:radial-gradient(circle,rgba(255,64,129,0.15),transparent 70%);}
-.jarvis-orb.thinking{border-color:rgba(179,136,255,0.5);box-shadow:0 0 40px rgba(179,136,255,0.2);background:radial-gradient(circle,rgba(179,136,255,0.15),transparent 70%);}
-/* Waveform bars inside orb */
-.wave-bars{display:flex;align-items:center;gap:3px;height:40px;}
-.wave-bar{width:4px;background:#00b4d8;border-radius:2px;transition:height 0.1s;opacity:0.6;}
-.jarvis-orb.speaking .wave-bar{opacity:1;}
+.jarvis-orb-wrap{width:200px;height:200px;margin:20px auto;position:relative;}
+.jarvis-orb-canvas{width:200px;height:200px;display:block;}
+.jarvis-orb-glow{position:absolute;inset:-30px;border-radius:50%;pointer-events:none;transition:all 0.5s;}
+.jarvis-orb-wrap.idle .jarvis-orb-glow{box-shadow:0 0 40px rgba(0,180,216,0.08),0 0 80px rgba(0,180,216,0.04);}
+.jarvis-orb-wrap.listening .jarvis-orb-glow{box-shadow:0 0 60px rgba(255,64,129,0.2),0 0 120px rgba(255,64,129,0.1);}
+.jarvis-orb-wrap.thinking .jarvis-orb-glow{box-shadow:0 0 60px rgba(179,136,255,0.2),0 0 120px rgba(179,136,255,0.1);}
+.jarvis-orb-wrap.speaking .jarvis-orb-glow{box-shadow:0 0 80px rgba(0,180,216,0.3),0 0 160px rgba(0,180,216,0.15);}
 .jarvis-label{font-size:10px;color:#3a5068;letter-spacing:2px;margin-top:8px;}
 .jarvis-text{font-size:13px;color:#7a8ea8;margin:16px 0;min-height:40px;line-height:1.5;max-width:500px;margin-left:auto;margin-right:auto;}
 
@@ -278,8 +277,9 @@ body{background:#0b1120;color:#c8d6e5;font-family:-apple-system,BlinkMacSystemFo
   <div class="sec" id="sec-voice">
     <div class="sec-lbl">JARVIS</div>
     <div class="jarvis-voice">
-      <div class="jarvis-orb" id="jOrb">
-        <div class="wave-bars" id="waveBars"></div>
+      <div class="jarvis-orb-wrap idle" id="jOrb">
+        <div class="jarvis-orb-glow"></div>
+        <canvas class="jarvis-orb-canvas" id="orbCanvas" width="400" height="400"></canvas>
       </div>
       <div class="jarvis-label">JARVIS AI</div>
       <div class="jarvis-text" id="jText">What's good, boss. Tap the mic or type something.</div>
@@ -328,8 +328,98 @@ body{background:#0b1120;color:#c8d6e5;font-family:-apple-system,BlinkMacSystemFo
 </div>
 
 <script>
-// Init wave bars
-(function(){var w=document.getElementById('waveBars');for(var i=0;i<12;i++){var b=document.createElement('div');b.className='wave-bar';b.style.height='8px';w.appendChild(b);}})();
+// ═══ JARVIS ORB — Fluid Particle Animation ═══
+(function(){
+var canvas=document.getElementById('orbCanvas'),ctx=canvas.getContext('2d');
+var W=400,H=400,CX=W/2,CY=H/2,R=80;
+var particles=[],NUM=120,orbState='idle',tick=0;
+
+// Color palettes per state
+var colors={idle:{r:0,g:180,b:216},listening:{r:255,g:64,b:129},thinking:{r:179,g:136,b:255},speaking:{r:0,g:230,b:180}};
+
+for(var i=0;i<NUM;i++){
+  var angle=Math.random()*Math.PI*2;
+  var dist=R*0.3+Math.random()*R*0.7;
+  particles.push({a:angle,d:dist,baseD:dist,r:1.5+Math.random()*2.5,speed:0.002+Math.random()*0.008,drift:Math.random()*Math.PI*2,driftSpeed:0.01+Math.random()*0.02,phase:Math.random()*Math.PI*2});
+}
+
+function lerp(a,b,t){return a+(b-a)*t;}
+
+function draw(){
+  tick++;
+  ctx.clearRect(0,0,W,H);
+  var c=colors[orbState]||colors.idle;
+  var intensity=orbState==='idle'?0.3:orbState==='listening'?0.7:orbState==='thinking'?0.6:0.9;
+  var movement=orbState==='idle'?0.15:orbState==='listening'?0.5:orbState==='thinking'?0.8:1.0;
+  var pulse=orbState==='speaking'?Math.sin(tick*0.08)*12:orbState==='thinking'?Math.sin(tick*0.04)*6:Math.sin(tick*0.02)*3;
+
+  // Core glow
+  var coreGrad=ctx.createRadialGradient(CX,CY,0,CX,CY,R+20+pulse);
+  coreGrad.addColorStop(0,'rgba('+c.r+','+c.g+','+c.b+','+(0.12*intensity)+')');
+  coreGrad.addColorStop(0.5,'rgba('+c.r+','+c.g+','+c.b+','+(0.05*intensity)+')');
+  coreGrad.addColorStop(1,'rgba('+c.r+','+c.g+','+c.b+',0)');
+  ctx.fillStyle=coreGrad;
+  ctx.beginPath();ctx.arc(CX,CY,R+20+pulse,0,Math.PI*2);ctx.fill();
+
+  // Fluid blob boundary (distorted circle)
+  ctx.beginPath();
+  for(var a=0;a<Math.PI*2;a+=0.02){
+    var n1=Math.sin(a*3+tick*0.03*movement)*8*movement;
+    var n2=Math.sin(a*5-tick*0.05*movement)*5*movement;
+    var n3=Math.sin(a*7+tick*0.07*movement)*3*movement;
+    var br=R+n1+n2+n3+pulse;
+    var bx=CX+Math.cos(a)*br,by=CY+Math.sin(a)*br;
+    if(a===0)ctx.moveTo(bx,by);else ctx.lineTo(bx,by);
+  }
+  ctx.closePath();
+  ctx.strokeStyle='rgba('+c.r+','+c.g+','+c.b+','+(0.15+intensity*0.2)+')';
+  ctx.lineWidth=1.5;
+  ctx.stroke();
+
+  // Inner fluid fill
+  var fillGrad=ctx.createRadialGradient(CX,CY,0,CX,CY,R+pulse);
+  fillGrad.addColorStop(0,'rgba('+c.r+','+c.g+','+c.b+','+(0.06+intensity*0.06)+')');
+  fillGrad.addColorStop(1,'rgba('+c.r+','+c.g+','+c.b+',0.01)');
+  ctx.fillStyle=fillGrad;
+  ctx.fill();
+
+  // Particles
+  particles.forEach(function(p){
+    p.a+=p.speed*(0.5+movement*1.5);
+    p.drift+=p.driftSpeed;
+    var wobble=Math.sin(p.drift)*R*0.2*movement;
+    var targetD=p.baseD+wobble+pulse*0.5;
+    p.d=lerp(p.d,targetD,0.08);
+    var px=CX+Math.cos(p.a)*p.d;
+    var py=CY+Math.sin(p.a)*p.d;
+    var alpha=0.2+intensity*0.6+Math.sin(p.phase+tick*0.05)*0.15;
+    var sz=p.r*(0.8+movement*0.5+Math.sin(tick*0.06+p.phase)*0.3);
+
+    var pGrad=ctx.createRadialGradient(px,py,0,px,py,sz*2);
+    pGrad.addColorStop(0,'rgba('+c.r+','+c.g+','+c.b+','+alpha+')');
+    pGrad.addColorStop(1,'rgba('+c.r+','+c.g+','+c.b+',0)');
+    ctx.fillStyle=pGrad;
+    ctx.beginPath();ctx.arc(px,py,sz*2,0,Math.PI*2);ctx.fill();
+
+    ctx.fillStyle='rgba('+(c.r+40)+','+(c.g+40)+','+(c.b+40)+','+alpha*0.8+')';
+    ctx.beginPath();ctx.arc(px,py,sz*0.8,0,Math.PI*2);ctx.fill();
+  });
+
+  // Ring particles (orbit)
+  for(var j=0;j<8;j++){
+    var ra=tick*0.01*(j%2===0?1:-1)+j*(Math.PI/4);
+    var rr=R+15+pulse+Math.sin(tick*0.03+j)*5;
+    var rx=CX+Math.cos(ra)*rr,ry=CY+Math.sin(ra)*rr;
+    ctx.fillStyle='rgba('+c.r+','+c.g+','+c.b+','+(0.3+intensity*0.4)+')';
+    ctx.beginPath();ctx.arc(rx,ry,1.5+movement,0,Math.PI*2);ctx.fill();
+  }
+
+  requestAnimationFrame(draw);
+}
+
+window.setOrbState=function(state){orbState=state;document.getElementById('jOrb').className='jarvis-orb-wrap '+state;};
+draw();
+})();
 
 // Tabs
 function sT(id,el){document.querySelectorAll('.sec').forEach(function(s){s.classList.remove('active');});document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});document.getElementById('sec-'+id).classList.add('active');if(el)el.classList.add('active');}
@@ -343,10 +433,9 @@ function fup(s){var d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.fl
 function ago(i){if(!i)return'';var d=(Date.now()-new Date(i).getTime())/1000;return d<60?'now':d<3600?Math.floor(d/60)+'m':d<86400?Math.floor(d/3600)+'h':Math.floor(d/86400)+'d';}
 function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 
-// Wave animation for speaking
-var waveInterval=null;
-function startWave(){var bars=document.querySelectorAll('.wave-bar');waveInterval=setInterval(function(){bars.forEach(function(b){b.style.height=(4+Math.random()*32)+'px';});},100);}
-function stopWave(){if(waveInterval)clearInterval(waveInterval);document.querySelectorAll('.wave-bar').forEach(function(b){b.style.height='8px';});}
+// Orb state helpers (replaces old wave bars)
+function startWave(){} // no-op, canvas handles it
+function stopWave(){}  // no-op, canvas handles it
 
 // Data
 var S={h:null,c:null,l:null};
@@ -385,17 +474,36 @@ async function loadProg(){try{var r=await fetch('/dashboard/api/progress');var d
 async function cDel(){var w=document.getElementById('cW').value,t=document.getElementById('cT').value,d=document.getElementById('cD').value;if(!t)return;await fetch('/dashboard/api/crew/job',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({worker:w,title:t,description:d,priority:7})});document.getElementById('cT').value='';document.getElementById('cD').value='';loadAll();}
 async function cRun(){await fetch('/dashboard/api/crew/run',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});loadAll();}
 
-// Voice
-var vr=null,isR=false,jA=null;
-function iSR(){var S=window.SpeechRecognition||window.webkitSpeechRecognition;if(!S)return null;var r=new S();r.continuous=false;r.interimResults=false;r.lang='en-US';r.onresult=function(e){document.getElementById('vIn').value=e.results[0][0].transcript;sM();sVM(e.results[0][0].transcript,true);};r.onerror=function(){sM();};r.onend=function(){if(isR)sM();};return r;}
-function tM(){if(isR){sM();return;}if(!vr)vr=iSR();if(!vr)return;if(jA){jA.pause();jA=null;}isR=true;document.getElementById('micBtn').classList.add('rec');document.getElementById('jOrb').classList.add('listening');document.getElementById('jText').textContent='Listening...';document.getElementById('vSt').textContent='Listening...';vr.start();}
-function sM(){isR=false;document.getElementById('micBtn').classList.remove('rec');document.getElementById('jOrb').classList.remove('listening');if(vr)try{vr.stop();}catch(e){}}
-function sVT(){var i=document.getElementById('vIn');var t=i.value.trim();if(!t)return;i.value='';sVM(t,false);}
+// Voice — with overlap protection
+var vr=null,isR=false,jA=null,jBusy=false;
+function iSR(){var S=window.SpeechRecognition||window.webkitSpeechRecognition;if(!S)return null;var r=new S();r.continuous=false;r.interimResults=false;r.lang='en-US';r.onresult=function(e){
+  // Only process if we're still in listening state (not interrupted by Jarvis speaking)
+  if(!isR)return;
+  document.getElementById('vIn').value=e.results[0][0].transcript;sM();sVM(e.results[0][0].transcript,true);
+};r.onerror=function(){sM();};r.onend=function(){if(isR)sM();};return r;}
+
+function tM(){
+  // If Jarvis is thinking or speaking, stop him first and DON'T start mic yet
+  if(jBusy&&jA){jA.pause();jA.currentTime=0;jA=null;jBusy=false;setOrbState('idle');document.getElementById('jText').textContent='Interrupted — tap mic again to talk';document.getElementById('vSt').textContent='Tap mic to talk';document.getElementById('micBtn').classList.remove('thk');return;}
+  if(jBusy){return;} // still thinking, can't interrupt AI call
+  if(isR){sM();return;}
+  if(!vr)vr=iSR();if(!vr)return;
+  isR=true;
+  document.getElementById('micBtn').classList.add('rec');
+  setOrbState('listening');
+  document.getElementById('jText').textContent='Listening...';
+  document.getElementById('vSt').textContent='Listening — speak now';
+  vr.start();
+}
+function sM(){isR=false;document.getElementById('micBtn').classList.remove('rec');if(!jBusy)setOrbState('idle');if(vr)try{vr.stop();}catch(e){}}
+function sVT(){var i=document.getElementById('vIn');var t=i.value.trim();if(!t||jBusy)return;i.value='';sVM(t,false);}
+
 async function sVM(t,au){
   var log=document.getElementById('jLog');
   log.innerHTML+='<div class="jm u"><div class="js">YOU</div><div class="jb">'+esc(t)+'</div></div>';log.scrollTop=log.scrollHeight;
+  jBusy=true;
   document.getElementById('micBtn').classList.add('thk');
-  document.getElementById('jOrb').className='jarvis-orb thinking';
+  setOrbState('thinking');
   document.getElementById('jText').textContent='Thinking...';
   document.getElementById('vSt').textContent='Jarvis is thinking...';
   try{
@@ -406,17 +514,16 @@ async function sVM(t,au){
     if(jA){jA.pause();jA=null;}
     if(d.audio){
       jA=new Audio('data:audio/mpeg;base64,'+d.audio);
-      document.getElementById('jOrb').className='jarvis-orb speaking';
-      startWave();
+      setOrbState('speaking');
       jA.play().catch(function(){});
-      document.getElementById('vSt').textContent='Speaking...';
-      jA.onended=function(){document.getElementById('jOrb').className='jarvis-orb';stopWave();document.getElementById('vSt').textContent='Click mic to talk';};
-    } else {document.getElementById('jOrb').className='jarvis-orb';document.getElementById('vSt').textContent='Click mic to talk';}
+      document.getElementById('vSt').textContent='Speaking... (tap mic to interrupt)';
+      jA.onended=function(){jA=null;jBusy=false;setOrbState('idle');document.getElementById('vSt').textContent='Tap mic to talk';};
+    } else {jBusy=false;setOrbState('idle');document.getElementById('vSt').textContent='Tap mic to talk';}
   }catch(e){
     log.innerHTML+='<div class="jm j"><div class="js">JARVIS</div><div class="jb" style="color:#ff4081">'+esc(e.message)+'</div></div>';
-    document.getElementById('jOrb').className='jarvis-orb';document.getElementById('jText').textContent='Error';document.getElementById('vSt').textContent='Error';
+    setOrbState('idle');document.getElementById('jText').textContent='Error';document.getElementById('vSt').textContent='Error — tap mic to retry';jBusy=false;
   }
-  document.getElementById('micBtn').classList.remove('thk');stopWave();
+  document.getElementById('micBtn').classList.remove('thk');
 }
 
 // Feed
