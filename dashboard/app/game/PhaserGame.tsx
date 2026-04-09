@@ -27,19 +27,17 @@ export default function PhaserGame({ onReady, className }: PhaserGameProps) {
     const { default: DungeonScene } = await import('./DungeonScene');
 
     const config: Phaser.Types.Core.GameConfig = {
-      type: Phaser.AUTO,
+      type: Phaser.CANVAS,
       width: 1200,
       height: 800,
       parent: containerRef.current,
-      transparent: true,
+      backgroundColor: '#0a0e1a',
       scene: [DungeonScene],
-      physics: { default: 'arcade', arcade: { debug: false } },
       scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
       },
       antialias: true,
-      pixelArt: false,
     };
 
     const game = new Phaser.Game(config);

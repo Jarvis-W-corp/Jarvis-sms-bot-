@@ -7,6 +7,20 @@ const { generalLimiter, aiLimiter } = require('./src/middleware/ratelimit');
 
 const path = require('path');
 const app = express();
+
+// CORS — allow dashboard (localhost dev + Vercel production)
+app.use((req, res, next) => {
+  const origin = req.headers.origin || '';
+  if (origin.includes('localhost') || origin.includes('vercel.app') || origin.includes('jarvis')) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
