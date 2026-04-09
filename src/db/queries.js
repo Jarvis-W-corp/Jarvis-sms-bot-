@@ -195,6 +195,86 @@ async function getRecentAgentCycles(tenantId, limit = 10) {
   return data || [];
 }
 
+// ── API Cost Tracking ──
+
+async function logApiCost(tenantId, agent, model, inputTokens, outputTokens, tool, jobId) {
+  // Pricing per 1M tokens (Sonnet 4 as of 2026)
+  const pricing = {
+    'claude-sonnet-4-20250514': { input: 3, output: 15 },
+    'whisper-1': { input: 0.006, output: 0 }, // per second, approximated
+  };
+  const p = pricing[model] || { input: 3, output: 15 };
+  const cost = ((inputTokens || 0) * p.input + (outputTokens || 0) * p.output) / 1_000_000;
+
+  const { data } = await supabase.from('api_costs').insert({
+    tenant_id: tenantId,
+    agent: agent || 'jarvis',
+    model: model || 'claude-sonnet-4-20250514',
+    input_tokens: inputTokens || 0,
+    output_tokens: outputTokens || 0,
+    cost_usd: Math.round(cost * 1_000_000) / 1_000_000, // 6 decimal places
+    tool: tool || null,
+    job_id: jobId || null,
+  }).select().single();
+  return data;
+}
+
+async function getApiCosts(tenantId, since, agent) {
+  let query = supabase.from('api_costs').select('*');
+  if (tenantId) query = query.eq('tenant_id', tenantId);
+  if (since) query = query.gte('created_at', since);
+  if (agent) query = query.eq('agent', agent);
+  const { data } = await query.order('created_at', { ascending: false }).limit(200);
+  return data || [];
+}
+
+async function getApiCostSummary(tenantId, since) {
+  const costs = await getApiCosts(tenantId, since);
+  const byAgent = {};
+  let totalCost = 0;
+  let totalInput = 0;
+  let totalOutput = 0;
+  costs.forEach(c => {
+    const a = c.agent || 'jarvis';
+    if (!byAgent[a]) byAgent[a] = { cost: 0, calls: 0, input_tokens: 0, output_tokens: 0 };
+    byAgent[a].cost += c.cost_usd || 0;
+    byAgent[a].calls++;
+    byAgent[a].input_tokens += c.input_tokens || 0;
+    byAgent[a].output_tokens += c.output_tokens || 0;
+    totalCost += c.cost_usd || 0;
+    totalInput += c.input_tokens || 0;
+    totalOutput += c.output_tokens || 0;
+  });
+  return { total_cost: Math.round(totalCost * 100) / 100, total_calls: costs.length, total_input_tokens: totalInput, total_output_tokens: totalOutput, by_agent: byAgent };
+}
+
+// ── Processed File Tracking (idempotency) ──
+
+async function markFileProcessed(tenantId, fileId, fileName, source, result) {
+  const { data } = await supabase.from('processed_files').upsert({
+    tenant_id: tenantId,
+    file_id: fileId,
+    file_name: fileName || null,
+    source: source || 'drive',
+    result_summary: (result || '').substring(0, 500),
+    processed_at: new Date().toISOString(),
+  }, { onConflict: 'tenant_id,file_id' }).select().single();
+  return data;
+}
+
+async function isFileProcessed(tenantId, fileId) {
+  const { data } = await supabase.from('processed_files').select('id, processed_at')
+    .eq('tenant_id', tenantId).eq('file_id', fileId).single();
+  return !!data;
+}
+
+async function getProcessedFiles(tenantId, source, limit = 50) {
+  let query = supabase.from('processed_files').select('*').eq('tenant_id', tenantId);
+  if (source) query = query.eq('source', source);
+  const { data } = await query.order('processed_at', { ascending: false }).limit(limit);
+  return data || [];
+}
+
 module.exports = {
   getTenantByDiscordId, getDefaultTenant, getTenantById, getAllActiveTenants,
   getOrCreateUser, getAllUsers, deleteUser,
@@ -202,4 +282,6 @@ module.exports = {
   saveMemory, getFactMemories, getOpenTasks, getRecentDecisions, searchMemories, getMemoryCount, getMemoriesByCategory,
   getStats,
   createAgentTask, updateAgentTask, getAgentTasks, getRecentAgentCycles,
+  logApiCost, getApiCosts, getApiCostSummary,
+  markFileProcessed, isFileProcessed, getProcessedFiles,
 };

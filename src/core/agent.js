@@ -15,6 +15,18 @@ const voice = require('./voice');
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// ── Per-tool timeout wrapper ──
+const DEFAULT_TOOL_TIMEOUT = 60_000; // 60s default
+function withTimeout(fn, ms) {
+  const timeout = ms || DEFAULT_TOOL_TIMEOUT;
+  return async (...args) => {
+    return Promise.race([
+      fn(...args),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Tool timeout (' + (timeout / 1000) + 's)')), timeout)),
+    ]);
+  };
+}
+
 // ── Tool Registry ──
 // Each tool has a description (for Claude) and an execute function
 
@@ -579,7 +591,8 @@ const tools = {
 
 // ── Agent Cycle ──
 
-const MAX_ITERATIONS = 20;
+const MAX_ITERATIONS = 15; // Reduced from 20 — forces strategic thinking
+const CYCLE_TIMEOUT = 8 * 60 * 1000; // 8 min max for entire cycle
 
 async function runAgentCycle() {
   const tenant = await db.getDefaultTenant();
@@ -591,6 +604,7 @@ async function runAgentCycle() {
   const tenantId = tenant.id;
   const cycleId = 'cycle_' + Date.now();
   const cycleStart = new Date().toISOString();
+  let totalCycleCost = 0;
 
   console.log('[AGENT] Starting cycle ' + cycleId);
 
@@ -705,23 +719,42 @@ Current time: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York
 
   const toolLog = [];
 
+  // Master timeout for the entire cycle
+  const cycleDeadline = Date.now() + CYCLE_TIMEOUT;
+
   for (let i = 0; i < MAX_ITERATIONS; i++) {
+    // Check cycle timeout
+    if (Date.now() > cycleDeadline) {
+      console.log('[AGENT] Cycle timeout reached after ' + i + ' iterations');
+      break;
+    }
+
     let response;
     try {
-      response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1500,
-        system: systemPrompt,
-        messages,
-      });
+      response = await Promise.race([
+        anthropic.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1500,
+          system: systemPrompt,
+          messages,
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Claude API timeout (45s)')), 45_000)),
+      ]);
     } catch (err) {
       console.error('[AGENT] Claude API error:', err.message);
       break;
     }
 
+    // Track cost
+    const usage = response.usage || {};
+    const iterCost = ((usage.input_tokens || 0) * 3 + (usage.output_tokens || 0) * 15) / 1_000_000;
+    totalCycleCost += iterCost;
+    try {
+      await db.logApiCost(tenantId, 'jarvis', 'claude-sonnet-4-20250514', usage.input_tokens, usage.output_tokens, 'agent_cycle', cycleId);
+    } catch (e) { /* table may not exist yet */ }
+
     const text = response.content[0].text;
 
-    // Try to parse JSON from response
     let parsed;
     try {
       const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -737,7 +770,7 @@ Current time: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York
 
     // Cycle complete
     if (parsed.done) {
-      console.log('[AGENT] Cycle done:', parsed.summary);
+      console.log('[AGENT] Cycle done ($' + totalCycleCost.toFixed(4) + '):', parsed.summary);
       if (parsed.notify_boss && parsed.boss_message) {
         try {
           await sendBossMessage('**Jarvis Update**\n\n' + parsed.boss_message);
@@ -746,25 +779,31 @@ Current time: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York
         }
       }
       try {
-        await logToDiscord('daily-reports', '**Agent Cycle Complete**\n' + parsed.summary +
-          '\nTools used: ' + toolLog.map(t => t.tool).join(', '));
+        await logToDiscord('daily-reports', '**Agent Cycle Complete** ($' + totalCycleCost.toFixed(4) + ')\n' + parsed.summary +
+          '\nTools: ' + toolLog.map(t => t.tool).join(', '));
       } catch (e) { /* ok */ }
       break;
     }
 
-    // Execute tool
+    // Execute tool with timeout
     if (parsed.tool && tools[parsed.tool]) {
       const toolName = parsed.tool;
       const toolFn = tools[toolName];
       console.log('[AGENT] Using tool: ' + toolName, JSON.stringify(parsed.input || {}).substring(0, 100));
 
       let result;
+      const toolStart = Date.now();
       try {
-        result = await toolFn.execute(parsed.input || {}, tenantId, cycleId);
+        // Wrap every tool call with a timeout
+        result = await Promise.race([
+          toolFn.execute(parsed.input || {}, tenantId, cycleId),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Tool timeout (90s)')), 90_000)),
+        ]);
       } catch (err) {
         result = 'Error: ' + err.message;
         console.error('[AGENT] Tool error (' + toolName + '):', err.message);
       }
+      const toolDuration = Date.now() - toolStart;
 
       const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
 
@@ -772,12 +811,12 @@ Current time: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York
         tool: toolName,
         input: parsed.input,
         output: resultStr.substring(0, 500),
+        duration_ms: toolDuration,
         timestamp: new Date().toISOString(),
       });
 
-      // Feed result back for next iteration
       messages.push({ role: 'assistant', content: text });
-      messages.push({ role: 'user', content: 'Tool result (' + toolName + '):\n' + resultStr.substring(0, 3000) });
+      messages.push({ role: 'user', content: 'Tool result (' + toolName + ', ' + (toolDuration / 1000).toFixed(1) + 's):\n' + resultStr.substring(0, 3000) });
     } else {
       console.log('[AGENT] Unknown tool or malformed response:', text.substring(0, 100));
       break;
@@ -794,6 +833,8 @@ Current time: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York
       result: JSON.stringify({
         iterations: toolLog.length,
         tools_used: toolLog.map(t => t.tool),
+        cost_usd: Math.round(totalCycleCost * 1_000_000) / 1_000_000,
+        duration_s: Math.round((Date.now() - new Date(cycleStart).getTime()) / 1000),
       }),
       tool_log: toolLog,
       cycle_id: cycleId,
@@ -804,8 +845,8 @@ Current time: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York
     console.error('[AGENT] Failed to log cycle:', err.message);
   }
 
-  console.log('[AGENT] Cycle ' + cycleId + ' complete. Tools used: ' + toolLog.length);
-  return { cycleId, toolLog };
+  console.log('[AGENT] Cycle ' + cycleId + ' complete. Tools: ' + toolLog.length + ', Cost: $' + totalCycleCost.toFixed(4));
+  return { cycleId, toolLog, cost: totalCycleCost };
 }
 
 module.exports = { runAgentCycle, tools };

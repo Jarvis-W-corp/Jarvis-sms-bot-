@@ -3,11 +3,10 @@ const db = require('../db/queries');
 const { sendBossMessage } = require('../channels/discord');
 
 // ══════════════════════════════════════════════
-// LEAN SCHEDULER — Only run what makes money
-// No revenue = no wasteful API calls
+// SCHEDULER — Lean + Reliable
+// Every job has a purpose. Every job finishes.
 // ══════════════════════════════════════════════
 
-// Get next occurrence of a specific hour in ET
 function getNextETHour(hour) {
   const now = new Date();
   const eastern = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
@@ -18,8 +17,7 @@ function getNextETHour(hour) {
   return new Date(target.getTime() + offset);
 }
 
-// ── Morning Briefing: 9 AM ET, once per day ──
-// This is the Olivia-style debrief. One shot, real numbers.
+// ── Morning Briefing: 9 AM ET ──
 async function sendDailyBriefing() {
   try {
     const tenant = await db.getDefaultTenant();
@@ -41,7 +39,6 @@ function scheduleDailyBriefing() {
 }
 
 // ── Keep-alive ping: every 5 min ──
-// No API calls, just prevents Render from sleeping
 function startAppMonitoring() {
   const ping = async () => {
     try {
@@ -53,50 +50,73 @@ function startAppMonitoring() {
   console.log('[MONITOR] Keep-alive ping: every 5m');
 }
 
-// ── Crew queue: every 4 hours ──
-// Only processes jobs that are already queued (doesn't generate new ones)
-function scheduleCrewProcessing() {
+// ── Crew Queue + Follow-up: every 2 hours ──
+// 1. Process pending jobs
+// 2. Follow up on completed jobs (notify boss, log results)
+// 3. Clean up stale running jobs
+async function processCrewAndFollowUp() {
   const crew = require('../core/crew');
+
+  try {
+    // 1. Check for stale "running" jobs (stuck > 10 min)
+    const { data: staleJobs } = await require('../db/supabase').supabase
+      .from('agent_jobs').select('id, title, started_at')
+      .eq('status', 'running')
+      .lt('started_at', new Date(Date.now() - 10 * 60 * 1000).toISOString());
+
+    if (staleJobs && staleJobs.length > 0) {
+      console.log('[SCHEDULER] Found ' + staleJobs.length + ' stale jobs, marking failed');
+      for (const job of staleJobs) {
+        await crew.updateJob(job.id, {
+          status: 'failed',
+          error: 'Stale job — exceeded 10 min with no completion',
+          completed_at: new Date().toISOString(),
+        });
+      }
+    }
+
+    // 2. Process pending jobs
+    const results = await crew.processQueue();
+    if (results.length > 0) {
+      console.log('[SCHEDULER] Crew processed ' + results.length + ' jobs');
+    }
+
+    // 3. Follow up on completed jobs
+    const followups = await crew.followUpCompletedJobs();
+    if (followups.length > 0) {
+      console.log('[SCHEDULER] Followed up on ' + followups.length + ' completed jobs');
+    }
+  } catch (err) {
+    console.error('[SCHEDULER] Crew processing error:', err.message);
+  }
+}
+
+function scheduleCrewProcessing() {
   setTimeout(() => {
-    crew.processQueue().catch(err => console.error('[CREW] Queue error:', err.message));
-    setInterval(() => {
-      crew.processQueue().catch(err => console.error('[CREW] Queue error:', err.message));
-    }, 4 * 60 * 60 * 1000);
-  }, 10 * 60 * 1000); // first in 10 min
-  console.log('[SCHEDULER] Crew queue: every 4h');
+    processCrewAndFollowUp();
+    setInterval(processCrewAndFollowUp, 2 * 60 * 60 * 1000); // every 2 hours
+  }, 10 * 60 * 1000); // first run in 10 min
+  console.log('[SCHEDULER] Crew queue + follow-up: every 2h');
 }
 
 // ── Shop Optimizer: daily at 10 AM ET ──
-// Checks Etsy/Printify listings, fixes SEO, tracks performance, auto-rotates
 function scheduleShopOptimizer() {
-  const { dailyShopCheck } = require('../core/shop-optimizer');
-  const next10am = getNextETHour(10);
-  const delay = next10am.getTime() - Date.now();
-  setTimeout(() => {
-    dailyShopCheck();
-    setInterval(dailyShopCheck, 24 * 60 * 60 * 1000);
-  }, delay);
-  console.log('[SCHEDULER] Shop optimizer: 10 AM ET daily');
+  try {
+    const { dailyShopCheck } = require('../core/shop-optimizer');
+    const next10am = getNextETHour(10);
+    const delay = next10am.getTime() - Date.now();
+    setTimeout(() => {
+      dailyShopCheck();
+      setInterval(dailyShopCheck, 24 * 60 * 60 * 1000);
+    }, delay);
+    console.log('[SCHEDULER] Shop optimizer: 10 AM ET daily');
+  } catch (e) {
+    console.log('[SCHEDULER] Shop optimizer not available:', e.message);
+  }
 }
 
 // ══════════════════════════════════════════════
-// KILLED (was burning API credits for nothing):
-// - Ideas engine (daily) — not generating revenue
-// - Agent cycle (every 2h) — 20 iterations of Claude per cycle
-// - Hustle quick check (every 4h) — no revenue to check
-// - Hustle opportunity scan (every 6h) — scanning for nothing
-// - Hustle self-improve (daily) — improving what?
-// - Pipeline monitor (every 2h) — Enerflo returns 0 data anyway
-// - Morning game plan (8am) — duplicate of briefing
-// - No-log reminder (4pm) — unnecessary
-// - EOD recap (6pm) — no data to recap
-// - Goal achievements (6pm) — no goals set
-// - Stale lead alert (10am) — no leads in system
-// - Auto-delegate (every 2h) — delegating nothing
-// - Weekly report (Fridays) — empty report
-//
-// RE-ENABLE these when there's actual revenue/leads flowing.
-// For now: briefing + keep-alive + crew queue = 1 API call/day
+// START ALL
 // ══════════════════════════════════════════════
 
 function startAllJobs() {
@@ -104,7 +124,7 @@ function startAllJobs() {
   startAppMonitoring();
   scheduleCrewProcessing();
   scheduleShopOptimizer();
-  console.log('[SCHEDULER] Lean mode — briefing + shop optimizer + keep-alive + crew queue');
+  console.log('[SCHEDULER] Running: briefing (9am) + crew (2h) + shop (10am) + keep-alive (5m)');
 }
 
-module.exports = { startAllJobs, sendDailyBriefing };
+module.exports = { startAllJobs, sendDailyBriefing, processCrewAndFollowUp };

@@ -325,7 +325,9 @@ router.post('/dashboard/api/feed/url-video', async (req, res) => {
   }
 });
 
-// API: background tasks — start a long-running job
+// ═══ BACKGROUND TASKS ═══
+
+// Start a background task
 router.post('/dashboard/api/task/start', aiLimiter, async (req, res) => {
   try {
     const { type, params } = req.body;
@@ -346,7 +348,7 @@ router.post('/dashboard/api/task/start', aiLimiter, async (req, res) => {
   }
 });
 
-// API: background task status
+// Task status
 router.get('/dashboard/api/task/:id/status', async (req, res) => {
   try {
     const tasks = require('../core/tasks');
@@ -357,10 +359,80 @@ router.get('/dashboard/api/task/:id/status', async (req, res) => {
   }
 });
 
-// API: list all active background tasks
+// List all active tasks
 router.get('/dashboard/api/tasks/active', (req, res) => {
   const tasks = require('../core/tasks');
   res.json({ tasks: tasks.getActiveTasks() });
+});
+
+// Kill a background task
+router.post('/dashboard/api/task/:id/kill', (req, res) => {
+  const tasks = require('../core/tasks');
+  const killed = tasks.killTask(req.params.id);
+  res.json({ killed, id: req.params.id });
+});
+
+// ═══ KILL SWITCH — stop any crew job ═══
+
+router.post('/dashboard/api/crew/kill/:jobId', (req, res) => {
+  const crew = require('../core/crew');
+  crew.killJob(req.params.jobId);
+  res.json({ killed: true, jobId: req.params.jobId });
+});
+
+// Kill ALL running crew jobs
+router.post('/dashboard/api/crew/kill-all', (req, res) => {
+  const crew = require('../core/crew');
+  const killed = [];
+  for (const [id] of crew.runningJobs) {
+    crew.killJob(id);
+    killed.push(id);
+  }
+  res.json({ killed });
+});
+
+// ═══ API COST TRACKING ═══
+
+// Get cost summary (default: last 24h)
+router.get('/dashboard/api/costs', async (req, res) => {
+  try {
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+    const hours = parseInt(req.query.hours) || 24;
+    const since = new Date(Date.now() - hours * 3600000).toISOString();
+    const summary = await db.getApiCostSummary(tenant.id, since);
+    res.json({ period_hours: hours, ...summary });
+  } catch (error) {
+    // Table may not exist yet — return empty
+    res.json({ total_cost: 0, total_calls: 0, by_agent: {}, error: 'Cost tracking not set up yet — run setup-v2.sql in Supabase' });
+  }
+});
+
+// Get detailed cost log
+router.get('/dashboard/api/costs/log', async (req, res) => {
+  try {
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+    const hours = parseInt(req.query.hours) || 24;
+    const since = new Date(Date.now() - hours * 3600000).toISOString();
+    const costs = await db.getApiCosts(tenant.id, since, req.query.agent || null);
+    res.json({ entries: costs });
+  } catch (error) {
+    res.json({ entries: [], error: 'Cost tracking not set up yet' });
+  }
+});
+
+// ═══ PROCESSED FILES ═══
+
+router.get('/dashboard/api/processed', async (req, res) => {
+  try {
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+    const files = await db.getProcessedFiles(tenant.id, req.query.source || null, parseInt(req.query.limit) || 50);
+    res.json({ files });
+  } catch (error) {
+    res.json({ files: [], error: 'Processed file tracking not set up yet' });
+  }
 });
 
 // API: feature progress (static manifest)

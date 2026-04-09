@@ -1,16 +1,13 @@
-// tasks.js — Background task runner with progress tracking
-// Prevents Jarvis from getting stuck on long-running jobs (Drive processing, bulk analysis)
-// Tasks run async, report progress, have timeouts, and finish cleanly.
+// tasks.js — Background task runner with idempotency, progress tracking, timeouts
+// Never re-processes a file already done. Tracks everything. Finishes cleanly.
 
 const db = require('../db/queries');
 
-// In-memory task tracker (also persisted to agent_tasks table)
 const activeTasks = new Map();
-
 const TASK_TIMEOUT = 10 * 60 * 1000; // 10 min max per task
 const FILE_TIMEOUT = 3 * 60 * 1000;  // 3 min max per file
 
-// Start a background task — returns immediately with task ID
+// ═══ START TASK ═══
 async function startTask(tenantId, type, title, params, runFn) {
   const task = await db.createAgentTask(tenantId, {
     type,
@@ -31,11 +28,13 @@ async function startTask(tenantId, type, title, params, runFn) {
     currentFile: null,
     results: [],
     errors: [],
+    skipped: [],
     startedAt: Date.now(),
+    killed: false,
   };
   activeTasks.set(taskId, state);
 
-  // Run in background — don't await
+  // Run in background
   _executeTask(taskId, tenantId, params, runFn).catch(err => {
     console.error('[TASKS] Fatal error in task ' + taskId + ':', err.message);
     state.status = 'failed';
@@ -46,19 +45,28 @@ async function startTask(tenantId, type, title, params, runFn) {
   return { taskId, status: 'running', title };
 }
 
+// Kill a running task
+function killTask(taskId) {
+  const state = activeTasks.get(taskId);
+  if (state && state.status === 'running') {
+    state.killed = true;
+    state.status = 'killed';
+    return true;
+  }
+  return false;
+}
+
 async function _executeTask(taskId, tenantId, params, runFn) {
   const state = activeTasks.get(taskId);
   if (!state) return;
 
-  // Master timeout
   const timer = setTimeout(() => {
     if (state.status === 'running') {
       state.status = 'timeout';
-      console.log('[TASKS] Task ' + taskId + ' timed out after ' + (TASK_TIMEOUT / 1000) + 's');
-      const resultSummary = _buildSummary(state);
+      console.log('[TASKS] Task ' + taskId + ' timed out');
       db.updateAgentTask(taskId, {
         status: 'timeout',
-        result: resultSummary,
+        result: _buildSummary(state),
         completed_at: new Date().toISOString(),
       }).catch(() => {});
     }
@@ -71,36 +79,35 @@ async function _executeTask(taskId, tenantId, params, runFn) {
       state.progress = state.total;
     }
   } catch (err) {
-    state.status = 'failed';
-    state.error = err.message;
-    console.error('[TASKS] Task failed:', err.message);
+    if (state.status === 'running') {
+      state.status = 'failed';
+      state.error = err.message;
+    }
   } finally {
     clearTimeout(timer);
-    const resultSummary = _buildSummary(state);
+    const summary = _buildSummary(state);
     await db.updateAgentTask(taskId, {
       status: state.status,
-      result: resultSummary,
+      result: summary,
       completed_at: new Date().toISOString(),
     }).catch(() => {});
-    // Keep in memory for 30 min so status can be checked
+    // Keep in memory 30 min for status checks
     setTimeout(() => activeTasks.delete(taskId), 30 * 60 * 1000);
   }
 }
 
 function _buildSummary(state) {
-  const done = state.results.length;
-  const failed = state.errors.length;
-  const parts = [`${done}/${state.total} files processed`];
-  if (failed > 0) parts.push(`${failed} failed: ${state.errors.map(e => e.name).join(', ')}`);
+  const parts = [`${state.results.length}/${state.total} processed`];
+  if (state.skipped.length > 0) parts.push(`${state.skipped.length} skipped (already done)`);
+  if (state.errors.length > 0) parts.push(`${state.errors.length} failed: ${state.errors.map(e => e.name).join(', ')}`);
   if (state.results.length > 0) {
-    parts.push('\n\nResults:\n' + state.results.map(r =>
-      '• ' + r.name + ': ' + (r.summary || 'done')
-    ).join('\n'));
+    parts.push('\n\nResults:\n' + state.results.map(r => '• ' + r.name + ': ' + (r.summary || 'done')).join('\n'));
   }
   return parts.join('. ');
 }
 
-// Get task status (checks memory first, falls back to DB)
+// ═══ STATUS ═══
+
 async function getTaskStatus(taskId) {
   const mem = activeTasks.get(taskId);
   if (mem) {
@@ -110,19 +117,16 @@ async function getTaskStatus(taskId) {
       progress: mem.progress,
       total: mem.total,
       currentFile: mem.currentFile,
-      results: mem.results.length,
+      completed: mem.results.length,
+      skipped: mem.skipped.length,
       errors: mem.errors.length,
       elapsed: Math.round((Date.now() - mem.startedAt) / 1000),
       summary: mem.status !== 'running' ? _buildSummary(mem) : null,
     };
   }
-  // Fallback to DB
-  const tasks = await db.getAgentTasks(null, null, 1);
-  // Try to find by ID
-  return { id: taskId, status: 'unknown', message: 'Task not found in memory — may have completed' };
+  return { id: taskId, status: 'unknown', message: 'Task not in memory — may have completed' };
 }
 
-// Get all active tasks
 function getActiveTasks() {
   const tasks = [];
   for (const [id, state] of activeTasks) {
@@ -134,15 +138,17 @@ function getActiveTasks() {
       progress: state.progress,
       total: state.total,
       currentFile: state.currentFile,
+      completed: state.results.length,
+      skipped: state.skipped.length,
+      errors: state.errors.length,
       elapsed: Math.round((Date.now() - state.startedAt) / 1000),
     });
   }
   return tasks;
 }
 
-// ═══ Built-in task runners ═══
+// ═══ DRIVE FOLDER PROCESSOR (with idempotency) ═══
 
-// Process all files in a Google Drive folder
 async function processDriveFolder(state, tenantId, params) {
   const drive = require('./drive');
   const content = require('./content');
@@ -163,12 +169,23 @@ async function processDriveFolder(state, tenantId, params) {
   state.total = processable.length;
   console.log('[TASKS] Processing ' + processable.length + ' files from Drive folder');
 
-  // 2. Process each file with per-file timeout
+  // 2. Process each file — skip already-processed ones
   for (let i = 0; i < processable.length; i++) {
-    if (state.status !== 'running') break; // task was cancelled/timed out
+    if (state.killed || state.status !== 'running') break;
     const file = processable[i];
-    state.progress = i;
+    state.progress = i + 1;
     state.currentFile = file.name;
+
+    // Idempotency check
+    try {
+      const alreadyDone = await db.isFileProcessed(tenantId, file.id);
+      if (alreadyDone) {
+        console.log('[TASKS] Skipping (already processed): ' + file.name);
+        state.skipped.push({ name: file.name, fileId: file.id });
+        continue;
+      }
+    } catch (e) { /* table may not exist, continue processing */ }
+
     console.log('[TASKS] (' + (i + 1) + '/' + processable.length + ') Processing: ' + file.name);
 
     try {
@@ -177,12 +194,14 @@ async function processDriveFolder(state, tenantId, params) {
         new Promise((_, reject) => setTimeout(() => reject(new Error('File timeout (3min)')), FILE_TIMEOUT)),
       ]);
 
-      state.results.push({
-        name: file.name,
-        summary: result.substring(0, 200),
-      });
+      state.results.push({ name: file.name, summary: result.substring(0, 200) });
 
-      // Store analysis to memory
+      // Mark as processed (idempotency)
+      try {
+        await db.markFileProcessed(tenantId, file.id, file.name, 'drive', result.substring(0, 500));
+      } catch (e) { /* table may not exist */ }
+
+      // Store to memory
       await memory.storeMemory(
         tenantId, 'training',
         'Drive file "' + file.name + '": ' + result.substring(0, 400),
@@ -206,7 +225,6 @@ async function _processOneFile(file, tenantId, purpose) {
   const isVideo = file.mimeType.includes('video') || file.name.match(/\.(mp4|mov|webm|avi)$/i);
 
   if (isVideo) {
-    // Download → Whisper → Analyze
     const destPath = '/tmp/jarvis_task_' + Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '_');
     const dl = await drive.downloadFile(file.id, destPath, tenantId);
     try {
@@ -224,10 +242,8 @@ async function _processOneFile(file, tenantId, purpose) {
       const result = await content.processContent(fileContent.content, purpose || '', tenantId);
       return result.analysis;
     }
-    // Other binary — skip with note
     return 'Binary file skipped: ' + file.name;
   }
-  // Text content
   const textInput = typeof fileContent.content === 'string'
     ? fileContent.content.substring(0, 15000)
     : fileContent.content.toString().substring(0, 15000);
@@ -237,6 +253,7 @@ async function _processOneFile(file, tenantId, purpose) {
 
 module.exports = {
   startTask,
+  killTask,
   getTaskStatus,
   getActiveTasks,
   processDriveFolder,
