@@ -419,34 +419,39 @@ function CostsPanel() {
 
   if (!data) return <p className="text-xs text-dim text-center py-8">No cost data available</p>;
 
-  const agents = data.agents ?? {};
-  const entries = Object.entries(agents).sort((a, b) => b[1] - a[1]);
-  const maxCost = Math.max(...entries.map(([, v]) => v), 0.01);
+  const costData = data as Record<string, any>;
+  const byAgent = costData?.by_agent ?? costData?.agents ?? {};
+  const totalCost = costData?.total_cost ?? costData?.total24h ?? 0;
+  const entries = Object.entries(byAgent).sort((a: any, b: any) => (b[1]?.cost ?? b[1] ?? 0) - (a[1]?.cost ?? a[1] ?? 0));
+  const maxCost = Math.max(...entries.map(([, v]: any) => v?.cost ?? v ?? 0), 0.01);
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-xs uppercase tracking-wider text-dim">Cost by Agent (24h)</h3>
-        <span className="text-orange font-mono font-bold text-sm">${data.total24h.toFixed(2)}</span>
+        <span className="text-orange font-mono font-bold text-sm">${(totalCost || 0).toFixed(2)}</span>
       </div>
       {entries.length === 0 ? (
-        <p className="text-xs text-dim text-center py-8">No agent costs recorded</p>
+        <p className="text-xs text-dim text-center py-8">No agent costs recorded — run setup-v2.sql in Supabase</p>
       ) : (
         <div className="space-y-3">
-          {entries.map(([agent, cost]) => (
-            <div key={agent}>
-              <div className="flex items-center justify-between text-xs mb-1">
-                <span className="text-foreground font-medium uppercase">{agent}</span>
-                <span className="text-orange font-mono">${cost.toFixed(4)}</span>
+          {entries.map(([agent, val]: any) => {
+            const cost = val?.cost ?? val ?? 0;
+            return (
+              <div key={agent}>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-foreground font-medium uppercase">{agent}</span>
+                  <span className="text-orange font-mono">${(cost || 0).toFixed(4)}</span>
+                </div>
+                <div className="h-2 bg-card-border/30 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-orange to-pink"
+                    style={{ width: `${(cost / maxCost) * 100}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-2 bg-card-border/30 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-orange to-pink"
-                  style={{ width: `${(cost / maxCost) * 100}%` }}
-                />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

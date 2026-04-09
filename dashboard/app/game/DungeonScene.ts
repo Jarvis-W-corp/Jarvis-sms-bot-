@@ -1,543 +1,423 @@
 import Phaser from 'phaser';
 import { AgentState, AgentStatus, DungeonConfig, DEFAULT_CONFIG } from './types';
 
-// Color constants
-const COLORS = {
-  bg: 0x0a0e1a,
-  command: 0x00e5ff,
-  research: 0xb388ff,
-  marketing: 0x69f0ae,
-  ops: 0xff9100,
-  factory: 0xffd740,
-  error: 0xff1744,
-  offline: 0x424242,
-  starDim: 0x334155,
-  starBright: 0x94a3b8,
-  roomFill: 0x111827,
-  connectionLine: 0x1e293b,
+const C = {
+  bg: 0x080b14,
+  command: 0x00e5ff, research: 0xb388ff, marketing: 0x69f0ae,
+  ops: 0xff9100, etsy: 0xf5641e, printify: 0x39d4a5, solar: 0xffd740,
+  error: 0xff1744, offline: 0x2a2a3a, dim: 0x1a2030,
+  roomFill: 0x0c1220, wallLine: 0x1a2744,
+  desk: 0x1e293b, screen: 0x0f172a, screenGlow: 0x00e5ff,
 };
 
-interface RoomDef {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  color: number;
-}
-
-interface AgentOrb {
-  id: string;
-  name: string;
-  room: string;
-  status: AgentStatus;
-  graphics: Phaser.GameObjects.Graphics;
-  label: Phaser.GameObjects.Text;
-  statusDot: Phaser.GameObjects.Graphics;
-  baseX: number;
-  baseY: number;
-  phase: number;
-  particles: Phaser.GameObjects.Graphics;
-  particleData: { x: number; y: number; vx: number; vy: number; life: number; maxLife: number }[];
-  size: number;
+interface RoomDef { id: string; name: string; x: number; y: number; w: number; h: number; color: number; icon?: string; }
+interface AgentSprite {
+  id: string; name: string; room: string; status: AgentStatus; task?: string;
+  x: number; y: number; phase: number; walkPhase: number; facing: number;
+  deskX: number; deskY: number; // where their desk is
 }
 
 export default class DungeonScene extends Phaser.Scene {
   private config: DungeonConfig = DEFAULT_CONFIG;
   private rooms: RoomDef[] = [];
-  private agentOrbs: AgentOrb[] = [];
-  private stars: { x: number; y: number; alpha: number; speed: number }[] = [];
-  private starGraphics!: Phaser.GameObjects.Graphics;
-  private connectionGraphics!: Phaser.GameObjects.Graphics;
-  private roomGraphicsMap: Map<string, Phaser.GameObjects.Graphics> = new Map();
-  private roomGlowMap: Map<string, Phaser.GameObjects.Graphics> = new Map();
-  private roomTitles: Map<string, Phaser.GameObjects.Text> = new Map();
-  private roomParticles: Map<string, { g: Phaser.GameObjects.Graphics; data: { x: number; y: number; vx: number; vy: number; alpha: number; speed: number }[] }> = new Map();
-  private revenueTexts: Map<string, Phaser.GameObjects.Text> = new Map();
-  private elapsed = 0;
+  private agents: AgentSprite[] = [];
+  private t = 0;
+  private g!: Phaser.GameObjects.Graphics; // main draw surface
+  private stars: { x: number; y: number; a: number; s: number }[] = [];
 
-  constructor() {
-    super({ key: 'DungeonScene' });
-  }
+  constructor() { super({ key: 'DungeonScene' }); }
 
   create() {
-    this.cameras.main.setBackgroundColor(COLORS.bg);
-
-    // Define room layout
-    const pad = 20;
-    const cw = 400, ch = 320; // command center size
-    const rw = 360, rh = 220; // corner room size
-    const cx = 600, cy = 400; // center point
-
-    this.rooms = [
-      { id: 'command', name: 'Command Center', x: cx - cw / 2, y: cy - ch / 2, w: cw, h: ch, color: COLORS.command },
-      { id: 'research', name: 'Research Lab', x: cx - cw / 2 - rw - pad, y: cy - ch / 2 - rh / 2 + 20, w: rw, h: rh, color: COLORS.research },
-      { id: 'marketing', name: 'Marketing Bay', x: cx + cw / 2 + pad, y: cy - ch / 2 - rh / 2 + 20, w: rw, h: rh, color: COLORS.marketing },
-      { id: 'ops', name: 'Ops Deck', x: cx - cw / 2 - rw - pad, y: cy + ch / 2 - rh / 2 - 20, w: rw, h: rh, color: COLORS.ops },
-      { id: 'factory', name: 'Factory Floor', x: cx + cw / 2 + pad, y: cy + ch / 2 - rh / 2 - 20, w: rw, h: rh, color: COLORS.factory },
-    ];
-
-    // Create star field
-    this.createStarField();
-
-    // Draw connections between rooms
-    this.connectionGraphics = this.add.graphics();
-    this.drawConnections();
-
-    // Draw rooms
-    for (const room of this.rooms) {
-      this.createRoom(room);
+    this.g = this.add.graphics();
+    // Stars
+    for (let i = 0; i < 300; i++) {
+      this.stars.push({ x: Math.random() * 1400, y: Math.random() * 900, a: Math.random() * 0.6 + 0.1, s: Math.random() * 2 + 0.5 });
     }
 
-    // Create agents
-    this.createAgents();
+    // 7 rooms — command center large in middle, 3 on each side
+    const cx = 700, cy = 420;
+    this.rooms = [
+      { id: 'command', name: 'COMMAND CENTER', x: cx - 180, y: cy - 130, w: 360, h: 260, color: C.command },
+      { id: 'research', name: 'RESEARCH LAB', x: 30, y: 30, w: 280, h: 200, color: C.research },
+      { id: 'marketing', name: 'MARKETING BAY', x: 30, y: 270, w: 280, h: 200, color: C.marketing },
+      { id: 'ops', name: 'OPS DECK', x: 30, y: 510, w: 280, h: 200, color: C.ops },
+      { id: 'etsy', name: 'ETSY STORE', x: 1090, y: 30, w: 280, h: 200, color: C.etsy, icon: '🛍️' },
+      { id: 'printify', name: 'PRINTIFY SHOP', x: 1090, y: 270, w: 280, h: 200, color: C.printify, icon: '🖨️' },
+      { id: 'solar', name: 'SOLAR PIPELINE', x: 1090, y: 510, w: 280, h: 200, color: C.solar, icon: '☀️' },
+    ];
 
-    // Set up click handlers
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+    // Create agents at their desks
+    for (const a of this.config.agents) {
+      const room = this.rooms.find(r => r.id === a.room);
+      if (!room) continue;
+      const deskX = room.x + room.w / 2 + (Math.random() - 0.5) * (room.w * 0.4);
+      const deskY = room.y + room.h * 0.55 + (Math.random() - 0.5) * 30;
+      this.agents.push({
+        id: a.id, name: a.name, room: a.room, status: a.status, task: a.currentTask,
+        x: deskX, y: deskY, phase: Math.random() * Math.PI * 2,
+        walkPhase: Math.random() * Math.PI * 2, facing: 1,
+        deskX, deskY,
+      });
+    }
+
+    // Click handler
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       for (const room of this.rooms) {
-        if (
-          pointer.x >= room.x && pointer.x <= room.x + room.w &&
-          pointer.y >= room.y && pointer.y <= room.y + room.h
-        ) {
+        if (p.x >= room.x && p.x <= room.x + room.w && p.y >= room.y && p.y <= room.y + room.h) {
           this.game.events.emit('room-click', room.id);
-          this.flashRoom(room.id);
           break;
         }
       }
     });
 
-    // Listen for external state updates
-    this.game.events.on('update-agent', (agent: AgentState) => {
-      this.updateAgentState(agent);
+    this.game.events.on('update-agent', (a: AgentState) => {
+      const sprite = this.agents.find(s => s.id === a.id);
+      if (sprite) { sprite.status = a.status; sprite.task = a.currentTask; }
     });
-
-    this.game.events.on('update-config', (config: DungeonConfig) => {
-      this.config = config;
-    });
-  }
-
-  private createStarField() {
-    this.starGraphics = this.add.graphics();
-    for (let i = 0; i < 200; i++) {
-      this.stars.push({
-        x: Math.random() * 1200,
-        y: Math.random() * 800,
-        alpha: Math.random() * 0.5 + 0.1,
-        speed: Math.random() * 0.3 + 0.1,
-      });
-    }
-  }
-
-  private drawStars() {
-    this.starGraphics.clear();
-    for (const star of this.stars) {
-      const flicker = Math.sin(this.elapsed * star.speed * 2) * 0.2 + 0.8;
-      const a = star.alpha * flicker;
-      const color = a > 0.3 ? COLORS.starBright : COLORS.starDim;
-      this.starGraphics.fillStyle(color, a);
-      this.starGraphics.fillCircle(star.x, star.y, a > 0.4 ? 1.5 : 1);
-    }
-  }
-
-  private drawConnections() {
-    this.connectionGraphics.clear();
-    const roomMap = new Map(this.rooms.map(r => [r.id, r]));
-    const connections: [string, string][] = [
-      ['command', 'research'],
-      ['command', 'marketing'],
-      ['command', 'ops'],
-      ['command', 'factory'],
-      ['research', 'ops'],
-      ['marketing', 'factory'],
-    ];
-
-    for (const [aId, bId] of connections) {
-      const a = roomMap.get(aId)!;
-      const b = roomMap.get(bId)!;
-      const ax = a.x + a.w / 2;
-      const ay = a.y + a.h / 2;
-      const bx = b.x + b.w / 2;
-      const by = b.y + b.h / 2;
-
-      // Dim connection line
-      this.connectionGraphics.lineStyle(1, COLORS.connectionLine, 0.4);
-      this.connectionGraphics.lineBetween(ax, ay, bx, by);
-
-      // Glowing dots along the line
-      const dots = 5;
-      for (let i = 1; i < dots; i++) {
-        const t = i / dots;
-        const dx = ax + (bx - ax) * t;
-        const dy = ay + (by - ay) * t;
-        this.connectionGraphics.fillStyle(a.color, 0.15);
-        this.connectionGraphics.fillCircle(dx, dy, 2);
-      }
-    }
-  }
-
-  private createRoom(room: RoomDef) {
-    // Outer glow
-    const glow = this.add.graphics();
-    this.roomGlowMap.set(room.id, glow);
-
-    // Room body
-    const g = this.add.graphics();
-    this.roomGraphicsMap.set(room.id, g);
-
-    // Title
-    const title = this.add.text(room.x + room.w / 2, room.y + 22, room.name, {
-      fontFamily: '"Courier New", monospace',
-      fontSize: room.id === 'command' ? '16px' : '13px',
-      color: '#' + room.color.toString(16).padStart(6, '0'),
-      fontStyle: 'bold',
-    }).setOrigin(0.5, 0.5);
-    this.roomTitles.set(room.id, title);
-
-    // Revenue text for business rooms
-    if (room.id === 'marketing' || room.id === 'factory') {
-      const rev = this.add.text(room.x + room.w / 2, room.y - 14, '$0.00', {
-        fontFamily: '"Courier New", monospace',
-        fontSize: '12px',
-        color: '#' + room.color.toString(16).padStart(6, '0'),
-      }).setOrigin(0.5, 0.5).setAlpha(0.7);
-      this.revenueTexts.set(room.id, rev);
-    }
-
-    // Room dust particles
-    const particleG = this.add.graphics();
-    const pData: { x: number; y: number; vx: number; vy: number; alpha: number; speed: number }[] = [];
-    for (let i = 0; i < 12; i++) {
-      pData.push({
-        x: room.x + Math.random() * room.w,
-        y: room.y + Math.random() * room.h,
-        vx: (Math.random() - 0.5) * 0.3,
-        vy: (Math.random() - 0.5) * 0.2,
-        alpha: Math.random() * 0.4 + 0.1,
-        speed: Math.random() * 0.5 + 0.5,
-      });
-    }
-    this.roomParticles.set(room.id, { g: particleG, data: pData });
-  }
-
-  private drawRoom(room: RoomDef, time: number) {
-    const g = this.roomGraphicsMap.get(room.id)!;
-    const glow = this.roomGlowMap.get(room.id)!;
-    g.clear();
-    glow.clear();
-
-    const pulse = Math.sin(time * 1.5) * 0.15 + 0.85;
-
-    // Outer glow effect
-    glow.lineStyle(4, room.color, 0.08 * pulse);
-    glow.strokeRoundedRect(room.x - 4, room.y - 4, room.w + 8, room.h + 8, 14);
-    glow.lineStyle(2, room.color, 0.15 * pulse);
-    glow.strokeRoundedRect(room.x - 2, room.y - 2, room.w + 4, room.h + 4, 12);
-
-    // Room fill
-    g.fillStyle(COLORS.roomFill, 0.85);
-    g.fillRoundedRect(room.x, room.y, room.w, room.h, 10);
-
-    // Border
-    g.lineStyle(2, room.color, 0.6 * pulse);
-    g.strokeRoundedRect(room.x, room.y, room.w, room.h, 10);
-
-    // Inner corner accents
-    const accentLen = 20;
-    g.lineStyle(1, room.color, 0.3);
-    // top-left
-    g.lineBetween(room.x + 10, room.y + 6, room.x + 10 + accentLen, room.y + 6);
-    g.lineBetween(room.x + 6, room.y + 10, room.x + 6, room.y + 10 + accentLen);
-    // top-right
-    g.lineBetween(room.x + room.w - 10, room.y + 6, room.x + room.w - 10 - accentLen, room.y + 6);
-    g.lineBetween(room.x + room.w - 6, room.y + 10, room.x + room.w - 6, room.y + 10 + accentLen);
-    // bottom-left
-    g.lineBetween(room.x + 10, room.y + room.h - 6, room.x + 10 + accentLen, room.y + room.h - 6);
-    g.lineBetween(room.x + 6, room.y + room.h - 10, room.x + 6, room.y + room.h - 10 - accentLen);
-    // bottom-right
-    g.lineBetween(room.x + room.w - 10, room.y + room.h - 6, room.x + room.w - 10 - accentLen, room.y + room.h - 6);
-    g.lineBetween(room.x + room.w - 6, room.y + room.h - 10, room.x + room.w - 6, room.y + room.h - 10 - accentLen);
-
-    // Draw room particles
-    const rp = this.roomParticles.get(room.id);
-    if (rp) {
-      rp.g.clear();
-      for (const p of rp.data) {
-        p.x += p.vx;
-        p.y += p.vy;
-        // Wrap inside room
-        if (p.x < room.x + 10) p.x = room.x + room.w - 10;
-        if (p.x > room.x + room.w - 10) p.x = room.x + 10;
-        if (p.y < room.y + 10) p.y = room.y + room.h - 10;
-        if (p.y > room.y + room.h - 10) p.y = room.y + 10;
-
-        const flicker = Math.sin(time * p.speed * 3 + p.x) * 0.3 + 0.7;
-        rp.g.fillStyle(room.color, p.alpha * flicker * 0.5);
-        rp.g.fillCircle(p.x, p.y, 1.5);
-      }
-    }
-
-    // Update revenue
-    const rev = this.revenueTexts.get(room.id);
-    if (rev) {
-      const roomState = this.config.rooms.find(r => r.id === room.id);
-      if (roomState?.revenue !== undefined) {
-        rev.setText('$' + roomState.revenue.toFixed(2));
-      }
-    }
-  }
-
-  private createAgents() {
-    for (const agent of this.config.agents) {
-      const room = this.rooms.find(r => r.id === agent.room);
-      if (!room) continue;
-
-      const isJarvis = agent.id === 'jarvis';
-      const size = isJarvis ? 22 : 14;
-      const baseX = room.x + room.w / 2 + (isJarvis ? 0 : (Math.random() - 0.5) * 80);
-      const baseY = room.y + room.h / 2 + 15 + (isJarvis ? 0 : (Math.random() - 0.5) * 40);
-
-      const graphics = this.add.graphics();
-      const particles = this.add.graphics();
-
-      const label = this.add.text(baseX, baseY + size + 12, agent.name, {
-        fontFamily: '"Courier New", monospace',
-        fontSize: isJarvis ? '12px' : '10px',
-        color: '#94a3b8',
-      }).setOrigin(0.5, 0.5);
-
-      const statusDot = this.add.graphics();
-
-      this.agentOrbs.push({
-        id: agent.id,
-        name: agent.name,
-        room: agent.room,
-        status: agent.status,
-        graphics,
-        label,
-        statusDot,
-        baseX,
-        baseY,
-        phase: Math.random() * Math.PI * 2,
-        particles,
-        particleData: [],
-        size,
-      });
-    }
-
-    // Factory floor business icons (simple geometric shapes)
-    const factory = this.rooms.find(r => r.id === 'factory')!;
-    const iconG = this.add.graphics();
-    const icons = [
-      { x: factory.x + factory.w * 0.3, y: factory.y + factory.h * 0.55 },
-      { x: factory.x + factory.w * 0.5, y: factory.y + factory.h * 0.55 },
-      { x: factory.x + factory.w * 0.7, y: factory.y + factory.h * 0.55 },
-    ];
-    for (const icon of icons) {
-      iconG.fillStyle(COLORS.factory, 0.25);
-      iconG.fillRoundedRect(icon.x - 12, icon.y - 12, 24, 24, 4);
-      iconG.lineStyle(1, COLORS.factory, 0.4);
-      iconG.strokeRoundedRect(icon.x - 12, icon.y - 12, 24, 24, 4);
-      // Small inner detail
-      iconG.fillStyle(COLORS.factory, 0.4);
-      iconG.fillRect(icon.x - 5, icon.y - 5, 10, 4);
-      iconG.fillRect(icon.x - 5, icon.y + 2, 10, 4);
-    }
-  }
-
-  private drawAgents(time: number) {
-    for (const orb of this.agentOrbs) {
-      orb.graphics.clear();
-      orb.statusDot.clear();
-      orb.particles.clear();
-
-      const room = this.rooms.find(r => r.id === orb.room);
-      if (!room) continue;
-
-      const color = this.getAgentColor(orb);
-      const isWorking = orb.status === 'working';
-      const isError = orb.status === 'error';
-      const isOffline = orb.status === 'offline';
-
-      // Bobbing animation
-      const bobSpeed = isWorking ? 3 : 1.2;
-      const bobAmp = isWorking ? 6 : 3;
-      const bobY = Math.sin(time * bobSpeed + orb.phase) * bobAmp;
-      const currentX = orb.baseX;
-      const currentY = orb.baseY + bobY;
-
-      // Update label position
-      orb.label.setPosition(currentX, currentY + orb.size + 14);
-
-      if (isOffline) {
-        // Dim ring only
-        orb.graphics.lineStyle(1, COLORS.offline, 0.3);
-        orb.graphics.strokeCircle(currentX, currentY, orb.size);
-        orb.label.setAlpha(0.3);
-        continue;
-      }
-
-      orb.label.setAlpha(0.8);
-
-      // Working particles
-      if (isWorking) {
-        // Spawn particles
-        if (Math.random() < 0.3) {
-          const angle = Math.random() * Math.PI * 2;
-          orb.particleData.push({
-            x: currentX + Math.cos(angle) * orb.size,
-            y: currentY + Math.sin(angle) * orb.size,
-            vx: Math.cos(angle) * (0.5 + Math.random()),
-            vy: Math.sin(angle) * (0.5 + Math.random()),
-            life: 1,
-            maxLife: 40 + Math.random() * 30,
-          });
-        }
-
-        // Draw and update particles
-        for (let i = orb.particleData.length - 1; i >= 0; i--) {
-          const p = orb.particleData[i];
-          p.x += p.vx;
-          p.y += p.vy;
-          p.life += 1;
-          if (p.life > p.maxLife) {
-            orb.particleData.splice(i, 1);
-            continue;
-          }
-          const alpha = (1 - p.life / p.maxLife) * 0.6;
-          orb.particles.fillStyle(color, alpha);
-          orb.particles.fillCircle(p.x, p.y, 1.5 * (1 - p.life / p.maxLife));
-        }
-      } else {
-        // Clear old particles
-        if (orb.particleData.length > 0) orb.particleData = [];
-      }
-
-      // Outer glow
-      const glowAlpha = isWorking ? 0.15 + Math.sin(time * 4) * 0.08 : 0.06;
-      orb.graphics.fillStyle(color, glowAlpha);
-      orb.graphics.fillCircle(currentX, currentY, orb.size * 2);
-      orb.graphics.fillStyle(color, glowAlpha * 1.5);
-      orb.graphics.fillCircle(currentX, currentY, orb.size * 1.5);
-
-      // Core orb
-      const coreAlpha = isWorking ? 0.7 + Math.sin(time * 5) * 0.2 : 0.4;
-      orb.graphics.fillStyle(color, coreAlpha);
-      orb.graphics.fillCircle(currentX, currentY, orb.size);
-
-      // Bright center
-      orb.graphics.fillStyle(0xffffff, isWorking ? 0.5 : 0.2);
-      orb.graphics.fillCircle(currentX, currentY, orb.size * 0.4);
-
-      // Highlight
-      orb.graphics.fillStyle(0xffffff, 0.3);
-      orb.graphics.fillCircle(currentX - orb.size * 0.25, currentY - orb.size * 0.25, orb.size * 0.2);
-
-      // Status dot
-      const dotColor = isError ? COLORS.error : isWorking ? 0x4ade80 : 0x64748b;
-      const dotAlpha = isError ? (Math.sin(time * 8) * 0.4 + 0.6) : 0.8;
-      orb.statusDot.fillStyle(dotColor, dotAlpha);
-      orb.statusDot.fillCircle(currentX + orb.size + 4, currentY - orb.size + 2, 4);
-    }
-  }
-
-  private getAgentColor(orb: AgentOrb): number {
-    if (orb.status === 'error') return COLORS.error;
-    if (orb.status === 'offline') return COLORS.offline;
-    const room = this.rooms.find(r => r.id === orb.room);
-    return room?.color ?? COLORS.command;
-  }
-
-  private flashRoom(roomId: string) {
-    const room = this.rooms.find(r => r.id === roomId);
-    if (!room) return;
-
-    const flash = this.add.graphics();
-    flash.fillStyle(room.color, 0.15);
-    flash.fillRoundedRect(room.x, room.y, room.w, room.h, 10);
-
-    this.tweens.add({
-      targets: flash,
-      alpha: 0,
-      duration: 400,
-      ease: 'Power2',
-      onComplete: () => flash.destroy(),
-    });
-  }
-
-  private updateAgentState(agent: AgentState) {
-    const orb = this.agentOrbs.find(a => a.id === agent.id);
-    if (orb) {
-      orb.status = agent.status;
-      if (agent.room !== orb.room) {
-        const newRoom = this.rooms.find(r => r.id === agent.room);
-        if (newRoom) {
-          orb.room = agent.room;
-          orb.baseX = newRoom.x + newRoom.w / 2;
-          orb.baseY = newRoom.y + newRoom.h / 2 + 15;
-        }
-      }
-    }
-
-    // Update config
-    const existing = this.config.agents.find(a => a.id === agent.id);
-    if (existing) {
-      Object.assign(existing, agent);
-    }
+    this.game.events.on('update-config', (c: DungeonConfig) => { this.config = c; });
   }
 
   update(_time: number, delta: number) {
-    this.elapsed += delta / 1000;
-    const t = this.elapsed;
-
-    // Redraw stars with twinkle
-    this.drawStars();
-
-    // Animate connection lines
-    this.drawAnimatedConnections(t);
-
-    // Redraw rooms
-    for (const room of this.rooms) {
-      this.drawRoom(room, t);
-    }
-
-    // Animate agents
-    this.drawAgents(t);
+    this.t += delta / 1000;
+    this.g.clear();
+    this.drawBackground();
+    this.drawConnections();
+    for (const room of this.rooms) this.drawRoom(room);
+    for (const agent of this.agents) this.drawAgent(agent);
   }
 
-  private drawAnimatedConnections(time: number) {
-    this.connectionGraphics.clear();
-    const roomMap = new Map(this.rooms.map(r => [r.id, r]));
-    const connections: [string, string][] = [
-      ['command', 'research'],
-      ['command', 'marketing'],
-      ['command', 'ops'],
-      ['command', 'factory'],
-      ['research', 'ops'],
-      ['marketing', 'factory'],
+  private drawBackground() {
+    this.g.fillStyle(C.bg, 1);
+    this.g.fillRect(0, 0, 1400, 900);
+    // Stars
+    for (const s of this.stars) {
+      const flicker = Math.sin(this.t * s.s + s.x) * 0.3 + 0.7;
+      this.g.fillStyle(0x94a3b8, s.a * flicker);
+      this.g.fillCircle(s.x, s.y, flicker > 0.8 ? 1.5 : 0.8);
+    }
+    // Grid lines
+    this.g.lineStyle(1, 0x0f1a2e, 0.15);
+    for (let x = 0; x < 1400; x += 50) this.g.lineBetween(x, 0, x, 900);
+    for (let y = 0; y < 900; y += 50) this.g.lineBetween(0, y, 1400, y);
+  }
+
+  private drawConnections() {
+    const rm = new Map(this.rooms.map(r => [r.id, r]));
+    const conns: [string, string][] = [
+      ['command', 'research'], ['command', 'marketing'], ['command', 'ops'],
+      ['command', 'etsy'], ['command', 'printify'], ['command', 'solar'],
+      ['research', 'marketing'], ['etsy', 'printify'],
     ];
-
-    for (const [aId, bId] of connections) {
-      const a = roomMap.get(aId)!;
-      const b = roomMap.get(bId)!;
-      const ax = a.x + a.w / 2;
-      const ay = a.y + a.h / 2;
-      const bx = b.x + b.w / 2;
-      const by = b.y + b.h / 2;
-
-      // Base line
-      this.connectionGraphics.lineStyle(1, COLORS.connectionLine, 0.3);
-      this.connectionGraphics.lineBetween(ax, ay, bx, by);
-
-      // Traveling pulse dot
-      const speed = 0.3;
-      const t = ((time * speed) % 1 + 1) % 1;
-      const px = ax + (bx - ax) * t;
-      const py = ay + (by - ay) * t;
-      this.connectionGraphics.fillStyle(a.color, 0.5);
-      this.connectionGraphics.fillCircle(px, py, 2.5);
-      this.connectionGraphics.fillStyle(a.color, 0.15);
-      this.connectionGraphics.fillCircle(px, py, 6);
+    for (const [a, b] of conns) {
+      const ra = rm.get(a)!, rb = rm.get(b)!;
+      const ax = ra.x + ra.w / 2, ay = ra.y + ra.h / 2;
+      const bx = rb.x + rb.w / 2, by = rb.y + rb.h / 2;
+      // Line
+      this.g.lineStyle(1, C.wallLine, 0.25);
+      this.g.lineBetween(ax, ay, bx, by);
+      // Traveling pulse
+      const spd = 0.25 + conns.indexOf([a, b] as any) * 0.03;
+      const tt = ((this.t * spd) % 1 + 1) % 1;
+      const px = ax + (bx - ax) * tt, py = ay + (by - ay) * tt;
+      this.g.fillStyle(ra.color, 0.6);
+      this.g.fillCircle(px, py, 2.5);
+      this.g.fillStyle(ra.color, 0.12);
+      this.g.fillCircle(px, py, 8);
     }
   }
+
+  private drawRoom(r: RoomDef) {
+    const pulse = Math.sin(this.t * 1.5 + r.x * 0.01) * 0.15 + 0.85;
+    const isCommand = r.id === 'command';
+
+    // Floor shadow
+    this.g.fillStyle(0x000000, 0.3);
+    this.g.fillRoundedRect(r.x + 4, r.y + 4, r.w, r.h, 8);
+
+    // Room fill — darker interior
+    this.g.fillStyle(C.roomFill, 0.92);
+    this.g.fillRoundedRect(r.x, r.y, r.w, r.h, 8);
+
+    // Floor tiles (perspective grid)
+    this.g.lineStyle(1, r.color, 0.04);
+    for (let y = r.y + 40; y < r.y + r.h; y += 20) {
+      this.g.lineBetween(r.x + 8, y, r.x + r.w - 8, y);
+    }
+
+    // Neon border
+    this.g.lineStyle(2, r.color, 0.5 * pulse);
+    this.g.strokeRoundedRect(r.x, r.y, r.w, r.h, 8);
+    // Outer glow
+    this.g.lineStyle(6, r.color, 0.06 * pulse);
+    this.g.strokeRoundedRect(r.x - 3, r.y - 3, r.w + 6, r.h + 6, 11);
+
+    // Corner brackets
+    const bl = 18;
+    this.g.lineStyle(2, r.color, 0.4);
+    // TL
+    this.g.lineBetween(r.x + 4, r.y + 4, r.x + 4 + bl, r.y + 4);
+    this.g.lineBetween(r.x + 4, r.y + 4, r.x + 4, r.y + 4 + bl);
+    // TR
+    this.g.lineBetween(r.x + r.w - 4, r.y + 4, r.x + r.w - 4 - bl, r.y + 4);
+    this.g.lineBetween(r.x + r.w - 4, r.y + 4, r.x + r.w - 4, r.y + 4 + bl);
+    // BL
+    this.g.lineBetween(r.x + 4, r.y + r.h - 4, r.x + 4 + bl, r.y + r.h - 4);
+    this.g.lineBetween(r.x + 4, r.y + r.h - 4, r.x + 4, r.y + r.h - 4 - bl);
+    // BR
+    this.g.lineBetween(r.x + r.w - 4, r.y + r.h - 4, r.x + r.w - 4 - bl, r.y + r.h - 4);
+    this.g.lineBetween(r.x + r.w - 4, r.y + r.h - 4, r.x + r.w - 4, r.y + r.h - 4 - bl);
+
+    // Room title bar
+    this.g.fillStyle(r.color, 0.08);
+    this.g.fillRoundedRect(r.x + 8, r.y + 6, r.w - 16, 22, 4);
+    // Status dot in title
+    const roomCfg = this.config.rooms.find(rc => rc.id === r.id);
+    const dotColor = roomCfg?.status === 'active' ? 0x4ade80 : roomCfg?.status === 'alert' ? C.error : 0x64748b;
+    this.g.fillStyle(dotColor, 0.9);
+    this.g.fillCircle(r.x + 20, r.y + 17, 3);
+
+    // Revenue display for business rooms
+    if (roomCfg?.revenue !== undefined && roomCfg.revenue > 0) {
+      this.g.fillStyle(0x4ade80, 0.12);
+      this.g.fillRoundedRect(r.x + r.w - 90, r.y + 8, 80, 18, 4);
+    }
+
+    // Desk/workstation in each room
+    this.drawDesk(r.x + r.w * 0.35, r.y + r.h * 0.5, r.color);
+    if (!isCommand) {
+      this.drawDesk(r.x + r.w * 0.65, r.y + r.h * 0.5, r.color);
+    } else {
+      // Command center gets a big center console
+      this.drawCommandConsole(r.x + r.w / 2, r.y + r.h * 0.45, r.color);
+    }
+
+    // Ambient particles
+    for (let i = 0; i < 6; i++) {
+      const px = r.x + 20 + ((this.t * 8 + i * 47) % (r.w - 40));
+      const py = r.y + 35 + Math.sin(this.t * 0.8 + i * 1.7) * (r.h * 0.3);
+      this.g.fillStyle(r.color, 0.08 + Math.sin(this.t + i) * 0.04);
+      this.g.fillCircle(px, py, 1.2);
+    }
+  }
+
+  private drawDesk(x: number, y: number, color: number) {
+    // Desk surface
+    this.g.fillStyle(C.desk, 0.7);
+    this.g.fillRoundedRect(x - 22, y + 10, 44, 8, 2);
+    // Desk legs
+    this.g.fillStyle(C.desk, 0.5);
+    this.g.fillRect(x - 18, y + 18, 3, 12);
+    this.g.fillRect(x + 16, y + 18, 3, 12);
+    // Monitor
+    this.g.fillStyle(C.screen, 0.9);
+    this.g.fillRoundedRect(x - 14, y - 12, 28, 22, 2);
+    // Screen glow
+    const flicker = Math.sin(this.t * 3 + x) * 0.1 + 0.9;
+    this.g.fillStyle(color, 0.15 * flicker);
+    this.g.fillRoundedRect(x - 12, y - 10, 24, 18, 1);
+    // Screen lines (code/data)
+    for (let i = 0; i < 4; i++) {
+      const lw = 8 + Math.sin(this.t * 2 + i + x) * 6;
+      this.g.fillStyle(color, 0.3);
+      this.g.fillRect(x - 9, y - 7 + i * 4, lw, 2);
+    }
+    // Monitor stand
+    this.g.fillStyle(C.desk, 0.6);
+    this.g.fillRect(x - 2, y + 10, 4, -2);
+  }
+
+  private drawCommandConsole(x: number, y: number, color: number) {
+    // Large curved console
+    this.g.fillStyle(C.desk, 0.6);
+    this.g.fillRoundedRect(x - 60, y + 15, 120, 10, 4);
+    // 3 monitors
+    for (let i = -1; i <= 1; i++) {
+      const mx = x + i * 42;
+      this.g.fillStyle(C.screen, 0.9);
+      this.g.fillRoundedRect(mx - 16, y - 20, 32, 34, 3);
+      const flicker = Math.sin(this.t * 2.5 + i * 1.3) * 0.1 + 0.9;
+      this.g.fillStyle(color, 0.12 * flicker);
+      this.g.fillRoundedRect(mx - 14, y - 18, 28, 30, 2);
+      // Data on screens
+      for (let j = 0; j < 5; j++) {
+        const lw = 6 + Math.sin(this.t * 1.5 + j + i) * 8;
+        this.g.fillStyle(color, 0.25);
+        this.g.fillRect(mx - 10, y - 14 + j * 5, lw, 2);
+      }
+    }
+    // Holographic projection above center monitor
+    const haloAlpha = Math.sin(this.t * 2) * 0.1 + 0.15;
+    this.g.fillStyle(color, haloAlpha);
+    this.g.fillTriangle(x, y - 55, x - 20, y - 22, x + 20, y - 22);
+    this.g.lineStyle(1, color, haloAlpha * 2);
+    this.g.strokeTriangle(x, y - 55, x - 20, y - 22, x + 20, y - 22);
+  }
+
+  private drawAgent(a: AgentSprite) {
+    const isWorking = a.status === 'working';
+    const isOffline = a.status === 'offline';
+    const isError = a.status === 'error';
+    const room = this.rooms.find(r => r.id === a.room);
+    if (!room) return;
+    const color = room.color;
+
+    if (isOffline) {
+      // Just a faded silhouette
+      this.drawStickFigure(a.deskX, a.deskY, 0x3a3a4a, 0.3, 0, false);
+      return;
+    }
+
+    let x = a.x, y = a.y;
+
+    if (isWorking) {
+      // Seated at desk, typing animation
+      x = a.deskX;
+      y = a.deskY;
+      const typing = Math.sin(this.t * 8 + a.phase) * 1.5;
+      this.drawStickFigure(x, y, color, 0.9, typing, true);
+      // Typing sparks
+      if (Math.sin(this.t * 12 + a.phase) > 0.7) {
+        this.g.fillStyle(color, 0.5);
+        this.g.fillCircle(x + (Math.random() - 0.5) * 16, y - 4 + (Math.random() - 0.5) * 6, 1);
+      }
+      // Work aura
+      const auraA = Math.sin(this.t * 3 + a.phase) * 0.05 + 0.08;
+      this.g.fillStyle(color, auraA);
+      this.g.fillCircle(x, y - 8, 25);
+    } else if (a.status === 'idle') {
+      // Wandering slowly in room
+      a.walkPhase += 0.02;
+      const wanderX = room.x + room.w * 0.3 + Math.sin(a.walkPhase * 0.7 + a.phase) * (room.w * 0.2);
+      const wanderY = room.y + room.h * 0.55 + Math.cos(a.walkPhase * 0.5 + a.phase) * (room.h * 0.15);
+      a.x = wanderX;
+      a.y = wanderY;
+      x = wanderX;
+      y = wanderY;
+      // Walking animation
+      const step = Math.sin(this.t * 4 + a.phase) * 3;
+      this.drawStickFigure(x, y, color, 0.5, step, false);
+    } else if (isError) {
+      x = a.deskX;
+      y = a.deskY;
+      const shake = Math.sin(this.t * 15) * 2;
+      this.drawStickFigure(x + shake, y, C.error, 0.8, 0, true);
+      // Error sparks
+      this.g.fillStyle(C.error, 0.6);
+      this.g.fillCircle(x + (Math.random() - 0.5) * 20, y - 15 + (Math.random() - 0.5) * 10, 1.5);
+    }
+  }
+
+  private drawStickFigure(x: number, y: number, color: number, alpha: number, armAngle: number, seated: boolean) {
+    const headY = y - 22;
+    const bodyTop = y - 16;
+    const bodyBot = seated ? y : y + 4;
+
+    // Head
+    this.g.lineStyle(2, color, alpha);
+    this.g.strokeCircle(x, headY, 5);
+    this.g.fillStyle(color, alpha * 0.3);
+    this.g.fillCircle(x, headY, 5);
+
+    // Eyes (tiny dots)
+    this.g.fillStyle(color, alpha);
+    this.g.fillCircle(x - 2, headY - 1, 0.8);
+    this.g.fillCircle(x + 2, headY - 1, 0.8);
+
+    // Body
+    this.g.lineStyle(2, color, alpha * 0.8);
+    this.g.lineBetween(x, bodyTop, x, bodyBot);
+
+    // Arms
+    const armY = bodyTop + 4;
+    if (seated) {
+      // Arms forward (typing)
+      this.g.lineBetween(x, armY, x - 8 + armAngle, armY + 6);
+      this.g.lineBetween(x, armY, x + 8 - armAngle, armY + 6);
+    } else {
+      // Arms swinging
+      this.g.lineBetween(x, armY, x - 7, armY + 5 + armAngle);
+      this.g.lineBetween(x, armY, x + 7, armY + 5 - armAngle);
+    }
+
+    // Legs
+    if (seated) {
+      // Legs forward (seated)
+      this.g.lineBetween(x, bodyBot, x - 5, bodyBot + 8);
+      this.g.lineBetween(x, bodyBot, x + 5, bodyBot + 8);
+    } else {
+      // Walking legs
+      this.g.lineBetween(x, bodyBot, x - 4 + armAngle * 0.5, bodyBot + 10);
+      this.g.lineBetween(x, bodyBot, x + 4 - armAngle * 0.5, bodyBot + 10);
+    }
+
+    // Name glow behind text
+    this.g.fillStyle(color, alpha * 0.06);
+    this.g.fillRoundedRect(x - 22, y + 14, 44, 12, 3);
+  }
+
+  // We draw text as part of the render loop via Phaser text objects
+  // But since we're using a single Graphics object, we need text objects created once
+  // Let's add them in create and position in update
+  private textObjects: Map<string, Phaser.GameObjects.Text> = new Map();
+  private ensureText(key: string, text: string, x: number, y: number, size: string, color: string, bold = false): void {
+    let obj = this.textObjects.get(key);
+    if (!obj) {
+      obj = this.add.text(x, y, text, {
+        fontFamily: '"SF Mono", "Courier New", monospace',
+        fontSize: size,
+        color,
+        fontStyle: bold ? 'bold' : 'normal',
+      }).setOrigin(0.5, 0.5);
+      this.textObjects.set(key, obj);
+    }
+    obj.setText(text);
+    obj.setPosition(x, y);
+    obj.setStyle({ color, fontSize: size, fontStyle: bold ? 'bold' : 'normal' });
+  }
+
+  // Override update to also handle text
+  private firstFrame = true;
+  private updateTexts() {
+    // Room titles + revenue
+    for (const r of this.rooms) {
+      const colorHex = '#' + r.color.toString(16).padStart(6, '0');
+      this.ensureText('room_' + r.id, r.name, r.x + r.w / 2, r.y + 17, r.id === 'command' ? '11px' : '9px', colorHex, true);
+
+      // Revenue
+      const rc = this.config.rooms.find(rc => rc.id === r.id);
+      if (rc?.revenue !== undefined && rc.revenue > 0) {
+        this.ensureText('rev_' + r.id, '$' + rc.revenue.toLocaleString(), r.x + r.w - 50, r.y + 17, '9px', '#4ade80', true);
+      }
+    }
+
+    // Agent names + task
+    for (const a of this.agents) {
+      if (a.status === 'offline') continue;
+      const room = this.rooms.find(r => r.id === a.room);
+      const colorHex = room ? '#' + room.color.toString(16).padStart(6, '0') : '#94a3b8';
+      this.ensureText('agent_' + a.id, a.name, a.x, a.y + 20, '8px', colorHex, true);
+
+      if (a.task && a.status === 'working') {
+        this.ensureText('task_' + a.id, a.task.substring(0, 25), a.x, a.y + 30, '7px', '#64748b');
+      } else {
+        const taskText = this.textObjects.get('task_' + a.id);
+        if (taskText) taskText.setText('');
+      }
+    }
+  }
+
+  // Patch the update method to include text
+  private origUpdate = this.update;
 }
+
+// Monkey-patch update to include text rendering
+const origCreate = DungeonScene.prototype.create;
+DungeonScene.prototype.create = function(this: any) {
+  origCreate.call(this);
+};
+
+const origUpdate = DungeonScene.prototype.update;
+DungeonScene.prototype.update = function(this: any, time: number, delta: number) {
+  origUpdate.call(this, time, delta);
+  this.updateTexts();
+};

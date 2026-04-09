@@ -28,8 +28,8 @@ export default function PhaserGame({ onReady, className }: PhaserGameProps) {
 
     const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.CANVAS,
-      width: 1200,
-      height: 800,
+      width: 1400,
+      height: 900,
       parent: containerRef.current,
       backgroundColor: '#0a0e1a',
       scene: [DungeonScene],
@@ -78,8 +78,8 @@ export default function PhaserGame({ onReady, className }: PhaserGameProps) {
       className={className}
       style={{
         width: '100%',
-        maxWidth: 1200,
-        aspectRatio: '1200 / 800',
+        maxWidth: 1400,
+        aspectRatio: '1400 / 900',
         margin: '0 auto',
       }}
     />

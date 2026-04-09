@@ -12,10 +12,11 @@ export interface AgentState {
 export interface RoomState {
   id: string;
   name: string;
-  type: 'command' | 'research' | 'marketing' | 'ops' | 'factory';
+  type: string;
   revenue?: number;
   agentCount: number;
   status: 'active' | 'idle' | 'alert';
+  icon?: string;
 }
 
 export interface DungeonConfig {
@@ -25,16 +26,20 @@ export interface DungeonConfig {
 
 export const DEFAULT_CONFIG: DungeonConfig = {
   rooms: [
-    { id: 'command', name: 'Command Center', type: 'command', agentCount: 1, status: 'active' },
-    { id: 'research', name: 'Research Lab', type: 'research', agentCount: 1, status: 'active' },
-    { id: 'marketing', name: 'Marketing Bay', type: 'marketing', revenue: 0, agentCount: 1, status: 'idle' },
-    { id: 'ops', name: 'Ops Deck', type: 'ops', agentCount: 1, status: 'active' },
-    { id: 'factory', name: 'Factory Floor', type: 'factory', revenue: 0, agentCount: 0, status: 'idle' },
+    { id: 'command', name: 'COMMAND CENTER', type: 'command', agentCount: 1, status: 'active' },
+    { id: 'research', name: 'RESEARCH LAB', type: 'research', agentCount: 1, status: 'active' },
+    { id: 'marketing', name: 'MARKETING BAY', type: 'marketing', agentCount: 1, status: 'idle' },
+    { id: 'ops', name: 'OPS DECK', type: 'ops', agentCount: 1, status: 'active' },
+    { id: 'etsy', name: 'ETSY STORE', type: 'business', revenue: 2100, agentCount: 1, status: 'active', icon: '🛍️' },
+    { id: 'printify', name: 'PRINTIFY SHOP', type: 'business', revenue: 450, agentCount: 1, status: 'active', icon: '🖨️' },
+    { id: 'solar', name: 'SOLAR PIPELINE', type: 'business', revenue: 0, agentCount: 0, status: 'idle', icon: '☀️' },
   ],
   agents: [
-    { id: 'jarvis', name: 'Jarvis', room: 'command', status: 'working' },
-    { id: 'hawk', name: 'Hawk', room: 'research', status: 'idle' },
-    { id: 'ghost', name: 'Ghost', room: 'marketing', status: 'idle' },
-    { id: 'pulse', name: 'Pulse', room: 'ops', status: 'working' },
+    { id: 'jarvis', name: 'JARVIS', room: 'command', status: 'working', currentTask: 'Orchestrating agents' },
+    { id: 'hawk', name: 'HAWK', room: 'research', status: 'working', currentTask: 'Scraping leads' },
+    { id: 'ghost', name: 'GHOST', room: 'marketing', status: 'idle' },
+    { id: 'pulse', name: 'PULSE', room: 'ops', status: 'working', currentTask: 'Monitoring systems' },
+    { id: 'forge', name: 'FORGE', room: 'etsy', status: 'working', currentTask: 'Creating listings' },
+    { id: 'pixel', name: 'PIXEL', room: 'printify', status: 'working', currentTask: 'Designing products' },
   ],
 };
