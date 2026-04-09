@@ -1,0 +1,100 @@
+{
+  "id": "ai_workforce",
+  "name": "Jarvis AI Workforce",
+  "type": "ai-saas",
+  "tenantId": null,
+  "offer": "Free AI automation audit for your business",
+  "cta": "Get My Free Audit",
+  "targetCPL": 40,
+  "dailyBudget": 100,
+  "meta": {
+    "adAccountId": "",
+    "pageId": "",
+    "pixelId": ""
+  },
+  "audiences": [
+    {
+      "name": "Small Business Owners",
+      "painPoint": "drowning in manual tasks and can't afford to hire",
+      "targeting": {
+        "geo_locations": { "countries": ["US"] },
+        "age_min": 28,
+        "age_max": 55,
+        "interests": [
+          { "id": "6003323264870", "name": "Small business" },
+          { "id": "6003171473867", "name": "Entrepreneurship" },
+          { "id": "6003283735583", "name": "Business automation" }
+        ],
+        "behaviors": [
+          { "id": "6002714895372", "name": "Small business owners" }
+        ],
+        "publisher_platforms": ["facebook", "instagram"]
+      }
+    },
+    {
+      "name": "Agency Owners",
+      "painPoint": "spending too many hours on repetitive client work",
+      "targeting": {
+        "geo_locations": { "countries": ["US"] },
+        "age_min": 25,
+        "age_max": 50,
+        "interests": [
+          { "id": "6003397425735", "name": "Digital marketing" },
+          { "id": "6003171473867", "name": "Entrepreneurship" },
+          { "id": "6003139266461", "name": "Marketing automation" },
+          { "id": "6003107405583", "name": "SaaS" }
+        ],
+        "publisher_platforms": ["facebook", "instagram"]
+      }
+    },
+    {
+      "name": "Service Business Owners",
+      "painPoint": "losing leads because they can't follow up fast enough",
+      "targeting": {
+        "geo_locations": { "countries": ["US"] },
+        "age_min": 30,
+        "age_max": 55,
+        "interests": [
+          { "id": "6003323264870", "name": "Small business" },
+          { "id": "6003012463501", "name": "Home services" },
+          { "id": "6003107902433", "name": "Lead generation" }
+        ],
+        "publisher_platforms": ["facebook", "instagram"]
+      }
+    }
+  ],
+  "leadScoring": {
+    "criteria": [
+      { "field": "phone", "exists": true, "points": 2 },
+      { "field": "email", "exists": true, "points": 1 },
+      { "field": "company", "exists": true, "points": 2 },
+      { "field": "revenue", "gte": 100000, "points": 3 },
+      { "field": "employees", "gte": 2, "points": 2 }
+    ],
+    "highPriorityScore": 8,
+    "autoDialThreshold": 8
+  },
+  "dialer": {
+    "provider": "bland",
+    "voice": "maya",
+    "maxDuration": 5,
+    "callGoal": "book a free AI automation audit",
+    "greeting": "Hi, this is Alex from Jarvis AI. You recently requested a free AI automation audit for your business. I'd love to walk you through how we can save you 20+ hours a week. Got a quick minute?"
+  },
+  "email": {
+    "fromName": "Jarvis AI Team",
+    "tone": "direct, tech-savvy but approachable, results-focused",
+    "sequenceLength": 5,
+    "subjectLines": [
+      "Your free AI automation audit is ready",
+      "How [business type] owners are saving 20+ hrs/week",
+      "Quick question about your workflow",
+      "The #1 task you should automate first",
+      "Last chance: free audit spots filling up"
+    ]
+  },
+  "sms": {
+    "tone": "direct, friendly, no-BS",
+    "optInMessage": "Thanks for requesting your free AI audit! We'll reach out shortly with your custom automation roadmap. Reply STOP to opt out."
+  }
+}

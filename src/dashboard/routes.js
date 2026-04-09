@@ -484,6 +484,166 @@ router.get('/dashboard/api/workflow/history', async (req, res) => {
   }
 });
 
+// ═══ CRM: LEADS ═══
+
+router.get('/dashboard/api/leads', async (req, res) => {
+  try {
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+    const leads = await db.getLeads(tenant.id, {
+      status: req.query.status || undefined,
+      score_min: req.query.score_min ? parseInt(req.query.score_min) : undefined,
+      niche: req.query.niche || undefined,
+      source: req.query.source || undefined,
+      limit: parseInt(req.query.limit) || 50,
+    });
+    res.json({ leads });
+  } catch (e) { res.json({ leads: [], error: e.message }); }
+});
+
+router.get('/dashboard/api/leads/stats', async (req, res) => {
+  try {
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+    const stats = await db.getLeadStats(tenant.id);
+    res.json(stats);
+  } catch (e) { res.json({ total: 0, error: e.message }); }
+});
+
+router.post('/dashboard/api/leads', async (req, res) => {
+  try {
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+    const lead = await db.createLead(tenant.id, req.body);
+    // Auto-score if scorer is available
+    try {
+      const scorer = require('../core/scorer');
+      const scored = await scorer.scoreLead(tenant.id, lead);
+      if (scored && scored.score) {
+        await db.updateLead(lead.id, { score: scored.score, score_reason: scored.reason });
+        lead.score = scored.score;
+        lead.score_reason = scored.reason;
+      }
+    } catch (e) { /* scorer may not be ready */ }
+    res.json({ success: true, lead });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.get('/dashboard/api/leads/:id/activities', async (req, res) => {
+  try {
+    const activities = await db.getLeadActivities(req.params.id);
+    res.json({ activities });
+  } catch (e) { res.json({ activities: [], error: e.message }); }
+});
+
+// ═══ CRM: APPOINTMENTS ═══
+
+router.get('/dashboard/api/appointments', async (req, res) => {
+  try {
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+    const hours = parseInt(req.query.hours) || 72;
+    const appts = await db.getUpcomingAppointments(tenant.id, hours);
+    res.json({ appointments: appts });
+  } catch (e) { res.json({ appointments: [], error: e.message }); }
+});
+
+router.post('/dashboard/api/appointments', async (req, res) => {
+  try {
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+    const appt = await db.createAppointment(tenant.id, req.body.lead_id, req.body.scheduled_at, req.body.notes);
+    // Try to create Google Calendar event
+    try {
+      const calendar = require('../core/calendar');
+      const lead = await db.getLead(tenant.id, req.body.lead_id);
+      if (lead) await calendar.createAppointment(tenant.id, lead, req.body.scheduled_at, 30, req.body.notes);
+    } catch (e) { /* calendar may not be configured */ }
+    res.json({ success: true, appointment: appt });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ DIALER ═══
+
+router.post('/dashboard/api/dialer/call', async (req, res) => {
+  try {
+    const dialer = require('../core/dialer');
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+    const lead = await db.getLead(tenant.id, req.body.lead_id);
+    if (!lead) return res.status(404).json({ error: 'Lead not found' });
+    const script = await dialer.generateCallScript(lead, lead.niche || 'solar', req.body.goal || 'book a free consultation');
+    const result = await dialer.dialLead(tenant.id, lead, script);
+    res.json({ success: true, ...result });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Dialer webhook (Bland.ai calls back here)
+router.post('/webhooks/call-complete', async (req, res) => {
+  res.sendStatus(200); // ACK immediately
+  try {
+    const dialer = require('../core/dialer');
+    await dialer.handleCallResult(req.body);
+  } catch (e) { console.error('[WEBHOOK] Call complete error:', e.message); }
+});
+
+// ═══ EMAIL SEQUENCES ═══
+
+router.get('/dashboard/api/sequences', async (req, res) => {
+  try {
+    const { data } = await require('../db/supabase').supabase
+      .from('email_sequences').select('*').order('created_at', { ascending: false });
+    res.json({ sequences: data || [] });
+  } catch (e) { res.json({ sequences: [], error: e.message }); }
+});
+
+router.post('/dashboard/api/sequences/generate', aiLimiter, async (req, res) => {
+  try {
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+    const sequencer = require('../core/sequencer');
+    const seq = await sequencer.generateSequence(tenant.id, req.body.niche || 'solar', req.body.businessType || 'solar installer', req.body.numSteps || 5);
+    res.json({ success: true, sequence: seq });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ META ADS ═══
+
+router.post('/webhooks/meta-leads', async (req, res) => {
+  res.sendStatus(200); // ACK immediately
+  try {
+    const metaAds = require('../core/meta-ads');
+    await metaAds.handleLeadFormWebhook(req.body);
+  } catch (e) { console.error('[WEBHOOK] Meta lead error:', e.message); }
+});
+
+// ═══ BUSINESS LAUNCH ═══
+
+router.get('/dashboard/api/business/configs', (req, res) => {
+  try {
+    const config = require('../core/business-config');
+    res.json({ configs: config.listConfigs() });
+  } catch (e) { res.json({ configs: [], error: e.message }); }
+});
+
+router.post('/dashboard/api/business/launch', aiLimiter, async (req, res) => {
+  try {
+    const config = require('../core/business-config');
+    const result = await config.launchBusiness(req.body.slug);
+    res.json({ success: true, ...result });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ PROACTIVITY STATUS ═══
+
+router.get('/dashboard/api/proactive/status', async (req, res) => {
+  try {
+    const proactive = require('../core/proactive');
+    const schedule = proactive.getCronSchedule();
+    res.json({ crons: schedule.length, schedule });
+  } catch (e) { res.json({ crons: 0, error: e.message }); }
+});
+
 // API: feature progress (static manifest)
 router.get('/dashboard/api/progress', (req, res) => {
   res.json({

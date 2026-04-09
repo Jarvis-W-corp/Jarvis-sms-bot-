@@ -1,0 +1,85 @@
+{
+  "id": "medspa_ct",
+  "name": "Luxe Level Aesthetics",
+  "type": "medspa",
+  "tenantId": null,
+  "offer": "Free consultation + 20% off first treatment",
+  "cta": "Book My Free Consult",
+  "targetCPL": 30,
+  "dailyBudget": 75,
+  "meta": {
+    "adAccountId": "",
+    "pageId": "",
+    "pixelId": ""
+  },
+  "audiences": [
+    {
+      "name": "CT Women Anti-Aging",
+      "painPoint": "looking older than they feel",
+      "targeting": {
+        "geo_locations": { "regions": [{ "key": "US-CT" }], "location_types": ["home", "recent"] },
+        "age_min": 28,
+        "age_max": 55,
+        "genders": [2],
+        "interests": [
+          { "id": "6003397425735", "name": "Botox" },
+          { "id": "6003139266461", "name": "Skin care" },
+          { "id": "6003384204630", "name": "Anti-aging" },
+          { "id": "6003107405583", "name": "Beauty" }
+        ],
+        "publisher_platforms": ["facebook", "instagram"]
+      }
+    },
+    {
+      "name": "CT Women Body Contouring",
+      "painPoint": "stubborn fat that won't go away with diet and exercise",
+      "targeting": {
+        "geo_locations": { "regions": [{ "key": "US-CT" }] },
+        "age_min": 28,
+        "age_max": 50,
+        "genders": [2],
+        "interests": [
+          { "id": "6003203700004", "name": "Weight loss" },
+          { "id": "6003139266461", "name": "Skin care" },
+          { "id": "6003107405583", "name": "Beauty" },
+          { "id": "6003331420526", "name": "Fitness and wellness" }
+        ],
+        "publisher_platforms": ["facebook", "instagram"]
+      }
+    }
+  ],
+  "leadScoring": {
+    "criteria": [
+      { "field": "phone", "exists": true, "points": 2 },
+      { "field": "email", "exists": true, "points": 1 },
+      { "field": "location", "contains": "CT", "points": 2 },
+      { "field": "treatment_interest", "exists": true, "points": 2 },
+      { "field": "budget_range", "gte": 500, "points": 3 }
+    ],
+    "highPriorityScore": 8,
+    "autoDialThreshold": 8
+  },
+  "dialer": {
+    "provider": "bland",
+    "voice": "maya",
+    "maxDuration": 5,
+    "callGoal": "book a free consultation",
+    "greeting": "Hi, this is Jessica from Luxe Level Aesthetics. You recently requested a free consultation and I wanted to help get that scheduled for you. Do you have a quick minute?"
+  },
+  "email": {
+    "fromName": "Luxe Level Aesthetics",
+    "tone": "warm, professional, luxury",
+    "sequenceLength": 5,
+    "subjectLines": [
+      "Your free consultation is ready to book",
+      "The treatment CT women are raving about",
+      "A quick note from Luxe Level",
+      "Your 20% off expires soon",
+      "Before and after: real Luxe Level results"
+    ]
+  },
+  "sms": {
+    "tone": "warm, professional, friendly",
+    "optInMessage": "Thanks for your interest in Luxe Level Aesthetics! We'll reach out shortly to schedule your free consultation. Reply STOP to opt out."
+  }
+}

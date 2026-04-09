@@ -1,0 +1,82 @@
+{
+  "id": "solar_ct",
+  "name": "HC Solar CT",
+  "type": "solar",
+  "tenantId": null,
+  "offer": "Free solar savings analysis",
+  "cta": "Get My Free Quote",
+  "targetCPL": 25,
+  "dailyBudget": 50,
+  "meta": {
+    "adAccountId": "",
+    "pageId": "",
+    "pixelId": ""
+  },
+  "audiences": [
+    {
+      "name": "CT Homeowners 35-65",
+      "painPoint": "rising energy costs",
+      "targeting": {
+        "geo_locations": { "regions": [{ "key": "US-CT" }] },
+        "age_min": 35,
+        "age_max": 65,
+        "interests": [
+          { "id": "6003349442621", "name": "Solar energy" },
+          { "id": "6003012463501", "name": "Home improvement" },
+          { "id": "6003384248805", "name": "Renewable energy" }
+        ],
+        "home_ownership": ["homeowners"],
+        "publisher_platforms": ["facebook", "instagram"]
+      }
+    },
+    {
+      "name": "CT High Electric Bills",
+      "painPoint": "paying too much for electricity",
+      "targeting": {
+        "geo_locations": { "regions": [{ "key": "US-CT" }] },
+        "age_min": 30,
+        "age_max": 65,
+        "interests": [
+          { "id": "6003107902433", "name": "Energy conservation" },
+          { "id": "6003310895498", "name": "Green living" }
+        ],
+        "home_ownership": ["homeowners"],
+        "publisher_platforms": ["facebook", "instagram"]
+      }
+    }
+  ],
+  "leadScoring": {
+    "criteria": [
+      { "field": "phone", "exists": true, "points": 2 },
+      { "field": "email", "exists": true, "points": 1 },
+      { "field": "location", "contains": "CT", "points": 2 },
+      { "field": "homeowner", "equals": true, "points": 3 },
+      { "field": "electric_bill", "gte": 150, "points": 2 }
+    ],
+    "highPriorityScore": 8,
+    "autoDialThreshold": 8
+  },
+  "dialer": {
+    "provider": "bland",
+    "voice": "maya",
+    "maxDuration": 5,
+    "callGoal": "book a free consultation",
+    "greeting": "Hi, this is Sarah from HC Solar. I'm reaching out because you recently requested a free solar savings analysis for your home. Do you have a quick minute?"
+  },
+  "email": {
+    "fromName": "HC Solar Team",
+    "tone": "friendly, local, knowledgeable",
+    "sequenceLength": 5,
+    "subjectLines": [
+      "Your free solar savings analysis is ready",
+      "CT homeowners are saving $150+/month with solar",
+      "Quick question about your home",
+      "Last chance: your solar estimate expires soon",
+      "One more thing about your energy savings"
+    ]
+  },
+  "sms": {
+    "tone": "casual, friendly",
+    "optInMessage": "Thanks for requesting your free solar quote! We'll be in touch shortly. Reply STOP to opt out."
+  }
+}

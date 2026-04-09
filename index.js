@@ -78,6 +78,16 @@ app.get('/', async (req, res) => {
 const voice = require('./src/core/voice');
 voice.initVoiceRoutes(app);
 
+// Inbound SMS with AI replies
+app.post('/sms/inbound', async (req, res) => {
+  res.type('text/xml').send('<Response></Response>'); // ACK Twilio
+  try {
+    const smsAI = require('./src/core/sms-ai');
+    const tenant = await db.getDefaultTenant();
+    if (tenant) await smsAI.handleInboundSMS(req.body.From, req.body.Body, tenant.id);
+  } catch (e) { console.error('[SMS-AI] Inbound error:', e.message); }
+});
+
 const { initDiscord } = require('./src/channels/discord');
 initDiscord();
 

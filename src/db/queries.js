@@ -275,6 +275,218 @@ async function getProcessedFiles(tenantId, source, limit = 50) {
   return data || [];
 }
 
+// ── CRM: Leads ──
+
+async function createLead(tenantId, data) {
+  try {
+    const row = {
+      tenant_id: tenantId,
+      name: data.name || null,
+      email: data.email || null,
+      phone: data.phone || null,
+      company: data.company || null,
+      source: data.source || 'api',
+      location: data.location || null,
+      score: data.score || null,
+      score_reason: data.score_reason || null,
+      status: data.status || 'new',
+      tags: data.tags || [],
+      niche: data.niche || null,
+      meta: data.meta || {},
+    };
+    const { data: lead, error } = await supabase.from('leads')
+      .upsert(row, { onConflict: 'tenant_id,email' })
+      .select().single();
+    if (error) { console.error('[CRM] createLead error:', error.message); return null; }
+    return lead;
+  } catch (err) {
+    console.error('[CRM] createLead error:', err.message);
+    return null;
+  }
+}
+
+async function updateLead(leadId, updates) {
+  try {
+    const { data, error } = await supabase.from('leads')
+      .update(updates).eq('id', leadId).select().single();
+    if (error) { console.error('[CRM] updateLead error:', error.message); return null; }
+    return data;
+  } catch (err) {
+    console.error('[CRM] updateLead error:', err.message);
+    return null;
+  }
+}
+
+async function getLead(tenantId, emailOrId) {
+  try {
+    // Try by UUID first
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(emailOrId)) {
+      const { data } = await supabase.from('leads').select('*')
+        .eq('tenant_id', tenantId).eq('id', emailOrId).single();
+      if (data) return data;
+    }
+    // Try by email
+    const { data } = await supabase.from('leads').select('*')
+      .eq('tenant_id', tenantId).eq('email', emailOrId).single();
+    return data || null;
+  } catch (err) {
+    console.error('[CRM] getLead error:', err.message);
+    return null;
+  }
+}
+
+async function getLeads(tenantId, filters = {}) {
+  try {
+    let query = supabase.from('leads').select('*').eq('tenant_id', tenantId);
+    if (filters.status) query = query.eq('status', filters.status);
+    if (filters.score_min) query = query.gte('score', filters.score_min);
+    if (filters.niche) query = query.eq('niche', filters.niche);
+    if (filters.source) query = query.eq('source', filters.source);
+    const { data } = await query
+      .order('created_at', { ascending: false })
+      .limit(filters.limit || 50);
+    return data || [];
+  } catch (err) {
+    console.error('[CRM] getLeads error:', err.message);
+    return [];
+  }
+}
+
+async function getLeadsByScore(tenantId, minScore, status, limit = 20) {
+  try {
+    let query = supabase.from('leads').select('*')
+      .eq('tenant_id', tenantId).gte('score', minScore);
+    if (status) query = query.eq('status', status);
+    const { data } = await query
+      .order('score', { ascending: false })
+      .limit(limit);
+    return data || [];
+  } catch (err) {
+    console.error('[CRM] getLeadsByScore error:', err.message);
+    return [];
+  }
+}
+
+// ── CRM: Activities ──
+
+async function logActivity(tenantId, leadId, type, data = {}) {
+  try {
+    const { data: activity, error } = await supabase.from('activities').insert({
+      tenant_id: tenantId,
+      lead_id: leadId,
+      type,
+      data,
+    }).select().single();
+    if (error) { console.error('[CRM] logActivity error:', error.message); return null; }
+    return activity;
+  } catch (err) {
+    console.error('[CRM] logActivity error:', err.message);
+    return null;
+  }
+}
+
+async function getLeadActivities(leadId, limit = 50) {
+  try {
+    const { data } = await supabase.from('activities').select('*')
+      .eq('lead_id', leadId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    return data || [];
+  } catch (err) {
+    console.error('[CRM] getLeadActivities error:', err.message);
+    return [];
+  }
+}
+
+// ── CRM: Appointments ──
+
+async function createAppointment(tenantId, leadId, scheduledAt, notes) {
+  try {
+    const { data, error } = await supabase.from('appointments').insert({
+      tenant_id: tenantId,
+      lead_id: leadId,
+      scheduled_at: scheduledAt,
+      notes: notes || null,
+      status: 'scheduled',
+    }).select().single();
+    if (error) { console.error('[CRM] createAppointment error:', error.message); return null; }
+
+    // Log activity
+    await supabase.from('activities').insert({
+      tenant_id: tenantId,
+      lead_id: leadId,
+      type: 'appointment_booked',
+      data: { appointment_id: data.id, scheduled_at: scheduledAt },
+    });
+
+    return data;
+  } catch (err) {
+    console.error('[CRM] createAppointment error:', err.message);
+    return null;
+  }
+}
+
+async function updateAppointment(appointmentId, updates) {
+  try {
+    const { data, error } = await supabase.from('appointments')
+      .update(updates).eq('id', appointmentId).select().single();
+    if (error) { console.error('[CRM] updateAppointment error:', error.message); return null; }
+    return data;
+  } catch (err) {
+    console.error('[CRM] updateAppointment error:', err.message);
+    return null;
+  }
+}
+
+async function getUpcomingAppointments(tenantId, hours = 24) {
+  try {
+    const now = new Date().toISOString();
+    const until = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+    const { data } = await supabase.from('appointments').select('*, leads(name, email, phone, company)')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'scheduled')
+      .gte('scheduled_at', now)
+      .lte('scheduled_at', until)
+      .order('scheduled_at', { ascending: true });
+    return data || [];
+  } catch (err) {
+    console.error('[CRM] getUpcomingAppointments error:', err.message);
+    return [];
+  }
+}
+
+// ── CRM: Stats ──
+
+async function getLeadStats(tenantId) {
+  try {
+    const { data: leads } = await supabase.from('leads').select('status, score, source')
+      .eq('tenant_id', tenantId);
+    if (!leads || !leads.length) return { total: 0, by_status: {}, avg_score: 0, by_source: {} };
+
+    const byStatus = {};
+    const bySource = {};
+    let scoreSum = 0;
+    let scoreCount = 0;
+
+    leads.forEach(l => {
+      byStatus[l.status] = (byStatus[l.status] || 0) + 1;
+      if (l.source) bySource[l.source] = (bySource[l.source] || 0) + 1;
+      if (l.score) { scoreSum += l.score; scoreCount++; }
+    });
+
+    return {
+      total: leads.length,
+      by_status: byStatus,
+      avg_score: scoreCount ? Math.round((scoreSum / scoreCount) * 10) / 10 : 0,
+      by_source: bySource,
+    };
+  } catch (err) {
+    console.error('[CRM] getLeadStats error:', err.message);
+    return { total: 0, by_status: {}, avg_score: 0, by_source: {} };
+  }
+}
+
 module.exports = {
   getTenantByDiscordId, getDefaultTenant, getTenantById, getAllActiveTenants,
   getOrCreateUser, getAllUsers, deleteUser,
@@ -284,4 +496,9 @@ module.exports = {
   createAgentTask, updateAgentTask, getAgentTasks, getRecentAgentCycles,
   logApiCost, getApiCosts, getApiCostSummary,
   markFileProcessed, isFileProcessed, getProcessedFiles,
+  // CRM v3
+  createLead, updateLead, getLead, getLeads, getLeadsByScore,
+  logActivity, getLeadActivities,
+  createAppointment, updateAppointment, getUpcomingAppointments,
+  getLeadStats,
 };
