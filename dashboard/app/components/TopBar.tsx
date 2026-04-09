@@ -53,7 +53,7 @@ export default function TopBar({
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const isOnline = health.data?.status === 'ok' || health.data?.status === 'healthy';
+  const isOnline = !!health.data && !health.error;
   const totalCost = costs.data?.total_cost ?? 0;
 
   return (
