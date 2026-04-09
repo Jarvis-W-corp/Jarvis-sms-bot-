@@ -13,3 +13,5 @@ gmail-token.json
 downloads/
 /tmp/
 jarvis-feed/
+dashboard/node_modules/
+dashboard/.next/
