@@ -192,6 +192,36 @@ body::after{
 .j-fail{background:rgba(255,23,68,0.15);color:var(--red);border:1px solid rgba(255,23,68,0.3)}
 .j-run{background:rgba(0,229,255,0.15);color:var(--cyan);border:1px solid rgba(0,229,255,0.3)}
 
+/* Floating action buttons */
+.fab{position:fixed;right:18px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--bg2),var(--bg));border:2px solid var(--cyan);color:var(--cyan);cursor:pointer;font-size:20px;box-shadow:0 0 25px rgba(0,229,255,0.3);z-index:500;display:flex;align-items:center;justify-content:center;transition:all 0.2s}
+.fab:hover{box-shadow:0 0 35px rgba(0,229,255,0.6);transform:scale(1.08)}
+.fab-build{bottom:188px;border-color:var(--purple);color:var(--purple);box-shadow:0 0 25px rgba(179,136,255,0.3)}
+.fab-build:hover{box-shadow:0 0 35px rgba(179,136,255,0.6)}
+.fab-label{position:absolute;right:64px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.9);padding:6px 10px;border-radius:4px;font-size:9px;letter-spacing:1px;font-weight:700;color:var(--cyan);white-space:nowrap;border:1px solid var(--cyan);opacity:0;pointer-events:none;transition:opacity 0.2s}
+.fab:hover .fab-label{opacity:1}
+.fab-build .fab-label{color:var(--purple);border-color:var(--purple)}
+
+/* BUILD PROGRESS styles (match old dashboard) */
+.prog-top{background:rgba(0,0,0,0.4);border:1px solid var(--line);border-radius:8px;padding:20px;text-align:center;margin-bottom:14px}
+.prog-num{font-size:46px;font-weight:900;color:var(--purple);text-shadow:0 0 24px rgba(179,136,255,0.4);letter-spacing:-1px}
+.prog-sub{font-size:9px;color:var(--dim);margin-top:2px;letter-spacing:2px}
+.phase{background:rgba(0,0,0,0.3);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:10px}
+.ph-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.ph-nm{font-size:12px;font-weight:700;color:#c8d6e5;letter-spacing:0.5px}
+.ph-bg{font-size:9px;padding:3px 10px;border-radius:12px;font-weight:700;letter-spacing:0.5px}
+.ph-done{background:rgba(105,240,174,0.12);color:var(--green);border:1px solid rgba(105,240,174,0.3)}
+.ph-wip{background:rgba(0,229,255,0.12);color:var(--cyan);border:1px solid rgba(0,229,255,0.3)}
+.ph-plan{background:rgba(255,255,255,0.04);color:var(--dim);border:1px solid rgba(255,255,255,0.05)}
+.pbar{height:4px;background:rgba(0,0,0,0.5);border-radius:2px;margin-bottom:10px;overflow:hidden}
+.pfill{height:100%;border-radius:2px;transition:width 0.5s;position:relative}
+.pfill::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent);animation:shimmer 2.5s infinite}
+.pf-g{background:var(--green);box-shadow:0 0 6px var(--green)}
+.pf-b{background:var(--cyan);box-shadow:0 0 6px var(--cyan)}
+.pf-d{background:var(--dim)}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:2px 14px}
+.ft{font-size:10px;padding:3px 0;color:var(--dim);display:flex;align-items:center;gap:6px;letter-spacing:0.3px}
+.ft b{font-size:12px;display:inline-block;width:12px;text-align:center}
+
 /* Voice button */
 .voice-btn{position:fixed;bottom:68px;right:18px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--bg2),var(--bg));border:2px solid var(--cyan);color:var(--cyan);cursor:pointer;font-size:20px;box-shadow:0 0 25px rgba(0,229,255,0.3);z-index:500;display:flex;align-items:center;justify-content:center;transition:all 0.2s}
 .voice-btn:hover{box-shadow:0 0 35px rgba(0,229,255,0.6);transform:scale(1.08)}
@@ -503,6 +533,12 @@ body::after{
 <!-- VOICE BUTTON -->
 <button class="voice-btn" onclick="openVoice()" title="Talk to Jarvis">🎤</button>
 
+<!-- BUILD PROGRESS BUTTON -->
+<button class="fab fab-build" onclick="openBuild()" style="bottom:128px">
+  <span class="fab-label">BUILD PROGRESS</span>
+  📊
+</button>
+
 <!-- ACHIEVEMENT POPUP -->
 <div class="achievement" id="achievement">
   <div class="achievement-title">🏆 <span id="ach-title">ACHIEVEMENT</span></div>
@@ -526,6 +562,17 @@ body::after{
     <button class="modal-close" onclick="closeEtsy()">×</button>
     <h2 style="color:var(--etsy)">🛍️ ETSY STORE</h2>
     <div id="etsy-body"></div>
+  </div>
+</div>
+
+<!-- BUILD PROGRESS MODAL -->
+<div class="modal" id="build-modal">
+  <div class="modal-body" style="max-width:900px">
+    <button class="modal-close" onclick="closeBuild()">×</button>
+    <h2 style="color:var(--purple);text-shadow:0 0 8px var(--purple)">📊 BUILD PROGRESS</h2>
+    <div id="build-body">
+      <div style="text-align:center;padding:30px;color:var(--dim)">Loading build status...</div>
+    </div>
   </div>
 </div>
 
@@ -914,6 +961,63 @@ async function openRoom(roomId) {
 function closeModal() { document.getElementById('room-modal').classList.remove('open'); }
 function closeVoice() { document.getElementById('voice-modal').classList.remove('open'); }
 function closeEtsy() { document.getElementById('etsy-modal').classList.remove('open'); }
+function closeBuild() { document.getElementById('build-modal').classList.remove('open'); }
+
+// ═══ BUILD PROGRESS MODAL ═══
+async function openBuild() {
+  const modal = document.getElementById('build-modal');
+  const body = document.getElementById('build-body');
+  body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--dim)">Loading build status...</div>';
+  modal.classList.add('open');
+
+  const data = await api('/dashboard/api/progress');
+  if (!data?.phases) {
+    body.innerHTML = '<div style="color:var(--pink);padding:20px">Failed to load progress</div>';
+    return;
+  }
+
+  let totalFeatures = 0, totalDone = 0, totalWip = 0, totalPlanned = 0;
+  let phasesHtml = '';
+
+  data.phases.forEach(p => {
+    const done = p.features.filter(f => f.status === 'done').length;
+    const wip = p.features.filter(f => f.status === 'in-progress').length;
+    const planned = p.features.filter(f => f.status === 'planned').length;
+    const total = p.features.length;
+    totalFeatures += total; totalDone += done; totalWip += wip; totalPlanned += planned;
+    const pct = Math.round((done / total) * 100);
+
+    const phaseBadgeCls = p.status === 'complete' ? 'ph-done' : p.status === 'in-progress' ? 'ph-wip' : 'ph-plan';
+    const fillCls = p.status === 'complete' ? 'pf-g' : p.status === 'in-progress' ? 'pf-b' : 'pf-d';
+
+    phasesHtml += '<div class="phase">';
+    phasesHtml += '<div class="ph-hdr"><span class="ph-nm">' + escapeHtml(p.name) + '</span><span class="ph-bg ' + phaseBadgeCls + '">' + done + '/' + total + '</span></div>';
+    phasesHtml += '<div class="pbar"><div class="pfill ' + fillCls + '" style="width:' + pct + '%"></div></div>';
+    phasesHtml += '<div class="fgrid">';
+    p.features.forEach(f => {
+      const icon = f.status === 'done' ? '✓' : f.status === 'in-progress' ? '◉' : '○';
+      const color = f.status === 'done' ? 'var(--green)' : f.status === 'in-progress' ? 'var(--cyan)' : 'var(--dim)';
+      phasesHtml += '<div class="ft"><b style="color:' + color + '">' + icon + '</b>' + escapeHtml(f.name) + '</div>';
+    });
+    phasesHtml += '</div></div>';
+  });
+
+  const overallPct = Math.round((totalDone / totalFeatures) * 100);
+
+  let html = '';
+  html += '<div class="prog-top">';
+  html += '<div class="prog-num">' + overallPct + '%</div>';
+  html += '<div class="prog-sub">OVERALL COMPLETION</div>';
+  html += '<div style="display:flex;justify-content:center;gap:24px;margin-top:14px">';
+  html += '<div><div style="font-size:16px;font-weight:700;color:var(--green)">' + totalDone + '</div><div style="font-size:8px;color:var(--dim);letter-spacing:1.5px;text-transform:uppercase">Done</div></div>';
+  html += '<div><div style="font-size:16px;font-weight:700;color:var(--cyan)">' + totalWip + '</div><div style="font-size:8px;color:var(--dim);letter-spacing:1.5px;text-transform:uppercase">In Progress</div></div>';
+  html += '<div><div style="font-size:16px;font-weight:700;color:var(--dim)">' + totalPlanned + '</div><div style="font-size:8px;color:var(--dim);letter-spacing:1.5px;text-transform:uppercase">Planned</div></div>';
+  html += '<div><div style="font-size:16px;font-weight:700;color:#c8d6e5">' + totalFeatures + '</div><div style="font-size:8px;color:var(--dim);letter-spacing:1.5px;text-transform:uppercase">Total</div></div>';
+  html += '</div></div>';
+
+  html += phasesHtml;
+  body.innerHTML = html;
+}
 function openApp(slug) { window.open(API + '/' + slug + '?key=' + API_KEY, '_blank'); }
 function openVoice() { document.getElementById('voice-modal').classList.add('open'); }
 
@@ -1072,6 +1176,7 @@ function escapeHtml(s) {
 document.getElementById('room-modal').addEventListener('click', e => { if (e.target.id === 'room-modal') closeModal(); });
 document.getElementById('voice-modal').addEventListener('click', e => { if (e.target.id === 'voice-modal') closeVoice(); });
 document.getElementById('etsy-modal').addEventListener('click', e => { if (e.target.id === 'etsy-modal') closeEtsy(); });
+document.getElementById('build-modal').addEventListener('click', e => { if (e.target.id === 'build-modal') closeBuild(); });
 </script>
 </body>
 </html>
