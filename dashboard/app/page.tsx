@@ -252,7 +252,7 @@ export default function MissionControl() {
 
   const leadsCount = leads?.length ?? 0;
   const workers: any[] = (crew as any)?.workers ?? [];
-  const activeAgents = workers.filter((w: any) => w.status === 'working').length;
+  const activeAgents = workers.filter((w: any) => w.status === 'working' || w.status === 'active').length;
 
   const onPhaserReady = useCallback((h: PhaserGameHandle) => {
     h.onRoomClick((roomId) => {

@@ -235,7 +235,7 @@ export default function RoomInterior({ roomId, roomName, roomColor, onClose }: R
             </h2>
             <span
               className={`px-2 py-0.5 rounded-full text-[0.6rem] font-bold uppercase tracking-wider ${
-                agent?.status === 'working'
+                (agent?.status === 'working' || agent?.status === 'active')
                   ? 'bg-[#00e5ff]/15 text-[#00e5ff] border border-[#00e5ff]/30'
                   : agent?.status === 'error'
                     ? 'bg-[#ff4081]/15 text-[#ff4081] border border-[#ff4081]/30'
@@ -268,7 +268,7 @@ export default function RoomInterior({ roomId, roomName, roomColor, onClose }: R
                   <line x1="20" y1="24" x2="32" y2="34" stroke={roomColor} strokeWidth="2" />
                   <line x1="20" y1="40" x2="10" y2="56" stroke={roomColor} strokeWidth="2" />
                   <line x1="20" y1="40" x2="30" y2="56" stroke={roomColor} strokeWidth="2" />
-                  {agent?.status === 'working' && (
+                  {(agent?.status === 'working' || agent?.status === 'active') && (
                     <circle cx="20" cy="10" r="10" stroke={roomColor} strokeWidth="1" fill="none" opacity="0.3">
                       <animate attributeName="r" values="10;14;10" dur="2s" repeatCount="indefinite" />
                       <animate attributeName="opacity" values="0.3;0;0.3" dur="2s" repeatCount="indefinite" />
@@ -281,7 +281,7 @@ export default function RoomInterior({ roomId, roomName, roomColor, onClose }: R
                   <span className="font-bold uppercase tracking-wider text-sm" style={{ color: roomColor }}>
                     {agent?.name ?? 'No Agent'}
                   </span>
-                  <span className={`status-dot ${agent?.status === 'working' ? 'working' : agent?.status === 'error' ? 'offline' : 'online'}`} />
+                  <span className={`status-dot ${(agent?.status === 'working' || agent?.status === 'active') ? 'working' : agent?.status === 'error' ? 'offline' : 'online'}`} />
                 </div>
                 <div className="text-[0.65rem] text-[#6b7fa3] uppercase tracking-wider mb-2">
                   {agent?.currentJob ?? 'Standing by'}
