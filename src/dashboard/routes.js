@@ -770,6 +770,67 @@ router.get('/dashboard/api/room/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══ ETSY SHOP ASSETS (for manual upload to Etsy) ═══
+router.get('/dashboard/api/etsy/assets', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  const dir = path.join(__dirname, '../../etsy-assets');
+  const assets = { files: [], storyText: '', bioText: '' };
+  try {
+    if (fs.existsSync(path.join(dir, 'shop-icon.png'))) assets.files.push({ name: 'Shop Icon', url: '/dashboard/api/etsy/asset/shop-icon.png', file: 'shop-icon.png' });
+    if (fs.existsSync(path.join(dir, 'shop-banner.png'))) assets.files.push({ name: 'Shop Banner', url: '/dashboard/api/etsy/asset/shop-banner.png', file: 'shop-banner.png' });
+    if (fs.existsSync(path.join(dir, 'shop-story.txt'))) assets.storyText = fs.readFileSync(path.join(dir, 'shop-story.txt'), 'utf-8');
+    if (fs.existsSync(path.join(dir, 'seller-bio.txt'))) assets.bioText = fs.readFileSync(path.join(dir, 'seller-bio.txt'), 'utf-8');
+  } catch (e) { assets.error = e.message; }
+  assets.shopUrl = process.env.ETSY_SHOP_URL || 'https://www.etsy.com/shop/ApexPrintLLC';
+  assets.shopName = process.env.ETSY_SHOP_NAME || 'ApexPrintLLC';
+  res.json(assets);
+});
+
+router.get('/dashboard/api/etsy/asset/:file', (req, res) => {
+  const path = require('path');
+  const file = req.params.file.replace(/[^a-zA-Z0-9._-]/g, '');
+  res.sendFile(path.join(__dirname, '../../etsy-assets', file));
+});
+
+// Regenerate any asset on demand
+router.post('/dashboard/api/etsy/regen', aiLimiter, async (req, res) => {
+  try {
+    const { type } = req.body; // 'icon', 'banner', 'story', 'bio'
+    const fs = require('fs');
+    const https = require('https');
+    const path = require('path');
+    const OpenAI = require('openai');
+    const Anthropic = require('@anthropic-ai/sdk').default;
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const dir = path.join(__dirname, '../../etsy-assets');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    const download = (url, dest) => new Promise((resolve, reject) => {
+      const f = fs.createWriteStream(dest);
+      https.get(url, r => { r.pipe(f); f.on('finish', () => { f.close(); resolve(dest); }); }).on('error', reject);
+    });
+
+    if (type === 'icon') {
+      const r = await openai.images.generate({ model: 'dall-e-3', prompt: 'Minimal modern logo for ApexPrintLLC Etsy print-on-demand store. Bold geometric letter A or mountain peak. Deep navy blue and gold. Clean professional. White background. Circular shop icon. Logo mark only no text.', n: 1, size: '1024x1024', quality: 'hd' });
+      await download(r.data[0].url, path.join(dir, 'shop-icon.png'));
+    } else if (type === 'banner') {
+      const r = await openai.images.generate({ model: 'dall-e-3', prompt: 'Wide elegant Etsy shop banner for ApexPrintLLC print-on-demand. Flat-lay of printed products: tshirts, mugs, totes, posters, stickers. Deep navy with gold accents. Premium minimalist. Professional studio photography. No text.', n: 1, size: '1792x1024', quality: 'hd' });
+      await download(r.data[0].url, path.join(dir, 'shop-banner.png'));
+    } else if (type === 'story') {
+      const r = await anthropic.messages.create({ model: 'claude-sonnet-4-20250514', max_tokens: 800, system: 'Write a warm authentic Etsy shop story. 200-300 words. No corporate speak, no emojis.', messages: [{ role: 'user', content: 'Shop story for ApexPrintLLC print-on-demand shop selling curated designs across cottagecore, botanical, gaming, celestial, coffee, plant mom, dog mom niches.' }] });
+      fs.writeFileSync(path.join(dir, 'shop-story.txt'), r.content[0].text);
+    } else if (type === 'bio') {
+      const r = await anthropic.messages.create({ model: 'claude-sonnet-4-20250514', max_tokens: 400, system: 'Write warm Etsy seller bio 60-120 words first person authentic no emojis.', messages: [{ role: 'user', content: 'Seller bio for ApexPrintLLC owner.' }] });
+      fs.writeFileSync(path.join(dir, 'seller-bio.txt'), r.content[0].text);
+    } else {
+      return res.status(400).json({ error: 'type must be icon|banner|story|bio' });
+    }
+    res.json({ success: true, type });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ═══ ETSY / PRINTIFY PIPELINE ═══
 
 // Get all Printify products + Etsy status

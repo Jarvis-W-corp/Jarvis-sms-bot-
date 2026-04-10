@@ -584,24 +584,46 @@ async function openEtsy() {
   body.innerHTML = '<div style="text-align:center;padding:30px;color:#6b7fa3">Loading Etsy store...</div>';
   modal.classList.add('open');
 
-  const data = await api('/dashboard/api/etsy/products');
+  const [data, assets] = await Promise.all([
+    api('/dashboard/api/etsy/products'),
+    api('/dashboard/api/etsy/assets'),
+  ]);
+
   if (!data || data.error) {
     body.innerHTML = '<div style="color:#ff4081;padding:20px">Error loading store: ' + (data?.error || 'unknown') + '</div>';
     return;
   }
 
+  const shopUrl = assets?.shopUrl || 'https://www.etsy.com/shop/ApexPrintLLC';
+  const shopName = assets?.shopName || 'ApexPrintLLC';
+
   let html = '';
+
+  // Big shop link banner
+  html += '<div style="background:linear-gradient(135deg,rgba(245,100,30,0.15),rgba(245,100,30,0.05));border:2px solid rgba(245,100,30,0.4);border-radius:10px;padding:16px;margin-bottom:20px;display:flex;align-items:center;gap:14px">';
+  html += '<div style="font-size:32px">🛍️</div>';
+  html += '<div style="flex:1">';
+  html += '<div style="font-size:10px;color:var(--dim);letter-spacing:2px;text-transform:uppercase">Your Etsy Store</div>';
+  html += '<div style="font-size:16px;font-weight:700;color:var(--etsy);letter-spacing:1px">' + shopName + '</div>';
+  html += '</div>';
+  html += '<a href="' + shopUrl + '" target="_blank" style="background:var(--etsy);color:white;padding:10px 20px;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:1px;text-decoration:none">VIEW STORE →</a>';
+  html += '</div>';
+
+  // Stats
   html += '<div class="modal-grid" style="margin-bottom:20px">';
   html += '<div class="modal-stat"><div class="n" style="color:var(--etsy)">' + data.totalProducts + '</div><div class="l">Total Products</div></div>';
   html += '<div class="modal-stat"><div class="n" style="color:var(--green)">' + data.publishedCount + '</div><div class="l">Live on Etsy</div></div>';
   html += '<div class="modal-stat"><div class="n" style="color:var(--orange)">' + data.totalOrders + '</div><div class="l">Orders</div></div>';
   html += '</div>';
 
-  html += '<div style="display:flex;gap:8px;margin-bottom:16px">';
+  // Actions
+  html += '<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">';
   html += '<button class="btn" onclick="runEtsyPipeline()">▶ CREATE 3 MORE</button>';
   html += '<button class="btn" onclick="publishAllEtsy()">⚡ PUBLISH ALL</button>';
+  html += '<button class="btn" onclick="openAssets()">🎨 SHOP ASSETS</button>';
   html += '</div>';
 
+  // Products
   html += '<div class="modal-section"><h3>ALL PRODUCTS</h3>';
   for (const p of data.products) {
     const statusColor = p.published ? 'var(--green)' : 'var(--yellow)';
@@ -616,6 +638,84 @@ async function openEtsy() {
   }
   html += '</div>';
   body.innerHTML = html;
+}
+
+// ═══ SHOP ASSETS (icon, banner, story, bio) ═══
+async function openAssets() {
+  const body = document.getElementById('etsy-body');
+  body.innerHTML = '<div style="text-align:center;padding:30px;color:#6b7fa3">Loading shop assets...</div>';
+
+  const assets = await api('/dashboard/api/etsy/assets');
+  if (!assets) {
+    body.innerHTML = '<div style="color:#ff4081;padding:20px">Error loading assets</div>';
+    return;
+  }
+
+  let html = '<button class="btn" style="margin-bottom:16px" onclick="openEtsy()">← BACK TO STORE</button>';
+  html += '<h3 style="color:var(--etsy);margin-bottom:14px;font-size:14px;letter-spacing:2px">🎨 SHOP ASSETS (upload these to Etsy manually)</h3>';
+
+  html += '<div style="background:rgba(255,215,64,0.08);border:1px solid rgba(255,215,64,0.25);border-radius:8px;padding:12px;margin-bottom:16px;font-size:11px;color:#c8d6e5;line-height:1.6">';
+  html += '<b style="color:var(--yellow)">⚡ SETUP CHECKLIST</b> — Go to <a href="https://www.etsy.com/your/shops/me/onboarding" target="_blank" style="color:var(--cyan)">Etsy Shop Manager</a> → Customize your shop, then:';
+  html += '<ol style="margin:8px 0 0 16px;padding:0">';
+  html += '<li>Download Shop Icon → Upload to "Add an icon"</li>';
+  html += '<li>Download Shop Banner → Upload to "Create a banner"</li>';
+  html += '<li>Copy Shop Story → Paste into "Share your story"</li>';
+  html += '<li>Copy Seller Bio → Paste into "Upload a seller photo" section</li>';
+  html += '</ol></div>';
+
+  // Icon
+  html += '<div class="modal-section"><h3>SHOP ICON</h3>';
+  html += '<img src="/dashboard/api/etsy/asset/shop-icon.png?key=' + API_KEY + '" style="width:200px;height:200px;border-radius:12px;border:2px solid var(--line);display:block;margin-bottom:10px" />';
+  html += '<div style="display:flex;gap:8px">';
+  html += '<a class="btn" href="/dashboard/api/etsy/asset/shop-icon.png?key=' + API_KEY + '" download="apexprintllc-icon.png">⬇ DOWNLOAD</a>';
+  html += '<button class="btn" onclick="regenAsset(\'icon\')">🔄 REGENERATE</button>';
+  html += '</div></div>';
+
+  // Banner
+  html += '<div class="modal-section"><h3>SHOP BANNER</h3>';
+  html += '<img src="/dashboard/api/etsy/asset/shop-banner.png?key=' + API_KEY + '" style="width:100%;max-width:600px;border-radius:8px;border:2px solid var(--line);display:block;margin-bottom:10px" />';
+  html += '<div style="display:flex;gap:8px">';
+  html += '<a class="btn" href="/dashboard/api/etsy/asset/shop-banner.png?key=' + API_KEY + '" download="apexprintllc-banner.png">⬇ DOWNLOAD</a>';
+  html += '<button class="btn" onclick="regenAsset(\'banner\')">🔄 REGENERATE</button>';
+  html += '</div></div>';
+
+  // Story
+  html += '<div class="modal-section"><h3>SHARE YOUR STORY</h3>';
+  html += '<textarea id="story-text" style="width:100%;min-height:180px;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:12px;color:#c8d6e5;font-size:12px;font-family:inherit;line-height:1.6" readonly>' + escapeHtml(assets.storyText || '') + '</textarea>';
+  html += '<div style="display:flex;gap:8px;margin-top:8px">';
+  html += '<button class="btn" onclick="copyText(\'story-text\')">📋 COPY</button>';
+  html += '<button class="btn" onclick="regenAsset(\'story\')">🔄 REGENERATE</button>';
+  html += '</div></div>';
+
+  // Bio
+  html += '<div class="modal-section"><h3>SELLER BIO</h3>';
+  html += '<textarea id="bio-text" style="width:100%;min-height:100px;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:12px;color:#c8d6e5;font-size:12px;font-family:inherit;line-height:1.6" readonly>' + escapeHtml(assets.bioText || '') + '</textarea>';
+  html += '<div style="display:flex;gap:8px;margin-top:8px">';
+  html += '<button class="btn" onclick="copyText(\'bio-text\')">📋 COPY</button>';
+  html += '<button class="btn" onclick="regenAsset(\'bio\')">🔄 REGENERATE</button>';
+  html += '</div></div>';
+
+  body.innerHTML = html;
+}
+
+async function regenAsset(type) {
+  const btn = event.target;
+  const original = btn.textContent;
+  btn.textContent = '⏳ GENERATING...';
+  btn.disabled = true;
+  await api('/dashboard/api/etsy/regen', { method: 'POST', body: { type } });
+  btn.textContent = '✓ DONE';
+  setTimeout(() => openAssets(), 500);
+}
+
+function copyText(id) {
+  const el = document.getElementById(id);
+  el.select();
+  document.execCommand('copy');
+  const btn = event.target;
+  const original = btn.textContent;
+  btn.textContent = '✓ COPIED';
+  setTimeout(() => { btn.textContent = original; }, 1500);
 }
 
 async function runEtsyPipeline() {
