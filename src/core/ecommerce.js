@@ -204,19 +204,51 @@ async function runDailyMoneyPipeline(tenantId) {
     const ideaResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 2500,
-      system: `You are an Etsy SEO expert and product researcher. Based on trending data, generate EXACTLY 3 high-demand product ideas that will sell on Etsy.
+      system: `You are an Etsy SEO expert. Generate EXACTLY 3 products that will rank + sell on Etsy in 2026.
 
-For each product, use ETSY SEO BEST PRACTICES:
-- Title: 140 characters MAX, front-loaded with primary keyword, uses all 140 chars
-- Tags: EXACTLY 13 tags, 20 chars each max, mix of long-tail + short
-- Description: First line is hook with keyword, includes use cases, gift ideas, material info
-- Product type must be from: tshirt, hoodie, mug, poster, sticker, tote, phonecase, pillow
-- Price in cents, competitive for Etsy (tshirt 1999-2499, mug 1499, sticker 399-599, poster 1499-2499, hoodie 3999)
-- designPrompt should be VERY specific for DALL-E: describe style, colors, composition, vibe
+HARD RULES (research-backed for 2026 algo):
 
-Return ONLY a JSON array. No markdown. No explanations. Example format:
-[{"title":"...","description":"...","tags":["tag1","tag2",...13 tags],"designPrompt":"...","productType":"tshirt","price":2299}]`,
-      messages: [{ role: 'user', content: 'Top sellers on Etsy this week:\n\n' + trends.map(r => r.title + ': ' + r.snippet).join('\n\n') + '\n\nGenerate 3 winning product ideas.' }],
+TITLE (all 140 chars used):
+- First 40 chars = mobile thumbnail. Front-load the primary long-tail keyword here.
+- Formula: [Primary long-tail phrase] [descriptor] [descriptor] [occasion/recipient]
+- Natural phrasing only. 2026 algo penalizes keyword-stuffed gibberish.
+- NO repeating words. Use variations.
+
+13 TAGS (exactly 13, 20 chars each max):
+- 3-4 high-volume broad ("dog mom gift")
+- 4-5 mid-tail ("funny dog mom shirt")
+- 4-5 long-tail buyer-intent ("funny dog mom gift christmas")
+- Each tag = full phrase, Etsy matches phrases not words
+- Never duplicate tags in the title
+
+DESCRIPTION:
+- First line = hook with primary keyword (mobile truncates fast)
+- Lines 2-4: specific use cases + gift occasions
+- Include material/production info
+- End with shop CTA
+
+PRODUCT TYPE (pick one): tshirt, hoodie, mug, poster, sticker, tote, phonecase, pillow
+
+PRICING (research-backed sweet spots, in cents):
+- tshirt: 2299 or 2499 (ends in .99)
+- hoodie: 3999 or 4299
+- mug: 1599
+- sticker: 499 or 599
+- poster: 1799 or 2299
+- tote: 2299
+- phonecase: 1999
+- pillow: 2499
+
+NICHE SELECTION:
+- Pick TIGHT niches not broad ones. "Bookish gift" beats "book lover"
+- Target specific audiences: teachers, nurses, dog moms, plant moms, gamers, bookish types
+- Mix evergreen + seasonal/holiday angles
+
+designPrompt: Extremely specific for DALL-E. Describe style (minimalist/vintage/bold), exact colors, composition, vibe. NO text on design unless essential.
+
+Return ONLY a JSON array. No markdown. No explanations.
+Format: [{"title":"...","description":"...","tags":["tag1","tag2",...13],"designPrompt":"...","productType":"tshirt","priceInCents":2299}]`,
+      messages: [{ role: 'user', content: 'Top sellers on Etsy this week:\n\n' + trends.map(r => r.title + ': ' + r.snippet).join('\n\n') + '\n\nGenerate 3 winning product ideas following the rules above.' }],
     });
 
     let ideas = [];
@@ -242,7 +274,7 @@ Return ONLY a JSON array. No markdown. No explanations. Example format:
           tags: idea.tags || [],
           designPrompt: idea.designPrompt,
           productType: idea.productType || 'tshirt',
-          price: idea.price || 1999,
+          price: idea.priceInCents || idea.price || 1999,
           publish: true, // PUBLISH TO ETSY
         });
         created.push(result);
