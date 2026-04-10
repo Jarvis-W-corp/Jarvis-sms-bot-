@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JARVIS — Mission Control</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#080b14;--bg2:#0c1220;--line:#1a2744;
+  --cyan:#00e5ff;--purple:#b388ff;--green:#69f0ae;
+  --orange:#ff9100;--pink:#ff4081;--yellow:#ffd740;
+  --etsy:#f5641e;--printify:#39d4a5;--navy:#1a3a6b;
+  --dim:#6b7fa3;--red:#ff1744;
+}
+html,body{height:100%;background:var(--bg);color:#c8d6e5;font-family:'SF Mono','Courier New',monospace;overflow:hidden}
+body{display:flex;flex-direction:column;background:radial-gradient(ellipse at center,#0a0e1a 0%,#040610 100%)}
+
+/* ═══ TOP BAR ═══ */
+.top{height:60px;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 20px;gap:16px;background:rgba(13,20,36,0.6);backdrop-filter:blur(10px);z-index:100;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:10px}
+.brand h1{font-size:16px;letter-spacing:4px;color:var(--cyan);font-weight:700}
+.brand small{font-size:9px;color:var(--dim);letter-spacing:3px}
+.stats{display:flex;gap:28px;flex:1;justify-content:center}
+.stat{text-align:center}
+.stat .v{font-size:14px;font-weight:700}
+.stat .l{font-size:8px;color:var(--dim);letter-spacing:2px;text-transform:uppercase}
+.v-c{color:var(--cyan)}.v-p{color:var(--purple)}.v-g{color:var(--green)}.v-o{color:var(--orange)}.v-y{color:var(--yellow)}
+.top-right{display:flex;align-items:center;gap:14px}
+.clock{font-size:11px;color:var(--dim)}
+.status{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:700;letter-spacing:2px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--yellow);box-shadow:0 0 8px currentColor;animation:pulse 2s infinite}
+.dot.on{background:var(--green)}.dot.off{background:var(--pink)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.s-on{color:var(--green)}.s-off{color:var(--pink)}.s-cn{color:var(--yellow)}
+
+/* ═══ DUNGEON ═══ */
+.dungeon{flex:1;position:relative;overflow:hidden;padding:16px}
+.star{position:absolute;background:#94a3b8;border-radius:50%;pointer-events:none}
+.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(26,39,68,0.15) 1px,transparent 1px),linear-gradient(90deg,rgba(26,39,68,0.15) 1px,transparent 1px);background-size:50px 50px;pointer-events:none}
+
+.layout{position:relative;width:100%;height:100%;display:grid;grid-template-columns:300px 1fr 300px;grid-template-rows:1fr 1fr;gap:14px;z-index:2}
+.cmd{grid-column:2;grid-row:1/3;display:flex;align-items:center;justify-content:center}
+.left-col{grid-column:1;grid-row:1/3;display:flex;flex-direction:column;gap:14px}
+.right-col{grid-column:3;grid-row:1/3;display:flex;flex-direction:column;gap:14px}
+
+/* ═══ ROOM ═══ */
+.room{position:relative;background:var(--bg2);border:2px solid var(--line);border-radius:8px;padding:14px;cursor:pointer;transition:all 0.25s;overflow:hidden;flex:1}
+.room::before{content:"";position:absolute;inset:-2px;border-radius:8px;padding:2px;pointer-events:none;opacity:0.35}
+.room:hover{transform:translateY(-2px);box-shadow:0 0 30px var(--color),0 0 60px var(--color)}
+.room:hover::before{opacity:0.8}
+.room .bracket{position:absolute;width:16px;height:16px;border:2px solid var(--color);opacity:0.5}
+.room .br-tl{top:4px;left:4px;border-right:0;border-bottom:0}
+.room .br-tr{top:4px;right:4px;border-left:0;border-bottom:0}
+.room .br-bl{bottom:4px;left:4px;border-right:0;border-top:0}
+.room .br-br{bottom:4px;right:4px;border-left:0;border-top:0}
+
+.room.command{border-color:rgba(0,229,255,0.5);--color:#00e5ff;box-shadow:0 0 30px rgba(0,229,255,0.15);min-height:300px;width:100%;max-width:500px}
+.room.research{--color:#b388ff;border-color:rgba(179,136,255,0.4)}
+.room.marketing{--color:#69f0ae;border-color:rgba(105,240,174,0.4)}
+.room.ops{--color:#ff9100;border-color:rgba(255,145,0,0.4)}
+.room.etsy{--color:#f5641e;border-color:rgba(245,100,30,0.4)}
+.room.printify{--color:#39d4a5;border-color:rgba(57,212,165,0.4)}
+.room.solar{--color:#ffd740;border-color:rgba(255,215,64,0.4)}
+.room.roofing{--color:#4a7fc9;border-color:rgba(74,127,201,0.4)}
+
+.room-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.06)}
+.room-name{font-size:11px;letter-spacing:2px;color:var(--color);font-weight:700}
+.room-name.big{font-size:14px;letter-spacing:3px}
+.room-rev{font-size:10px;color:var(--green);font-weight:700;background:rgba(105,240,174,0.1);padding:2px 8px;border-radius:10px}
+
+.agent{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.figure{width:36px;height:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.figure svg{width:100%;height:100%}
+.agent-info{flex:1;min-width:0}
+.agent-name{font-size:11px;font-weight:700;color:var(--color);letter-spacing:1.5px}
+.agent-task{font-size:9px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.agent-status{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;background:var(--green);box-shadow:0 0 6px currentColor;animation:pulse 2s infinite}
+
+.room .desk{display:flex;gap:6px;margin-top:auto;padding-top:10px}
+.mini-stat{flex:1;text-align:center;background:rgba(255,255,255,0.03);padding:6px;border-radius:4px;border:1px solid rgba(255,255,255,0.05)}
+.mini-stat .n{font-size:12px;font-weight:700;color:var(--color)}
+.mini-stat .t{font-size:7px;color:var(--dim);letter-spacing:1px}
+
+/* Command center special */
+.room.command .monitor{width:100%;height:120px;background:#060a14;border:1px solid rgba(0,229,255,0.3);border-radius:4px;margin:12px 0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;padding:6px}
+.room.command .screen{background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:2px;display:flex;flex-direction:column;justify-content:center;padding:6px;gap:3px}
+.room.command .scan-line{height:2px;background:var(--cyan);opacity:0.4;border-radius:1px;animation:scan 2s infinite}
+.room.command .scan-line:nth-child(2){width:70%;animation-delay:0.2s}
+.room.command .scan-line:nth-child(3){width:85%;animation-delay:0.4s}
+.room.command .scan-line:nth-child(4){width:60%;animation-delay:0.6s}
+@keyframes scan{0%,100%{opacity:0.2;transform:scaleX(0.8)}50%{opacity:0.8;transform:scaleX(1)}}
+
+/* Connection lines (pseudo) */
+.room.active .agent-status{background:var(--green)}
+
+/* ═══ BOTTOM BAR ═══ */
+.bottom{height:48px;border-top:1px solid var(--line);display:flex;align-items:center;padding:0 20px;gap:12px;background:rgba(13,20,36,0.6);flex-shrink:0}
+.hint{font-size:10px;color:var(--dim);letter-spacing:2px;animation:pulse 3s infinite}
+.workflow-input{flex:1;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:8px 14px;color:#e0e0e0;font-size:12px;font-family:inherit;outline:none}
+.workflow-input:focus{border-color:var(--cyan)}
+.btn{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:1px;font-family:inherit;transition:all 0.15s}
+.btn:hover{background:rgba(0,229,255,0.2);box-shadow:0 0 12px rgba(0,229,255,0.3)}
+
+/* ═══ MODAL ═══ */
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal.open{display:flex}
+.modal-body{background:var(--bg2);border:2px solid var(--line);border-radius:12px;width:90%;max-width:700px;max-height:85vh;overflow-y:auto;padding:24px;position:relative}
+.modal-close{position:absolute;top:14px;right:14px;background:none;border:none;color:var(--dim);cursor:pointer;font-size:20px}
+.modal-close:hover{color:var(--cyan)}
+.modal h2{font-size:16px;letter-spacing:3px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.modal-section{margin-bottom:20px}
+.modal-section h3{font-size:10px;color:var(--dim);letter-spacing:2px;margin-bottom:10px;text-transform:uppercase}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.modal-stat{background:rgba(255,255,255,0.03);padding:12px;border-radius:6px;border:1px solid var(--line)}
+.modal-stat .n{font-size:20px;font-weight:700}
+.modal-stat .l{font-size:9px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;margin-top:2px}
+.job-row{padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:11px;display:flex;gap:10px;align-items:center}
+.job-row:last-child{border-bottom:none}
+.job-badge{font-size:8px;padding:2px 6px;border-radius:10px;font-weight:700;letter-spacing:1px}
+.j-done{background:rgba(105,240,174,0.15);color:var(--green)}
+.j-fail{background:rgba(255,23,68,0.15);color:var(--red)}
+.j-run{background:rgba(0,229,255,0.15);color:var(--cyan)}
+
+/* ═══ VOICE WIDGET ═══ */
+.voice-btn{position:fixed;bottom:70px;right:20px;width:54px;height:54px;border-radius:50%;background:var(--bg2);border:2px solid var(--cyan);color:var(--cyan);cursor:pointer;font-size:20px;box-shadow:0 0 20px rgba(0,229,255,0.3);z-index:500;display:flex;align-items:center;justify-content:center}
+.voice-btn:hover{box-shadow:0 0 30px rgba(0,229,255,0.5)}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="top">
+  <div class="brand">
+    <h1>JARVIS</h1>
+    <small>MISSION CONTROL</small>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="v v-c" id="s-leads">—</div><div class="l">Leads</div></div>
+    <div class="stat"><div class="v v-p" id="s-agents">—</div><div class="l">Agents</div></div>
+    <div class="stat"><div class="v v-g" id="s-jobs">—</div><div class="l">Jobs Done</div></div>
+    <div class="stat"><div class="v v-o" id="s-cost">$0.00</div><div class="l">24h Cost</div></div>
+    <div class="stat"><div class="v v-y" id="s-mem">—</div><div class="l">Memories</div></div>
+  </div>
+  <div class="top-right">
+    <span class="clock" id="clock">—</span>
+    <span class="status">
+      <span class="dot" id="status-dot"></span>
+      <span class="s-cn" id="status-txt">CONNECTING</span>
+    </span>
+  </div>
+</div>
+
+<!-- DUNGEON -->
+<div class="dungeon">
+  <div class="grid"></div>
+  <div id="stars"></div>
+  <div class="layout">
+
+    <!-- LEFT COLUMN -->
+    <div class="left-col">
+      <div class="room research" data-room="research" onclick="openRoom('research')">
+        <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
+        <div class="room-head"><span class="room-name">RESEARCH LAB</span></div>
+        <div class="agent">
+          <div class="figure">
+            <svg viewBox="0 0 40 60" fill="none">
+              <circle cx="20" cy="10" r="7" stroke="currentColor" stroke-width="2"/>
+              <circle cx="17" cy="9" r="1" fill="currentColor"/><circle cx="23" cy="9" r="1" fill="currentColor"/>
+              <line x1="20" y1="17" x2="20" y2="40" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="23" x2="10" y2="32" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="23" x2="30" y2="32" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="40" x2="12" y2="55" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="40" x2="28" y2="55" stroke="currentColor" stroke-width="2"/>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name"><span class="agent-status"></span>HAWK</div>
+            <div class="agent-task" id="task-research">Scraping competitor intel...</div>
+          </div>
+        </div>
+        <div class="desk">
+          <div class="mini-stat"><div class="n" id="hawk-done">—</div><div class="t">DONE</div></div>
+          <div class="mini-stat"><div class="n" id="hawk-fail">—</div><div class="t">FAIL</div></div>
+          <div class="mini-stat"><div class="n" id="hawk-rate">—</div><div class="t">RATE</div></div>
+        </div>
+      </div>
+
+      <div class="room marketing" data-room="marketing" onclick="openRoom('marketing')">
+        <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
+        <div class="room-head"><span class="room-name">MARKETING BAY</span></div>
+        <div class="agent">
+          <div class="figure">
+            <svg viewBox="0 0 40 60" fill="none">
+              <circle cx="20" cy="10" r="7" stroke="currentColor" stroke-width="2"/>
+              <circle cx="17" cy="9" r="1" fill="currentColor"/><circle cx="23" cy="9" r="1" fill="currentColor"/>
+              <line x1="20" y1="17" x2="20" y2="40" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="23" x2="10" y2="32" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="23" x2="30" y2="32" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="40" x2="12" y2="55" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="40" x2="28" y2="55" stroke="currentColor" stroke-width="2"/>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name"><span class="agent-status"></span>GHOST</div>
+            <div class="agent-task" id="task-marketing">Crafting ad creatives...</div>
+          </div>
+        </div>
+        <div class="desk">
+          <div class="mini-stat"><div class="n" id="ghost-done">—</div><div class="t">DONE</div></div>
+          <div class="mini-stat"><div class="n" id="ghost-fail">—</div><div class="t">FAIL</div></div>
+          <div class="mini-stat"><div class="n" id="ghost-rate">—</div><div class="t">RATE</div></div>
+        </div>
+      </div>
+
+      <div class="room ops" data-room="ops" onclick="openRoom('ops')">
+        <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
+        <div class="room-head"><span class="room-name">OPS DECK</span></div>
+        <div class="agent">
+          <div class="figure">
+            <svg viewBox="0 0 40 60" fill="none">
+              <circle cx="20" cy="10" r="7" stroke="currentColor" stroke-width="2"/>
+              <circle cx="17" cy="9" r="1" fill="currentColor"/><circle cx="23" cy="9" r="1" fill="currentColor"/>
+              <line x1="20" y1="17" x2="20" y2="40" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="23" x2="10" y2="32" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="23" x2="30" y2="32" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="40" x2="12" y2="55" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="40" x2="28" y2="55" stroke="currentColor" stroke-width="2"/>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name"><span class="agent-status"></span>PULSE</div>
+            <div class="agent-task" id="task-ops">Monitoring systems...</div>
+          </div>
+        </div>
+        <div class="desk">
+          <div class="mini-stat"><div class="n" id="pulse-done">—</div><div class="t">DONE</div></div>
+          <div class="mini-stat"><div class="n" id="pulse-fail">—</div><div class="t">FAIL</div></div>
+          <div class="mini-stat"><div class="n" id="pulse-rate">—</div><div class="t">RATE</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMMAND CENTER -->
+    <div class="cmd">
+      <div class="room command" data-room="command" onclick="openRoom('command')">
+        <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
+        <div class="room-head"><span class="room-name big">COMMAND CENTER</span><span style="font-size:10px;color:var(--cyan)">◉ JARVIS</span></div>
+
+        <div class="monitor">
+          <div class="screen">
+            <div class="scan-line"></div><div class="scan-line"></div>
+            <div class="scan-line"></div><div class="scan-line"></div>
+          </div>
+          <div class="screen">
+            <div class="scan-line"></div><div class="scan-line"></div>
+            <div class="scan-line"></div><div class="scan-line"></div>
+          </div>
+          <div class="screen">
+            <div class="scan-line"></div><div class="scan-line"></div>
+            <div class="scan-line"></div><div class="scan-line"></div>
+          </div>
+        </div>
+
+        <div class="agent">
+          <div class="figure" style="width:50px;height:70px">
+            <svg viewBox="0 0 40 60" fill="none">
+              <circle cx="20" cy="10" r="8" stroke="currentColor" stroke-width="2.5"/>
+              <circle cx="17" cy="9" r="1.2" fill="currentColor"/><circle cx="23" cy="9" r="1.2" fill="currentColor"/>
+              <line x1="20" y1="18" x2="20" y2="40" stroke="currentColor" stroke-width="2.5"/>
+              <line x1="20" y1="24" x2="10" y2="34" stroke="currentColor" stroke-width="2.5"/>
+              <line x1="20" y1="24" x2="30" y2="34" stroke="currentColor" stroke-width="2.5"/>
+              <line x1="20" y1="40" x2="12" y2="55" stroke="currentColor" stroke-width="2.5"/>
+              <line x1="20" y1="40" x2="28" y2="55" stroke="currentColor" stroke-width="2.5"/>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name" style="font-size:13px"><span class="agent-status"></span>JARVIS <span style="font-size:9px;color:var(--dim);font-weight:400;margin-left:6px">OPUS 4.6</span></div>
+            <div class="agent-task">Orchestrating the workforce</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="right-col">
+      <div class="room etsy" data-room="etsy" onclick="openRoom('etsy')">
+        <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
+        <div class="room-head">
+          <span class="room-name">🛍️ ETSY STORE</span>
+          <span class="room-rev">$2,100</span>
+        </div>
+        <div class="agent">
+          <div class="figure">
+            <svg viewBox="0 0 40 60" fill="none">
+              <circle cx="20" cy="10" r="7" stroke="currentColor" stroke-width="2"/>
+              <circle cx="17" cy="9" r="1" fill="currentColor"/><circle cx="23" cy="9" r="1" fill="currentColor"/>
+              <line x1="20" y1="17" x2="20" y2="40" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="23" x2="10" y2="32" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="23" x2="30" y2="32" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="40" x2="12" y2="55" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="40" x2="28" y2="55" stroke="currentColor" stroke-width="2"/>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name"><span class="agent-status"></span>FORGE</div>
+            <div class="agent-task">Creating listings</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="room printify" data-room="printify" onclick="openRoom('printify')">
+        <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
+        <div class="room-head">
+          <span class="room-name">🖨️ PRINTIFY SHOP</span>
+          <span class="room-rev">$450</span>
+        </div>
+        <div class="agent">
+          <div class="figure">
+            <svg viewBox="0 0 40 60" fill="none">
+              <circle cx="20" cy="10" r="7" stroke="currentColor" stroke-width="2"/>
+              <circle cx="17" cy="9" r="1" fill="currentColor"/><circle cx="23" cy="9" r="1" fill="currentColor"/>
+              <line x1="20" y1="17" x2="20" y2="40" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="23" x2="10" y2="32" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="23" x2="30" y2="32" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="40" x2="12" y2="55" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="40" x2="28" y2="55" stroke="currentColor" stroke-width="2"/>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name"><span class="agent-status"></span>PIXEL</div>
+            <div class="agent-task">Designing products</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="room roofing" data-room="roofing" onclick="openApp('roofing')">
+        <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
+        <div class="room-head">
+          <span class="room-name">🏠 PREMIUM ROOFING</span>
+          <span class="room-rev">$82,400</span>
+        </div>
+        <div class="agent">
+          <div class="figure">
+            <svg viewBox="0 0 40 60" fill="none">
+              <circle cx="20" cy="10" r="7" stroke="currentColor" stroke-width="2"/>
+              <circle cx="17" cy="9" r="1" fill="currentColor"/><circle cx="23" cy="9" r="1" fill="currentColor"/>
+              <line x1="20" y1="17" x2="20" y2="40" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="23" x2="10" y2="32" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="23" x2="30" y2="32" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="40" x2="12" y2="55" stroke="currentColor" stroke-width="2"/>
+              <line x1="20" y1="40" x2="28" y2="55" stroke="currentColor" stroke-width="2"/>
+            </svg>
+          </div>
+          <div class="agent-info">
+            <div class="agent-name"><span class="agent-status"></span>ROOFER</div>
+            <div class="agent-task">47 active leads</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM BAR -->
+<div class="bottom">
+  <span class="hint">◉ CLICK ANY ROOM TO ENTER</span>
+  <input type="text" class="workflow-input" id="wf-input" placeholder="Tell Jarvis what to build..." onkeydown="if(event.key==='Enter')runWorkflow()">
+  <button class="btn" onclick="runWorkflow()">EXECUTE</button>
+</div>
+
+<!-- VOICE BUTTON -->
+<button class="voice-btn" onclick="openVoice()" title="Talk to Jarvis">🎤</button>
+
+<!-- ROOM MODAL -->
+<div class="modal" id="room-modal">
+  <div class="modal-body">
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h2 id="modal-title">ROOM</h2>
+    <div class="modal-grid" id="modal-stats"></div>
+    <div class="modal-section">
+      <h3>RECENT JOBS</h3>
+      <div id="modal-jobs"></div>
+    </div>
+    <div class="modal-section">
+      <h3>API CONNECTIONS</h3>
+      <div id="modal-apis" style="font-size:11px;line-height:1.8"></div>
+    </div>
+  </div>
+</div>
+
+<!-- VOICE MODAL -->
+<div class="modal" id="voice-modal">
+  <div class="modal-body" style="max-width:480px">
+    <button class="modal-close" onclick="closeVoice()">×</button>
+    <h2>🎤 JARVIS VOICE</h2>
+    <div id="voice-log" style="min-height:200px;max-height:300px;overflow-y:auto;background:rgba(0,0,0,0.3);padding:12px;border-radius:6px;margin-bottom:12px;font-size:12px;line-height:1.6"></div>
+    <div style="display:flex;gap:8px">
+      <input type="text" class="workflow-input" id="voice-input" placeholder="Say something..." onkeydown="if(event.key==='Enter')sendVoice()">
+      <button class="btn" onclick="sendVoice()">SEND</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══ CONFIG ═══
+const API_KEY = new URLSearchParams(location.search).get('key') || '';
+const API = location.origin;
+
+async function api(path, opts) {
+  const url = API + path + (path.includes('?') ? '&' : '?') + 'key=' + API_KEY;
+  try {
+    const res = await fetch(url, {
+      method: opts?.method || 'GET',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+      body: opts?.body ? JSON.stringify(opts.body) : undefined,
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch(e) { console.error('api error', path, e); return null; }
+}
+
+// ═══ STARS ═══
+(function(){
+  const c = document.getElementById('stars');
+  for (let i = 0; i < 150; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    s.style.left = Math.random() * 100 + '%';
+    s.style.top = Math.random() * 100 + '%';
+    const size = Math.random() * 2 + 0.5;
+    s.style.width = s.style.height = size + 'px';
+    s.style.opacity = Math.random() * 0.6 + 0.2;
+    s.style.animation = 'pulse ' + (2 + Math.random() * 3) + 's infinite';
+    c.appendChild(s);
+  }
+})();
+
+// ═══ CLOCK ═══
+function tickClock() {
+  const t = new Date().toLocaleTimeString('en-US', {timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('clock').textContent = t + ' ET';
+}
+setInterval(tickClock, 1000); tickClock();
+
+// ═══ DATA REFRESH ═══
+let failures = 0;
+async function refresh() {
+  const [health, crew, costs, leads] = await Promise.all([
+    api('/dashboard/api/health'),
+    api('/dashboard/api/crew'),
+    api('/dashboard/api/costs'),
+    api('/dashboard/api/leads'),
+  ]);
+
+  if (health || crew || costs || leads) {
+    failures = 0;
+    setStatus('on');
+  } else {
+    failures++;
+    if (failures >= 3) setStatus('off');
+  }
+
+  if (health?.stats) {
+    document.getElementById('s-mem').textContent = health.stats.memories || '—';
+  }
+
+  if (crew?.workers) {
+    const activeCount = crew.workers.filter(w => w.status === 'active' || w.status === 'working').length;
+    document.getElementById('s-agents').textContent = activeCount;
+    document.getElementById('s-jobs').textContent = crew.jobs?.completed ?? '—';
+
+    crew.workers.forEach(w => {
+      const name = (w.name || '').toLowerCase();
+      const prefix = name.includes('hawk') ? 'hawk' : name.includes('ghost') ? 'ghost' : name.includes('pulse') ? 'pulse' : null;
+      if (prefix) {
+        const done = document.getElementById(prefix + '-done'); if (done) done.textContent = w.tasks_completed || 0;
+        const fail = document.getElementById(prefix + '-fail'); if (fail) fail.textContent = w.tasks_failed || 0;
+        const rate = document.getElementById(prefix + '-rate'); if (rate) rate.textContent = (w.successRate || 0) + '%';
+      }
+    });
+  }
+
+  if (costs?.total_cost !== undefined) {
+    document.getElementById('s-cost').textContent = '$' + (costs.total_cost || 0).toFixed(2);
+  }
+
+  if (leads) {
+    const arr = Array.isArray(leads) ? leads : (leads.leads || []);
+    document.getElementById('s-leads').textContent = arr.length;
+  }
+}
+
+function setStatus(s) {
+  const dot = document.getElementById('status-dot');
+  const txt = document.getElementById('status-txt');
+  dot.className = 'dot ' + (s === 'on' ? 'on' : s === 'off' ? 'off' : '');
+  txt.className = s === 'on' ? 's-on' : s === 'off' ? 's-off' : 's-cn';
+  txt.textContent = s === 'on' ? 'ONLINE' : s === 'off' ? 'OFFLINE' : 'CONNECTING';
+}
+
+refresh();
+setInterval(refresh, 15000);
+
+// ═══ ROOM INTERIOR MODAL ═══
+async function openRoom(roomId) {
+  const modal = document.getElementById('room-modal');
+  const title = document.getElementById('modal-title');
+  const stats = document.getElementById('modal-stats');
+  const jobs = document.getElementById('modal-jobs');
+  const apis = document.getElementById('modal-apis');
+
+  const roomNames = {
+    command: 'COMMAND CENTER', research: 'RESEARCH LAB', marketing: 'MARKETING BAY',
+    ops: 'OPS DECK', etsy: 'ETSY STORE', printify: 'PRINTIFY SHOP'
+  };
+  title.textContent = roomNames[roomId] || roomId.toUpperCase();
+  stats.innerHTML = '<div class="modal-stat"><div class="n">...</div><div class="l">loading</div></div>';
+  jobs.innerHTML = '<div style="color:#6b7fa3;font-size:11px">loading...</div>';
+  apis.innerHTML = '';
+  modal.classList.add('open');
+
+  const data = await api('/dashboard/api/room/' + roomId);
+  if (!data) {
+    stats.innerHTML = '<div class="modal-stat"><div class="n">—</div><div class="l">no data</div></div>';
+    return;
+  }
+
+  const agent = (data.agents || [])[0];
+  stats.innerHTML = '';
+  if (agent) {
+    stats.innerHTML += '<div class="modal-stat"><div class="n" style="color:var(--green)">' + (agent.tasks_completed || 0) + '</div><div class="l">Completed</div></div>';
+    stats.innerHTML += '<div class="modal-stat"><div class="n" style="color:var(--pink)">' + (agent.tasks_failed || 0) + '</div><div class="l">Failed</div></div>';
+  }
+  if (data.stats?.costs) {
+    stats.innerHTML += '<div class="modal-stat"><div class="n" style="color:var(--orange)">$' + (data.stats.costs.total_cost || 0).toFixed(3) + '</div><div class="l">24h Cost</div></div>';
+    stats.innerHTML += '<div class="modal-stat"><div class="n" style="color:var(--cyan)">' + (data.stats.costs.total_calls || 0) + '</div><div class="l">API Calls</div></div>';
+  }
+
+  // Recent jobs
+  const jobList = (data.recentJobs || []).slice(0, 8);
+  if (jobList.length) {
+    jobs.innerHTML = jobList.map(j => {
+      const cls = j.status === 'completed' ? 'j-done' : j.status === 'failed' ? 'j-fail' : 'j-run';
+      return '<div class="job-row"><span class="job-badge ' + cls + '">' + (j.status || 'pending').toUpperCase() + '</span><span style="flex:1;color:#c8d6e5">' + escapeHtml(j.title || 'Untitled') + '</span></div>';
+    }).join('');
+  } else {
+    jobs.innerHTML = '<div style="color:#6b7fa3;font-size:11px">No recent jobs</div>';
+  }
+
+  // API connections
+  if (data.apiConnections) {
+    apis.innerHTML = data.apiConnections.map(c =>
+      '<div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:' + (c.connected ? 'var(--green)' : 'var(--pink)') + ';box-shadow:0 0 6px currentColor"></span>' + c.name + '</div>'
+    ).join('');
+  }
+}
+
+function closeModal() { document.getElementById('room-modal').classList.remove('open'); }
+function closeVoice() { document.getElementById('voice-modal').classList.remove('open'); }
+
+function openApp(slug) {
+  const url = API + '/' + slug + '?key=' + API_KEY;
+  window.open(url, '_blank');
+}
+
+// ═══ WORKFLOW ═══
+async function runWorkflow() {
+  const input = document.getElementById('wf-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  const r = await api('/dashboard/api/chat', { method: 'POST', body: { text } });
+  if (r?.reply) {
+    alert('Jarvis: ' + r.reply);
+  }
+}
+
+// ═══ VOICE ═══
+function openVoice() { document.getElementById('voice-modal').classList.add('open'); }
+
+async function sendVoice() {
+  const input = document.getElementById('voice-input');
+  const log = document.getElementById('voice-log');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  log.innerHTML += '<div style="color:var(--cyan);margin-bottom:8px"><b>YOU:</b> ' + escapeHtml(text) + '</div>';
+  log.scrollTop = log.scrollHeight;
+
+  const r = await api('/dashboard/api/voice', { method: 'POST', body: { text } });
+  if (r?.reply) {
+    log.innerHTML += '<div style="color:var(--green);margin-bottom:12px"><b>JARVIS:</b> ' + escapeHtml(r.reply) + '</div>';
+    log.scrollTop = log.scrollHeight;
+    if (r.audio) {
+      try {
+        const audio = new Audio('data:audio/mpeg;base64,' + r.audio);
+        audio.play();
+      } catch(e) {}
+    }
+  }
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+// Close modals on backdrop click
+document.getElementById('room-modal').addEventListener('click', e => {
+  if (e.target.id === 'room-modal') closeModal();
+});
+document.getElementById('voice-modal').addEventListener('click', e => {
+  if (e.target.id === 'voice-modal') closeVoice();
+});
+</script>
+</body>
+</html>

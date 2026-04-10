@@ -55,16 +55,14 @@ app.use(sales);
 const roofing = require('./src/roofing/routes');
 app.use(roofing);
 
-// New Dungeon Dashboard (Next.js static export)
+// Mission Control (simple HTML dungeon dashboard)
 app.get('/mc', (req, res) => {
   const key = process.env.DASHBOARD_API_KEY;
   if (key && req.query.key !== key) {
     return res.status(401).send('<html><body style="background:#0a0e1a;color:#fff;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;"><div style="text-align:center"><h1>JARVIS</h1><p>Access denied. Add ?key=YOUR_KEY to the URL.</p></div></body></html>');
   }
-  res.sendFile(path.join(__dirname, 'dashboard/out/index.html'));
+  res.sendFile(path.join(__dirname, 'src/mc/index.html'));
 });
-app.use('/mc/_next', express.static(path.join(__dirname, 'dashboard/out/_next')));
-app.use('/mc', express.static(path.join(__dirname, 'dashboard/out')));
 
 // ── Gmail OAuth Callback (no more localhost!) ──
 app.get('/auth/gmail', async (req, res) => {
