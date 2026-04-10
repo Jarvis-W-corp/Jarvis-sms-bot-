@@ -32,22 +32,31 @@ function usePolling<T>(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const mountedRef = useRef(true);
+  const failuresRef = useRef(0);
 
   const doFetch = useCallback(async () => {
-    try {
-      const result = await fetcher();
-      if (!mountedRef.current) return;
-      if (result !== null) {
-        setData(result);
-        setError(false);
-      } else {
-        setError(true);
-      }
-    } catch {
-      if (mountedRef.current) setError(true);
-    } finally {
-      if (mountedRef.current) setLoading(false);
+    // Retry once on network failure (handles Render cold starts)
+    const attempt = async (): Promise<T | null> => {
+      try { return await fetcher(); } catch { return null; }
+    };
+
+    let result = await attempt();
+    if (result === null) {
+      await new Promise(r => setTimeout(r, 500));
+      result = await attempt();
     }
+
+    if (!mountedRef.current) return;
+    if (result !== null) {
+      setData(result);
+      setError(false);
+      failuresRef.current = 0;
+    } else {
+      failuresRef.current++;
+      // Only flip to error state after 3 consecutive failures
+      if (failuresRef.current >= 3) setError(true);
+    }
+    setLoading(false);
   }, [fetcher]);
 
   useEffect(() => {

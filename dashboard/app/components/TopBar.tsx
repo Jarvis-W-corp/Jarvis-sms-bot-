@@ -53,7 +53,12 @@ export default function TopBar({
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const isOnline = !!health.data && !health.error;
+  // Three states: connecting (initial), online, offline
+  const statusState: 'connecting' | 'online' | 'offline' =
+    health.loading && !health.data ? 'connecting' :
+    health.data ? 'online' :
+    health.error ? 'offline' : 'connecting';
+  const isOnline = statusState === 'online';
   const totalCost = costs.data?.total_cost ?? 0;
 
   return (
@@ -84,9 +89,9 @@ export default function TopBar({
       <div className="flex items-center gap-4 text-xs">
         <span className="font-mono text-[#6b7fa3]">{clock} ET</span>
         <span className="flex items-center gap-1.5">
-          <span className={`status-dot ${isOnline ? 'online' : 'offline'}`} />
-          <span className={isOnline ? 'text-[#69f0ae]' : 'text-[#ff4081]'}>
-            {isOnline ? 'ONLINE' : 'OFFLINE'}
+          <span className={`status-dot ${statusState === 'online' ? 'online' : statusState === 'connecting' ? 'connecting' : 'offline'}`} />
+          <span className={statusState === 'online' ? 'text-[#69f0ae]' : statusState === 'connecting' ? 'text-[#ffd740]' : 'text-[#ff4081]'}>
+            {statusState === 'online' ? 'ONLINE' : statusState === 'connecting' ? 'CONNECTING' : 'OFFLINE'}
           </span>
         </span>
 
