@@ -69,7 +69,14 @@ YOUR PERSONALITY:
 - You have opinions. When asked, you give real strategic advice.
 - Think like a CEO. Revenue, growth, efficiency, delegation.
 - Never search the web for questions about yourself or your own capabilities.
-- Keep responses concise. You're busy running a company.`;
+- Keep responses concise. You're busy running a company.
+
+MEMORY RULES — CRITICAL:
+- When Mark asks "do you remember X" or "what did you do yesterday" or "what's running" or anything about YOUR OWN WORK/TASKS/AGENTS/STORE — CHECK THE "YOUR RECENT WORK" SECTION BELOW IN THIS PROMPT. That's your ACTUAL memory of crew jobs, workflows, and products created in the last 48 hours.
+- NEVER web-search questions about yourself. Never tell Mark "I forget quickly" or cite research about human memory — you're an AI, your memory is in your database and it's shown to you in this prompt.
+- If the work context is empty, say "nothing shows up in the last 48 hours" — don't make things up, don't philosophize.
+- If Mark references a task from days ago, check the facts and decisions in memory. If still nothing, say so plainly.
+- Answer memory questions with REAL DATA from your context, not generic AI deflection.`;
   if (isBoss) {
     prompt += '\n\nYou are talking to Mark \u2014 your creator and boss. Be extra casual with him. He\'s building you to be his AI workforce. He runs a solar business and is building software products. Help him think bigger, challenge his ideas when needed, and keep him focused.';
   }
@@ -116,7 +123,43 @@ async function chat(tenantId, userId, platform, userText, userName) {
   } catch (memErr) {
     console.error('[BRAIN] Memory recall failed:', memErr.message);
   }
-  const systemPrompt = buildSystemPrompt(tenant, user, memoryContext);
+
+  // Load recent crew jobs + active tasks so Jarvis actually knows what he's doing
+  let workContext = '';
+  try {
+    const { supabase } = require('../db/supabase');
+    const since24h = new Date(Date.now() - 48 * 3600000).toISOString();
+
+    const [{ data: recentJobs }, { data: runningJobs }, { data: recentWorkflows }, { data: recentProducts }] = await Promise.all([
+      supabase.from('agent_jobs').select('id, title, description, status, worker_id, output, created_at, completed_at').gte('created_at', since24h).order('created_at', { ascending: false }).limit(15),
+      supabase.from('agent_jobs').select('id, title, worker_id, started_at').eq('status', 'running').limit(10),
+      supabase.from('workflows').select('id, name, status, current_step, total_steps, created_at').gte('created_at', since24h).order('created_at', { ascending: false }).limit(10),
+      supabase.from('memories').select('content, created_at').eq('tenant_id', tenantId).eq('source', 'daily_pipeline').order('created_at', { ascending: false }).limit(5),
+    ]);
+
+    const parts = [];
+    if (runningJobs && runningJobs.length > 0) {
+      parts.push('CURRENTLY RUNNING:\n' + runningJobs.map(j => '- [' + j.worker_id + '] ' + j.title + ' (started ' + new Date(j.started_at).toLocaleString() + ')').join('\n'));
+    }
+    if (recentJobs && recentJobs.length > 0) {
+      parts.push('JOBS LAST 48H (' + recentJobs.length + '):\n' + recentJobs.slice(0, 15).map(j => {
+        const out = j.output?.result ? ': ' + String(j.output.result).substring(0, 150) : '';
+        return '- [' + (j.status || '').toUpperCase() + '] ' + j.title + out;
+      }).join('\n'));
+    }
+    if (recentWorkflows && recentWorkflows.length > 0) {
+      parts.push('WORKFLOWS LAST 48H:\n' + recentWorkflows.map(w => '- [' + w.status + '] ' + w.name + ' (step ' + w.current_step + '/' + w.total_steps + ')').join('\n'));
+    }
+    if (recentProducts && recentProducts.length > 0) {
+      parts.push('RECENT ETSY ACTIVITY:\n' + recentProducts.map(p => '- ' + String(p.content).substring(0, 200)).join('\n'));
+    }
+    if (parts.length > 0) workContext = parts.join('\n\n');
+  } catch (e) {
+    console.error('[BRAIN] Work context load failed:', e.message);
+  }
+
+  const fullMemoryContext = memoryContext + (workContext ? '\n\n═══ YOUR RECENT WORK ═══\n' + workContext : '');
+  const systemPrompt = buildSystemPrompt(tenant, user, fullMemoryContext);
   // Determine if Jarvis gets code tools (only for boss via Discord)
   const isBoss = user?.platform_id === 'discord_' + tenant.config?.boss_discord_id;
   const tools = (isBoss && process.env.GITHUB_TOKEN) ? codebase.TOOLS : undefined;
@@ -185,7 +228,11 @@ async function chat(tenantId, userId, platform, userText, userName) {
     finalReply = 'Something went wrong — I got an empty response. Try again.';
   }
 
-  const needsSearch = /don't have|don't know|not sure|I cannot|my knowledge cutoff/i.test(finalReply);
+  // Auto web-search ONLY when user asks for external info AND Jarvis said he doesn't know
+  // Never auto-search questions about Jarvis's own memory, tasks, work, or the boss
+  const mentionsSelf = /\b(you|your|jarvis|remember|recall|task|job|agent|crew|workflow|pipeline|product|listing|store|etsy|printify|ghost|hawk|pulse|yesterday|today|last|recent|did you|have you|what did|status)\b/i.test(userText);
+  const saidDoesntKnow = /don't have (access|information|data)|not sure|my knowledge cutoff/i.test(finalReply);
+  const needsSearch = !mentionsSelf && saidDoesntKnow;
   if (needsSearch) {
     const { searchAndSummarize } = require('./search');
     const searchResult = await searchAndSummarize(userText, tenantId);
