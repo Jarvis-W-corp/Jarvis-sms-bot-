@@ -211,6 +211,36 @@ async function weeklyReport() {
   } catch (e) { console.error('[CRON] Weekly report error:', e.message); }
 }
 
+// Daily 10 AM ET — Etsy money pipeline (creates 3 new products/day, auto-publish)
+async function dailyEtsyPipeline() {
+  try {
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return;
+    const ecom = require('../core/ecommerce');
+    console.log('[CRON] Running daily Etsy money pipeline');
+    const report = await ecom.runDailyMoneyPipeline(tenant.id);
+    const created = (report.products || []).filter(p => !p.error).length;
+    if (created > 0) {
+      await sendBossMessage('🛒 **Daily Etsy Pipeline**\n\n' +
+        '✓ Created ' + created + ' new products on Etsy\n' +
+        (report.products || []).filter(p => !p.error).map(p => '• ' + p.title).join('\n'));
+    }
+  } catch (e) { console.error('[CRON] Etsy pipeline error:', e.message); }
+}
+
+// Daily 9 AM ET — Check/publish any unpublished Printify products
+async function etsyOptimize() {
+  try {
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return;
+    const ecom = require('../core/ecommerce');
+    const report = await ecom.optimizeExistingListings(tenant.id);
+    if (report.optimized && report.optimized.length > 0) {
+      console.log('[CRON] Optimized ' + report.optimized.length + ' listings');
+    }
+  } catch (e) { console.error('[CRON] Etsy optimize error:', e.message); }
+}
+
 // Monthly 1st 4 AM — Purge old dead leads
 async function monthlyPurge() {
   try {
@@ -302,6 +332,10 @@ function startAllJobs() {
   cron.schedule('0 1 * * 1', weeklyLAL, opts);
   cron.schedule('0 3 * * 1', weeklyReport, opts);
   cron.schedule('0 4 1 * *', monthlyPurge, opts);
+
+  // ═══ ETSY MONEY MAKERS ═══
+  cron.schedule('0 9 * * *', etsyOptimize, opts);        // 9 AM — publish any unpublished
+  cron.schedule('0 10 * * *', dailyEtsyPipeline, opts);  // 10 AM — create 3 new products
 
   // Email sequence processor — every 30 min
   cron.schedule('*/30 * * * *', processSequences);

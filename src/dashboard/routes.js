@@ -770,6 +770,71 @@ router.get('/dashboard/api/room/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══ ETSY / PRINTIFY PIPELINE ═══
+
+// Get all Printify products + Etsy status
+router.get('/dashboard/api/etsy/products', async (req, res) => {
+  try {
+    const printify = require('../core/printify');
+    const stats = await printify.getStats();
+    const shopId = stats.shopId;
+    const productsData = await printify.getProducts(shopId);
+    const products = (productsData.data || []).map(p => ({
+      id: p.id,
+      title: p.title,
+      tags: p.tags || [],
+      variants: (p.variants || []).length,
+      published: !!(p.external && p.external.id),
+      etsyUrl: p.external?.handle || null,
+      visible: p.visible,
+    }));
+    res.json({
+      shopId,
+      totalProducts: products.length,
+      publishedCount: products.filter(p => p.published).length,
+      totalOrders: stats.totalOrders,
+      products,
+    });
+  } catch (e) { res.json({ error: e.message, products: [] }); }
+});
+
+// Manually trigger the daily money pipeline (creates 3 new products + publishes)
+router.post('/dashboard/api/etsy/run-pipeline', aiLimiter, async (req, res) => {
+  try {
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+    const ecom = require('../core/ecommerce');
+    // Run in background, return immediately
+    ecom.runDailyMoneyPipeline(tenant.id).then(report => {
+      console.log('[API] Pipeline complete:', JSON.stringify(report.steps || []));
+    }).catch(err => console.error('[API] Pipeline error:', err.message));
+    res.json({ success: true, message: 'Pipeline started in background' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Manually publish any unpublished products
+router.post('/dashboard/api/etsy/publish-all', async (req, res) => {
+  try {
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+    const ecom = require('../core/ecommerce');
+    const report = await ecom.optimizeExistingListings(tenant.id);
+    res.json({ success: true, ...report });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Create a custom product on demand
+router.post('/dashboard/api/etsy/create', aiLimiter, async (req, res) => {
+  try {
+    const { count, niche } = req.body;
+    const tenant = await db.getDefaultTenant();
+    if (!tenant) return res.status(500).json({ error: 'No tenant' });
+    const ecom = require('../core/ecommerce');
+    const result = await ecom.runProductPipeline(niche || 'trending', count || 3, tenant.id);
+    res.json({ success: true, ...result });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ═══ PROACTIVITY STATUS ═══
 
 router.get('/dashboard/api/proactive/status', async (req, res) => {

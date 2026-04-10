@@ -288,7 +288,7 @@ body{display:flex;flex-direction:column;background:radial-gradient(ellipse at ce
 
     <!-- RIGHT COLUMN -->
     <div class="right-col">
-      <div class="room etsy" data-room="etsy" onclick="openRoom('etsy')">
+      <div class="room etsy" data-room="etsy" onclick="openEtsy()">
         <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
         <div class="room-head">
           <span class="room-name">🛍️ ETSY STORE</span>
@@ -390,6 +390,15 @@ body{display:flex;flex-direction:column;background:radial-gradient(ellipse at ce
       <h3>API CONNECTIONS</h3>
       <div id="modal-apis" style="font-size:11px;line-height:1.8"></div>
     </div>
+  </div>
+</div>
+
+<!-- ETSY MODAL -->
+<div class="modal" id="etsy-modal">
+  <div class="modal-body" style="max-width:800px">
+    <button class="modal-close" onclick="closeEtsy()">×</button>
+    <h2 style="color:var(--etsy)">🛍️ ETSY STORE</h2>
+    <div id="etsy-body"></div>
   </div>
 </div>
 
@@ -567,6 +576,60 @@ function openApp(slug) {
   const url = API + '/' + slug + '?key=' + API_KEY;
   window.open(url, '_blank');
 }
+
+// ═══ ETSY STORE MODAL ═══
+async function openEtsy() {
+  const modal = document.getElementById('etsy-modal');
+  const body = document.getElementById('etsy-body');
+  body.innerHTML = '<div style="text-align:center;padding:30px;color:#6b7fa3">Loading Etsy store...</div>';
+  modal.classList.add('open');
+
+  const data = await api('/dashboard/api/etsy/products');
+  if (!data || data.error) {
+    body.innerHTML = '<div style="color:#ff4081;padding:20px">Error loading store: ' + (data?.error || 'unknown') + '</div>';
+    return;
+  }
+
+  let html = '';
+  html += '<div class="modal-grid" style="margin-bottom:20px">';
+  html += '<div class="modal-stat"><div class="n" style="color:var(--etsy)">' + data.totalProducts + '</div><div class="l">Total Products</div></div>';
+  html += '<div class="modal-stat"><div class="n" style="color:var(--green)">' + data.publishedCount + '</div><div class="l">Live on Etsy</div></div>';
+  html += '<div class="modal-stat"><div class="n" style="color:var(--orange)">' + data.totalOrders + '</div><div class="l">Orders</div></div>';
+  html += '</div>';
+
+  html += '<div style="display:flex;gap:8px;margin-bottom:16px">';
+  html += '<button class="btn" onclick="runEtsyPipeline()">▶ CREATE 3 MORE</button>';
+  html += '<button class="btn" onclick="publishAllEtsy()">⚡ PUBLISH ALL</button>';
+  html += '</div>';
+
+  html += '<div class="modal-section"><h3>ALL PRODUCTS</h3>';
+  for (const p of data.products) {
+    const statusColor = p.published ? 'var(--green)' : 'var(--yellow)';
+    const statusText = p.published ? 'LIVE ON ETSY' : 'UNPUBLISHED';
+    html += '<div class="job-row">';
+    html += '<span class="job-badge" style="background:rgba(105,240,174,0.15);color:' + statusColor + '">' + statusText + '</span>';
+    html += '<span style="flex:1;color:#c8d6e5;font-size:11px">' + escapeHtml(p.title || 'Untitled') + '</span>';
+    if (p.etsyUrl) {
+      html += '<a href="' + p.etsyUrl + '" target="_blank" style="color:var(--cyan);font-size:10px;text-decoration:none">VIEW →</a>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  body.innerHTML = html;
+}
+
+async function runEtsyPipeline() {
+  const r = await api('/dashboard/api/etsy/run-pipeline', { method: 'POST', body: {} });
+  alert(r?.message || 'Started. Check back in 2-3 minutes for new products.');
+}
+
+async function publishAllEtsy() {
+  const r = await api('/dashboard/api/etsy/publish-all', { method: 'POST', body: {} });
+  alert('Published ' + (r?.optimized?.length || 0) + ' products.');
+  openEtsy(); // refresh
+}
+
+function closeEtsy() { document.getElementById('etsy-modal').classList.remove('open'); }
 
 // ═══ WORKFLOW ═══
 async function runWorkflow() {

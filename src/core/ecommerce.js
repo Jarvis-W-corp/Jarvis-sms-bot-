@@ -155,7 +155,7 @@ async function runProductPipeline(niche, count, tenantId) {
         designPrompt: p.designPrompt,
         productType: p.productType || 'tshirt',
         price: p.price || 1999,
-        publish: false, // don't auto-publish yet — review first
+        publish: true, // auto-publish to Etsy
       });
       created.push(result);
       console.log('[ECOM] Created: ' + p.title);
@@ -175,9 +175,145 @@ async function runProductPipeline(niche, count, tenantId) {
   return { research, products: created };
 }
 
+// ── Daily Money-Making Pipeline ──
+// Runs every day. Creates 3 new SEO-optimized products and publishes them to Etsy.
+async function runDailyMoneyPipeline(tenantId) {
+  console.log('[ECOM] ══ DAILY MONEY PIPELINE ══');
+  const report = { started: new Date().toISOString(), steps: [] };
+
+  try {
+    // 1. Research what's actually selling on Etsy RIGHT NOW
+    console.log('[ECOM] Step 1: Researching top sellers on Etsy');
+    const trends = [];
+    const queries = [
+      'best selling etsy items this week 2026',
+      'trending etsy products march april 2026',
+      'viral etsy shops print on demand 2026',
+      'what is selling on etsy right now',
+    ];
+    for (const q of queries) {
+      try {
+        const results = await searchWeb(q, 5);
+        trends.push(...results);
+      } catch(e) {}
+    }
+    report.steps.push({ step: 'research', found: trends.length });
+
+    // 2. Ask Claude to extract 3 HIGH-DEMAND product ideas with Etsy SEO
+    console.log('[ECOM] Step 2: Generating 3 product ideas with SEO');
+    const ideaResponse = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2500,
+      system: `You are an Etsy SEO expert and product researcher. Based on trending data, generate EXACTLY 3 high-demand product ideas that will sell on Etsy.
+
+For each product, use ETSY SEO BEST PRACTICES:
+- Title: 140 characters MAX, front-loaded with primary keyword, uses all 140 chars
+- Tags: EXACTLY 13 tags, 20 chars each max, mix of long-tail + short
+- Description: First line is hook with keyword, includes use cases, gift ideas, material info
+- Product type must be from: tshirt, hoodie, mug, poster, sticker, tote, phonecase, pillow
+- Price in cents, competitive for Etsy (tshirt 1999-2499, mug 1499, sticker 399-599, poster 1499-2499, hoodie 3999)
+- designPrompt should be VERY specific for DALL-E: describe style, colors, composition, vibe
+
+Return ONLY a JSON array. No markdown. No explanations. Example format:
+[{"title":"...","description":"...","tags":["tag1","tag2",...13 tags],"designPrompt":"...","productType":"tshirt","price":2299}]`,
+      messages: [{ role: 'user', content: 'Top sellers on Etsy this week:\n\n' + trends.map(r => r.title + ': ' + r.snippet).join('\n\n') + '\n\nGenerate 3 winning product ideas.' }],
+    });
+
+    let ideas = [];
+    try {
+      const raw = ideaResponse.content[0].text.trim().replace(/^```json?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+      ideas = JSON.parse(raw);
+    } catch(e) {
+      console.error('[ECOM] Failed to parse ideas:', e.message);
+      report.error = 'idea_parse_failed';
+      return report;
+    }
+    console.log('[ECOM] Got ' + ideas.length + ' ideas:', ideas.map(i => i.title).join(' | '));
+    report.steps.push({ step: 'ideas', count: ideas.length, titles: ideas.map(i => i.title) });
+
+    // 3. Create each product + publish to Etsy
+    const created = [];
+    for (const idea of ideas.slice(0, 3)) {
+      try {
+        console.log('[ECOM] Creating: ' + idea.title);
+        const result = await createAndListProduct({
+          title: idea.title,
+          description: idea.description,
+          tags: idea.tags || [],
+          designPrompt: idea.designPrompt,
+          productType: idea.productType || 'tshirt',
+          price: idea.price || 1999,
+          publish: true, // PUBLISH TO ETSY
+        });
+        created.push(result);
+        console.log('[ECOM] ✓ Published: ' + idea.title);
+        // Small delay between creations to avoid rate limits
+        await new Promise(r => setTimeout(r, 2000));
+      } catch(e) {
+        console.error('[ECOM] ✗ Failed: ' + idea.title + ' — ' + e.message);
+        created.push({ title: idea.title, error: e.message });
+      }
+    }
+    report.steps.push({ step: 'create', count: created.length, successes: created.filter(c => !c.error).length });
+    report.products = created;
+
+    // 4. Store to memory
+    if (tenantId) {
+      try {
+        await memory.storeMemory(tenantId, 'decision',
+          'Daily money pipeline: created ' + created.filter(c => !c.error).length + '/3 products on Etsy via Printify. ' + created.filter(c => !c.error).map(c => c.title).join(', '),
+          9, 'daily_pipeline');
+      } catch(e) {}
+    }
+
+    report.completed = new Date().toISOString();
+    console.log('[ECOM] ══ DAILY PIPELINE COMPLETE: ' + created.filter(c => !c.error).length + '/3 published ══');
+  } catch(e) {
+    console.error('[ECOM] Pipeline fatal error:', e.message);
+    report.error = e.message;
+  }
+
+  return report;
+}
+
+// ── Optimize existing listings (SEO boost) ──
+async function optimizeExistingListings(tenantId) {
+  console.log('[ECOM] Optimizing existing Printify listings');
+  const report = { started: new Date().toISOString(), optimized: [] };
+
+  try {
+    const sid = await printify.getShopId();
+    const products = await printify.getProducts(sid);
+    const unpublished = (products.data || []).filter(p => !p.external?.id);
+
+    // Publish any unpublished products
+    for (const p of unpublished) {
+      try {
+        await printify.publishProduct(p.id, sid);
+        report.optimized.push({ id: p.id, title: p.title, action: 'published' });
+        console.log('[ECOM] Published: ' + p.title);
+      } catch(e) {
+        report.optimized.push({ id: p.id, title: p.title, action: 'failed', error: e.message });
+      }
+    }
+
+    if (tenantId && report.optimized.length > 0) {
+      await memory.storeMemory(tenantId, 'decision',
+        'Optimized ' + report.optimized.length + ' listings: ' + report.optimized.map(o => o.title).join(', '),
+        7, 'ecommerce_optimize');
+    }
+  } catch(e) {
+    report.error = e.message;
+  }
+
+  return report;
+}
+
 module.exports = {
   researchTrending,
   generateDesign,
   createAndListProduct,
   runProductPipeline,
+  runDailyMoneyPipeline,
+  optimizeExistingListings,
 };
