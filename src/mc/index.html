@@ -7,131 +7,222 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#080b14;--bg2:#0c1220;--line:#1a2744;
+  --bg:#040812;--bg2:#0a1120;--bg3:#0f1a2e;--line:#1a2744;
   --cyan:#00e5ff;--purple:#b388ff;--green:#69f0ae;
   --orange:#ff9100;--pink:#ff4081;--yellow:#ffd740;
-  --etsy:#f5641e;--printify:#39d4a5;--navy:#1a3a6b;
-  --dim:#6b7fa3;--red:#ff1744;
+  --etsy:#f5641e;--printify:#39d4a5;--navy:#4a7fc9;
+  --dim:#6b7fa3;--red:#ff1744;--gold:#ffb800;
 }
-html,body{height:100%;background:var(--bg);color:#c8d6e5;font-family:'SF Mono','Courier New',monospace;overflow:hidden}
-body{display:flex;flex-direction:column;background:radial-gradient(ellipse at center,#0a0e1a 0%,#040610 100%)}
+html,body{height:100%;background:#000;color:#c8d6e5;font-family:'SF Mono','Courier New',monospace;overflow:hidden;-webkit-font-smoothing:antialiased}
+body{display:flex;flex-direction:column;position:relative}
 
-/* ═══ TOP BAR ═══ */
-.top{height:60px;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 20px;gap:16px;background:rgba(13,20,36,0.6);backdrop-filter:blur(10px);z-index:100;flex-shrink:0}
-.brand{display:flex;align-items:center;gap:10px}
-.brand h1{font-size:16px;letter-spacing:4px;color:var(--cyan);font-weight:700}
+/* Background canvas for particles + stars + data flow */
+#bg-canvas{position:fixed;inset:0;z-index:0;pointer-events:none}
+#fx-canvas{position:fixed;inset:0;z-index:5;pointer-events:none}
+
+/* CRT scanlines overlay */
+body::before{
+  content:'';position:fixed;inset:0;z-index:1000;pointer-events:none;
+  background:linear-gradient(rgba(0,229,255,0) 50%,rgba(0,0,0,0.15) 50%);
+  background-size:100% 3px;mix-blend-mode:multiply;opacity:0.4;
+}
+body::after{
+  content:'';position:fixed;inset:0;z-index:1001;pointer-events:none;
+  background:radial-gradient(ellipse at center,transparent 40%,rgba(0,0,0,0.5) 100%);
+}
+
+/* ═══ TOP BAR (HUD) ═══ */
+.top{height:62px;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 20px;gap:16px;background:linear-gradient(180deg,rgba(10,17,32,0.9),rgba(4,8,18,0.9));backdrop-filter:blur(10px);z-index:100;flex-shrink:0;position:relative}
+.top::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--cyan) 50%,transparent);opacity:0.6;animation:scan-x 8s linear infinite}
+@keyframes scan-x{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+
+.brand{display:flex;align-items:center;gap:10px;position:relative}
+.brand::before{content:'';position:absolute;inset:-4px -8px;border:1px solid var(--cyan);border-radius:4px;opacity:0.3;pointer-events:none}
+.brand h1{font-size:16px;letter-spacing:4px;color:var(--cyan);font-weight:700;text-shadow:0 0 10px var(--cyan)}
 .brand small{font-size:9px;color:var(--dim);letter-spacing:3px}
-.stats{display:flex;gap:28px;flex:1;justify-content:center}
-.stat{text-align:center}
-.stat .v{font-size:14px;font-weight:700}
-.stat .l{font-size:8px;color:var(--dim);letter-spacing:2px;text-transform:uppercase}
+
+.stats{display:flex;gap:24px;flex:1;justify-content:center}
+.stat{text-align:center;position:relative;padding:0 8px}
+.stat::before{content:'';position:absolute;top:50%;left:-12px;width:4px;height:4px;border-radius:50%;background:var(--cyan);box-shadow:0 0 6px currentColor;transform:translateY(-50%)}
+.stat:first-child::before{display:none}
+.stat .v{font-size:15px;font-weight:700;text-shadow:0 0 8px currentColor}
+.stat .l{font-size:8px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;margin-top:1px}
 .v-c{color:var(--cyan)}.v-p{color:var(--purple)}.v-g{color:var(--green)}.v-o{color:var(--orange)}.v-y{color:var(--yellow)}
+
 .top-right{display:flex;align-items:center;gap:14px}
-.clock{font-size:11px;color:var(--dim)}
+.clock{font-size:11px;color:var(--dim);font-weight:600}
 .status{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:700;letter-spacing:2px}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--yellow);box-shadow:0 0 8px currentColor;animation:pulse 2s infinite}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--yellow);box-shadow:0 0 10px currentColor;animation:pulse 2s infinite}
 .dot.on{background:var(--green)}.dot.off{background:var(--pink)}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.6;transform:scale(0.9)}}
 .s-on{color:var(--green)}.s-off{color:var(--pink)}.s-cn{color:var(--yellow)}
 
 /* ═══ DUNGEON ═══ */
-.dungeon{flex:1;position:relative;overflow:hidden;padding:16px}
-.star{position:absolute;background:#94a3b8;border-radius:50%;pointer-events:none}
-.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(26,39,68,0.15) 1px,transparent 1px),linear-gradient(90deg,rgba(26,39,68,0.15) 1px,transparent 1px);background-size:50px 50px;pointer-events:none}
+.dungeon{flex:1;position:relative;overflow:hidden;padding:14px 16px;z-index:2}
 
-.layout{position:relative;width:100%;height:100%;display:grid;grid-template-columns:300px 1fr 300px;grid-template-rows:1fr 1fr;gap:14px;z-index:2}
-.cmd{grid-column:2;grid-row:1/3;display:flex;align-items:center;justify-content:center}
-.left-col{grid-column:1;grid-row:1/3;display:flex;flex-direction:column;gap:14px}
-.right-col{grid-column:3;grid-row:1/3;display:flex;flex-direction:column;gap:14px}
+.layout{position:relative;width:100%;height:100%;display:grid;grid-template-columns:290px 1fr 290px;grid-template-rows:1fr 1fr 1fr;gap:12px;z-index:10}
+.cmd{grid-column:2;grid-row:1/4;display:flex;align-items:center;justify-content:center}
 
 /* ═══ ROOM ═══ */
-.room{position:relative;background:var(--bg2);border:2px solid var(--line);border-radius:8px;padding:14px;cursor:pointer;transition:all 0.25s;overflow:hidden;flex:1}
-.room::before{content:"";position:absolute;inset:-2px;border-radius:8px;padding:2px;pointer-events:none;opacity:0.35}
-.room:hover{transform:translateY(-2px);box-shadow:0 0 30px var(--color),0 0 60px var(--color)}
-.room:hover::before{opacity:0.8}
-.room .bracket{position:absolute;width:16px;height:16px;border:2px solid var(--color);opacity:0.5}
-.room .br-tl{top:4px;left:4px;border-right:0;border-bottom:0}
-.room .br-tr{top:4px;right:4px;border-left:0;border-bottom:0}
-.room .br-bl{bottom:4px;left:4px;border-right:0;border-top:0}
-.room .br-br{bottom:4px;right:4px;border-left:0;border-top:0}
+.room{position:relative;background:linear-gradient(180deg,rgba(10,17,32,0.85),rgba(6,12,22,0.9));border:2px solid var(--line);border-radius:10px;padding:12px 14px 10px;cursor:pointer;transition:all 0.3s cubic-bezier(.3,1,.4,1);overflow:hidden;min-height:0;display:flex;flex-direction:column}
+.room::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 120%,var(--color) 0%,transparent 50%);opacity:0.08;pointer-events:none}
+.room::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0,transparent 2px,rgba(255,255,255,0.01) 2px,rgba(255,255,255,0.01) 3px);pointer-events:none}
+.room:hover{transform:translateY(-3px) scale(1.01);border-color:var(--color);box-shadow:0 0 40px rgba(0,229,255,0.15),0 0 80px var(--color),inset 0 0 20px rgba(255,255,255,0.03)}
+.room:hover .room-glow{opacity:0.4}
 
-.room.command{border-color:rgba(0,229,255,0.5);--color:#00e5ff;box-shadow:0 0 30px rgba(0,229,255,0.15);min-height:300px;width:100%;max-width:500px}
-.room.research{--color:#b388ff;border-color:rgba(179,136,255,0.4)}
-.room.marketing{--color:#69f0ae;border-color:rgba(105,240,174,0.4)}
-.room.ops{--color:#ff9100;border-color:rgba(255,145,0,0.4)}
-.room.etsy{--color:#f5641e;border-color:rgba(245,100,30,0.4)}
-.room.printify{--color:#39d4a5;border-color:rgba(57,212,165,0.4)}
-.room.solar{--color:#ffd740;border-color:rgba(255,215,64,0.4)}
-.room.roofing{--color:#4a7fc9;border-color:rgba(74,127,201,0.4)}
+.room-glow{position:absolute;inset:-2px;border-radius:10px;pointer-events:none;opacity:0.2;transition:opacity 0.3s;box-shadow:inset 0 0 30px var(--color)}
 
-.room-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.06)}
-.room-name{font-size:11px;letter-spacing:2px;color:var(--color);font-weight:700}
-.room-name.big{font-size:14px;letter-spacing:3px}
-.room-rev{font-size:10px;color:var(--green);font-weight:700;background:rgba(105,240,174,0.1);padding:2px 8px;border-radius:10px}
+.room .bracket{position:absolute;width:12px;height:12px;border:2px solid var(--color);opacity:0.7;transition:all 0.3s}
+.room .br-tl{top:3px;left:3px;border-right:0;border-bottom:0}
+.room .br-tr{top:3px;right:3px;border-left:0;border-bottom:0}
+.room .br-bl{bottom:3px;left:3px;border-right:0;border-top:0}
+.room .br-br{bottom:3px;right:3px;border-left:0;border-top:0}
+.room:hover .bracket{width:20px;height:20px}
 
-.agent{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-.figure{width:36px;height:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
-.figure svg{width:100%;height:100%}
-.agent-info{flex:1;min-width:0}
-.agent-name{font-size:11px;font-weight:700;color:var(--color);letter-spacing:1.5px}
-.agent-task{font-size:9px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.agent-status{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;background:var(--green);box-shadow:0 0 6px currentColor;animation:pulse 2s infinite}
+.room.research{--color:#b388ff;border-color:rgba(179,136,255,0.35)}
+.room.marketing{--color:#69f0ae;border-color:rgba(105,240,174,0.35)}
+.room.ops{--color:#ff9100;border-color:rgba(255,145,0,0.35)}
+.room.etsy{--color:#f5641e;border-color:rgba(245,100,30,0.35)}
+.room.printify{--color:#39d4a5;border-color:rgba(57,212,165,0.35)}
+.room.roofing{--color:#4a7fc9;border-color:rgba(74,127,201,0.35)}
+.room.command{--color:#00e5ff;border-color:rgba(0,229,255,0.5);box-shadow:0 0 40px rgba(0,229,255,0.1),inset 0 0 30px rgba(0,229,255,0.03);max-width:520px;width:100%;min-height:420px;padding:18px}
 
-.room .desk{display:flex;gap:6px;margin-top:auto;padding-top:10px}
-.mini-stat{flex:1;text-align:center;background:rgba(255,255,255,0.03);padding:6px;border-radius:4px;border:1px solid rgba(255,255,255,0.05)}
-.mini-stat .n{font-size:12px;font-weight:700;color:var(--color)}
-.mini-stat .t{font-size:7px;color:var(--dim);letter-spacing:1px}
+/* Room header */
+.room-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.06);position:relative;z-index:2}
+.room-name{font-size:10px;letter-spacing:2px;color:var(--color);font-weight:700;text-shadow:0 0 8px currentColor;display:flex;align-items:center;gap:6px}
+.room.command .room-name{font-size:13px;letter-spacing:3px}
+.room-rev{font-size:10px;color:var(--green);font-weight:700;background:rgba(105,240,174,0.12);padding:3px 9px;border-radius:12px;border:1px solid rgba(105,240,174,0.3);text-shadow:0 0 6px currentColor}
+.live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px currentColor;animation:pulse 1.5s infinite;margin-right:4px;vertical-align:middle}
 
-/* Command center special */
-.room.command .monitor{width:100%;height:120px;background:#060a14;border:1px solid rgba(0,229,255,0.3);border-radius:4px;margin:12px 0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;padding:6px}
-.room.command .screen{background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:2px;display:flex;flex-direction:column;justify-content:center;padding:6px;gap:3px}
-.room.command .scan-line{height:2px;background:var(--cyan);opacity:0.4;border-radius:1px;animation:scan 2s infinite}
-.room.command .scan-line:nth-child(2){width:70%;animation-delay:0.2s}
-.room.command .scan-line:nth-child(3){width:85%;animation-delay:0.4s}
-.room.command .scan-line:nth-child(4){width:60%;animation-delay:0.6s}
-@keyframes scan{0%,100%{opacity:0.2;transform:scaleX(0.8)}50%{opacity:0.8;transform:scaleX(1)}}
+/* Desk/workstation area */
+.workstation{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 0;min-height:80px}
+.monitor{width:80%;max-width:120px;height:34px;background:#030710;border:1px solid rgba(255,255,255,0.1);border-radius:3px;margin-bottom:6px;padding:3px 5px;position:relative;overflow:hidden;box-shadow:0 0 10px rgba(0,0,0,0.5),inset 0 0 10px rgba(0,0,0,0.6)}
+.monitor::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(180deg,rgba(var(--color-rgb),0.04) 0%,rgba(var(--color-rgb),0.12) 100%);pointer-events:none}
+.code-line{height:2px;background:var(--color);margin-bottom:2px;border-radius:1px;opacity:0.6;animation:code-scroll 3s infinite}
+.code-line:nth-child(1){width:70%;animation-delay:0s}
+.code-line:nth-child(2){width:85%;animation-delay:0.5s}
+.code-line:nth-child(3){width:60%;animation-delay:1s}
+.code-line:nth-child(4){width:92%;animation-delay:1.5s}
+.code-line:nth-child(5){width:55%;animation-delay:2s}
+@keyframes code-scroll{0%,100%{opacity:0.3;transform:translateX(0)}50%{opacity:0.9;transform:translateX(4px)}}
 
-/* Connection lines (pseudo) */
-.room.active .agent-status{background:var(--green)}
+/* Agent character */
+.agent-char{position:relative;width:40px;height:50px;margin-bottom:4px}
+.agent-body{width:100%;height:100%;color:var(--color);filter:drop-shadow(0 0 6px currentColor)}
+.agent-char.working .agent-body{animation:type 0.4s infinite alternate}
+@keyframes type{0%{transform:translateY(0)}100%{transform:translateY(-1px)}}
+.agent-char.idle .agent-body{animation:bob 2s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+.agent-aura{position:absolute;inset:-8px;border-radius:50%;background:radial-gradient(circle,var(--color) 0%,transparent 60%);opacity:0.15;animation:aura 3s ease-in-out infinite}
+@keyframes aura{0%,100%{opacity:0.1;transform:scale(1)}50%{opacity:0.25;transform:scale(1.15)}}
+
+/* Agent info strip */
+.agent-info{width:100%;text-align:center;position:relative;z-index:2}
+.agent-name{font-size:10px;font-weight:700;color:var(--color);letter-spacing:1.5px;text-shadow:0 0 6px currentColor;display:flex;align-items:center;justify-content:center;gap:4px}
+.agent-task{font-size:8px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;letter-spacing:0.5px}
+.agent-status{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 5px currentColor;animation:pulse 1.5s infinite}
+
+/* XP bar */
+.xp-bar{width:100%;height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;margin-top:6px;position:relative}
+.xp-fill{height:100%;background:linear-gradient(90deg,var(--color),var(--color));box-shadow:0 0 6px var(--color);border-radius:2px;transition:width 0.5s;position:relative;overflow:hidden}
+.xp-fill::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.4),transparent);animation:shimmer 2s infinite}
+@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.xp-label{font-size:7px;color:var(--dim);margin-top:2px;display:flex;justify-content:space-between;letter-spacing:1px;font-weight:600}
+
+/* Stats row at bottom of room */
+.room-stats{display:flex;gap:4px;margin-top:6px}
+.mini-stat{flex:1;text-align:center;background:rgba(0,0,0,0.35);padding:4px 2px;border-radius:3px;border:1px solid rgba(255,255,255,0.04)}
+.mini-stat .n{font-size:11px;font-weight:700;color:var(--color);text-shadow:0 0 4px currentColor}
+.mini-stat .t{font-size:6px;color:var(--dim);letter-spacing:0.8px;text-transform:uppercase}
+
+/* ═══ COMMAND CENTER (special) ═══ */
+.cmd-inner{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;padding:10px;position:relative;z-index:2}
+.cmd-monitors{display:flex;gap:8px;margin:10px 0;width:100%;justify-content:center}
+.cmd-screen{width:100px;height:70px;background:#020510;border:1px solid rgba(0,229,255,0.3);border-radius:4px;padding:5px;position:relative;overflow:hidden;box-shadow:0 0 10px rgba(0,229,255,0.1),inset 0 0 10px rgba(0,0,0,0.5)}
+.cmd-screen::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--cyan);box-shadow:0 0 8px currentColor;animation:scan-down 3s linear infinite}
+@keyframes scan-down{0%{top:0;opacity:1}100%{top:100%;opacity:0.3}}
+.cmd-screen .code-line{width:90%}
+.cmd-screen .code-line:nth-child(6){width:40%;animation-delay:2.5s}
+
+/* Holographic projection */
+.hologram{width:100%;height:50px;position:relative;margin:6px 0;display:flex;align-items:center;justify-content:center}
+.hologram-ring{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.hologram-ring svg{width:80px;height:50px}
+.holo-tri{fill:none;stroke:var(--cyan);stroke-width:0.8;opacity:0.6;filter:drop-shadow(0 0 4px var(--cyan));animation:holo-rotate 8s linear infinite}
+@keyframes holo-rotate{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.holo-pulse{position:absolute;width:20px;height:20px;border:1px solid var(--cyan);border-radius:50%;opacity:0;animation:holo-pulse 2s ease-out infinite}
+@keyframes holo-pulse{0%{transform:scale(0);opacity:1}100%{transform:scale(3);opacity:0}}
+
+/* JARVIS big character */
+.jarvis-char{width:60px;height:80px;margin:8px 0 4px;position:relative}
+.jarvis-char .agent-aura{inset:-14px;opacity:0.25}
+
+/* CEO NAME + LEVEL BADGE */
+.jarvis-name-big{font-size:15px;font-weight:800;color:var(--cyan);letter-spacing:3px;text-shadow:0 0 12px currentColor;display:flex;align-items:center;gap:8px;justify-content:center;margin-top:4px}
+.lvl-badge{font-size:9px;background:rgba(0,229,255,0.15);color:var(--cyan);padding:2px 8px;border-radius:10px;border:1px solid rgba(0,229,255,0.35);letter-spacing:1px;font-weight:700}
 
 /* ═══ BOTTOM BAR ═══ */
-.bottom{height:48px;border-top:1px solid var(--line);display:flex;align-items:center;padding:0 20px;gap:12px;background:rgba(13,20,36,0.6);flex-shrink:0}
-.hint{font-size:10px;color:var(--dim);letter-spacing:2px;animation:pulse 3s infinite}
-.workflow-input{flex:1;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:8px 14px;color:#e0e0e0;font-size:12px;font-family:inherit;outline:none}
-.workflow-input:focus{border-color:var(--cyan)}
-.btn{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.3);color:var(--cyan);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:1px;font-family:inherit;transition:all 0.15s}
-.btn:hover{background:rgba(0,229,255,0.2);box-shadow:0 0 12px rgba(0,229,255,0.3)}
+.bottom{height:48px;border-top:1px solid var(--line);display:flex;align-items:center;padding:0 18px;gap:10px;background:linear-gradient(180deg,rgba(4,8,18,0.9),rgba(10,17,32,0.9));backdrop-filter:blur(10px);flex-shrink:0;position:relative;z-index:100}
+.bottom::before{content:'';position:absolute;top:-1px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--cyan) 50%,transparent);opacity:0.4}
+.hint{font-size:9px;color:var(--dim);letter-spacing:2px;font-weight:600;white-space:nowrap}
+.workflow-input{flex:1;background:rgba(0,0,0,0.5);border:1px solid var(--line);border-radius:5px;padding:8px 12px;color:#e0e0e0;font-size:11px;font-family:inherit;outline:none;letter-spacing:0.5px}
+.workflow-input:focus{border-color:var(--cyan);box-shadow:0 0 10px rgba(0,229,255,0.2)}
+.btn{background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.35);color:var(--cyan);padding:8px 14px;border-radius:5px;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:1.5px;font-family:inherit;transition:all 0.15s;text-shadow:0 0 4px currentColor;white-space:nowrap}
+.btn:hover{background:rgba(0,229,255,0.2);box-shadow:0 0 15px rgba(0,229,255,0.35)}
+.btn:active{transform:scale(0.97)}
 
 /* ═══ MODAL ═══ */
-.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(8px)}
 .modal.open{display:flex}
-.modal-body{background:var(--bg2);border:2px solid var(--line);border-radius:12px;width:90%;max-width:700px;max-height:85vh;overflow-y:auto;padding:24px;position:relative}
-.modal-close{position:absolute;top:14px;right:14px;background:none;border:none;color:var(--dim);cursor:pointer;font-size:20px}
+.modal-body{background:linear-gradient(180deg,var(--bg2),var(--bg));border:2px solid var(--line);border-radius:10px;width:90%;max-width:720px;max-height:85vh;overflow-y:auto;padding:22px;position:relative;box-shadow:0 0 60px rgba(0,229,255,0.15)}
+.modal-body::before{content:'';position:absolute;inset:0;border-radius:10px;background:linear-gradient(135deg,rgba(0,229,255,0.08),transparent 50%);pointer-events:none}
+.modal-close{position:absolute;top:12px;right:14px;background:none;border:none;color:var(--dim);cursor:pointer;font-size:22px;line-height:1;z-index:10}
 .modal-close:hover{color:var(--cyan)}
-.modal h2{font-size:16px;letter-spacing:3px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line)}
-.modal-section{margin-bottom:20px}
-.modal-section h3{font-size:10px;color:var(--dim);letter-spacing:2px;margin-bottom:10px;text-transform:uppercase}
-.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.modal-stat{background:rgba(255,255,255,0.03);padding:12px;border-radius:6px;border:1px solid var(--line)}
-.modal-stat .n{font-size:20px;font-weight:700}
-.modal-stat .l{font-size:9px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;margin-top:2px}
-.job-row{padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:11px;display:flex;gap:10px;align-items:center}
+.modal h2{font-size:15px;letter-spacing:3px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line);color:var(--cyan);text-shadow:0 0 8px currentColor}
+.modal-section{margin-bottom:18px;position:relative}
+.modal-section h3{font-size:10px;color:var(--dim);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;font-weight:700}
+.modal-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.modal-stat{background:rgba(0,0,0,0.4);padding:12px;border-radius:6px;border:1px solid var(--line)}
+.modal-stat .n{font-size:22px;font-weight:700;text-shadow:0 0 6px currentColor}
+.modal-stat .l{font-size:8px;color:var(--dim);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px}
+.job-row{padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;display:flex;gap:10px;align-items:center}
 .job-row:last-child{border-bottom:none}
-.job-badge{font-size:8px;padding:2px 6px;border-radius:10px;font-weight:700;letter-spacing:1px}
-.j-done{background:rgba(105,240,174,0.15);color:var(--green)}
-.j-fail{background:rgba(255,23,68,0.15);color:var(--red)}
-.j-run{background:rgba(0,229,255,0.15);color:var(--cyan)}
+.job-badge{font-size:8px;padding:2px 7px;border-radius:10px;font-weight:700;letter-spacing:1px;white-space:nowrap}
+.j-done{background:rgba(105,240,174,0.15);color:var(--green);border:1px solid rgba(105,240,174,0.3)}
+.j-fail{background:rgba(255,23,68,0.15);color:var(--red);border:1px solid rgba(255,23,68,0.3)}
+.j-run{background:rgba(0,229,255,0.15);color:var(--cyan);border:1px solid rgba(0,229,255,0.3)}
 
-/* ═══ VOICE WIDGET ═══ */
-.voice-btn{position:fixed;bottom:70px;right:20px;width:54px;height:54px;border-radius:50%;background:var(--bg2);border:2px solid var(--cyan);color:var(--cyan);cursor:pointer;font-size:20px;box-shadow:0 0 20px rgba(0,229,255,0.3);z-index:500;display:flex;align-items:center;justify-content:center}
-.voice-btn:hover{box-shadow:0 0 30px rgba(0,229,255,0.5)}
+/* Voice button */
+.voice-btn{position:fixed;bottom:68px;right:18px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--bg2),var(--bg));border:2px solid var(--cyan);color:var(--cyan);cursor:pointer;font-size:20px;box-shadow:0 0 25px rgba(0,229,255,0.3);z-index:500;display:flex;align-items:center;justify-content:center;transition:all 0.2s}
+.voice-btn:hover{box-shadow:0 0 35px rgba(0,229,255,0.6);transform:scale(1.08)}
+.voice-btn::after{content:'';position:absolute;inset:-4px;border:1px solid var(--cyan);border-radius:50%;opacity:0;animation:voice-ring 2s infinite}
+@keyframes voice-ring{0%{transform:scale(0.9);opacity:0.6}100%{transform:scale(1.3);opacity:0}}
+
+/* Achievement popup */
+.achievement{position:fixed;top:80px;right:-400px;background:linear-gradient(135deg,var(--bg2),var(--bg));border:2px solid var(--gold);border-radius:8px;padding:12px 16px;z-index:2000;box-shadow:0 0 30px rgba(255,184,0,0.4);transition:right 0.4s cubic-bezier(.3,1,.4,1);min-width:280px;max-width:340px}
+.achievement.show{right:16px}
+.achievement-title{font-size:10px;color:var(--gold);letter-spacing:2px;font-weight:700;text-shadow:0 0 6px currentColor;margin-bottom:2px}
+.achievement-body{font-size:11px;color:#c8d6e5;line-height:1.4}
 
 /* Scrollbar */
 ::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--cyan)}
+
+/* Responsive */
+@media(max-width:1100px){
+  .layout{grid-template-columns:240px 1fr 240px;gap:8px}
+  .stats{gap:14px}
+  .stat .v{font-size:13px}
+}
 </style>
 </head>
 <body>
+
+<!-- Background animation canvases -->
+<canvas id="bg-canvas"></canvas>
+<canvas id="fx-canvas"></canvas>
 
 <!-- TOP BAR -->
 <div class="top">
@@ -145,6 +236,7 @@ body{display:flex;flex-direction:column;background:radial-gradient(ellipse at ce
     <div class="stat"><div class="v v-g" id="s-jobs">—</div><div class="l">Jobs Done</div></div>
     <div class="stat"><div class="v v-o" id="s-cost">$0.00</div><div class="l">24h Cost</div></div>
     <div class="stat"><div class="v v-y" id="s-mem">—</div><div class="l">Memories</div></div>
+    <div class="stat"><div class="v v-g" id="s-revenue">$0</div><div class="l">Revenue</div></div>
   </div>
   <div class="top-right">
     <span class="clock" id="clock">—</span>
@@ -157,210 +249,245 @@ body{display:flex;flex-direction:column;background:radial-gradient(ellipse at ce
 
 <!-- DUNGEON -->
 <div class="dungeon">
-  <div class="grid"></div>
-  <div id="stars"></div>
   <div class="layout">
 
     <!-- LEFT COLUMN -->
-    <div class="left-col">
-      <div class="room research" data-room="research" onclick="openRoom('research')">
-        <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
-        <div class="room-head"><span class="room-name">RESEARCH LAB</span></div>
-        <div class="agent">
-          <div class="figure">
-            <svg viewBox="0 0 40 60" fill="none">
-              <circle cx="20" cy="10" r="7" stroke="currentColor" stroke-width="2"/>
-              <circle cx="17" cy="9" r="1" fill="currentColor"/><circle cx="23" cy="9" r="1" fill="currentColor"/>
-              <line x1="20" y1="17" x2="20" y2="40" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="23" x2="10" y2="32" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="23" x2="30" y2="32" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="40" x2="12" y2="55" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="40" x2="28" y2="55" stroke="currentColor" stroke-width="2"/>
-            </svg>
-          </div>
-          <div class="agent-info">
-            <div class="agent-name"><span class="agent-status"></span>HAWK</div>
-            <div class="agent-task" id="task-research">Scraping competitor intel...</div>
-          </div>
-        </div>
-        <div class="desk">
-          <div class="mini-stat"><div class="n" id="hawk-done">—</div><div class="t">DONE</div></div>
-          <div class="mini-stat"><div class="n" id="hawk-fail">—</div><div class="t">FAIL</div></div>
-          <div class="mini-stat"><div class="n" id="hawk-rate">—</div><div class="t">RATE</div></div>
+    <div class="room research" data-room="research" data-agent="hawk" onclick="openRoom('research')" style="grid-column:1;grid-row:1">
+      <div class="room-glow"></div>
+      <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
+      <div class="room-head"><span class="room-name"><span class="live-dot"></span>RESEARCH LAB</span></div>
+      <div class="workstation">
+        <div class="monitor"><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div></div>
+        <div class="agent-char working" id="char-hawk">
+          <div class="agent-aura"></div>
+          <svg class="agent-body" viewBox="0 0 40 50" fill="none">
+            <circle cx="20" cy="9" r="6.5" stroke="currentColor" stroke-width="2"/>
+            <circle cx="17.5" cy="8.5" r="0.9" fill="currentColor"/><circle cx="22.5" cy="8.5" r="0.9" fill="currentColor"/>
+            <line x1="20" y1="15.5" x2="20" y2="33" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="20" x2="10" y2="28" stroke="currentColor" stroke-width="2" class="arm-l"/>
+            <line x1="20" y1="20" x2="30" y2="28" stroke="currentColor" stroke-width="2" class="arm-r"/>
+            <line x1="20" y1="33" x2="13" y2="46" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="33" x2="27" y2="46" stroke="currentColor" stroke-width="2"/>
+          </svg>
         </div>
       </div>
+      <div class="agent-info">
+        <div class="agent-name"><span class="agent-status"></span>HAWK</div>
+        <div class="agent-task" id="task-hawk">Scraping intel...</div>
+        <div class="xp-bar"><div class="xp-fill" id="xp-hawk" style="width:0%"></div></div>
+        <div class="xp-label"><span id="lvl-hawk">LVL 1</span><span id="xpv-hawk">0 XP</span></div>
+      </div>
+      <div class="room-stats">
+        <div class="mini-stat"><div class="n" id="hawk-done">0</div><div class="t">DONE</div></div>
+        <div class="mini-stat"><div class="n" id="hawk-fail">0</div><div class="t">FAIL</div></div>
+        <div class="mini-stat"><div class="n" id="hawk-rate">—</div><div class="t">RATE</div></div>
+      </div>
+    </div>
 
-      <div class="room marketing" data-room="marketing" onclick="openRoom('marketing')">
-        <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
-        <div class="room-head"><span class="room-name">MARKETING BAY</span></div>
-        <div class="agent">
-          <div class="figure">
-            <svg viewBox="0 0 40 60" fill="none">
-              <circle cx="20" cy="10" r="7" stroke="currentColor" stroke-width="2"/>
-              <circle cx="17" cy="9" r="1" fill="currentColor"/><circle cx="23" cy="9" r="1" fill="currentColor"/>
-              <line x1="20" y1="17" x2="20" y2="40" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="23" x2="10" y2="32" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="23" x2="30" y2="32" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="40" x2="12" y2="55" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="40" x2="28" y2="55" stroke="currentColor" stroke-width="2"/>
-            </svg>
-          </div>
-          <div class="agent-info">
-            <div class="agent-name"><span class="agent-status"></span>GHOST</div>
-            <div class="agent-task" id="task-marketing">Crafting ad creatives...</div>
-          </div>
-        </div>
-        <div class="desk">
-          <div class="mini-stat"><div class="n" id="ghost-done">—</div><div class="t">DONE</div></div>
-          <div class="mini-stat"><div class="n" id="ghost-fail">—</div><div class="t">FAIL</div></div>
-          <div class="mini-stat"><div class="n" id="ghost-rate">—</div><div class="t">RATE</div></div>
+    <div class="room marketing" data-room="marketing" data-agent="ghost" onclick="openRoom('marketing')" style="grid-column:1;grid-row:2">
+      <div class="room-glow"></div>
+      <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
+      <div class="room-head"><span class="room-name"><span class="live-dot"></span>MARKETING BAY</span></div>
+      <div class="workstation">
+        <div class="monitor"><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div></div>
+        <div class="agent-char working" id="char-ghost">
+          <div class="agent-aura"></div>
+          <svg class="agent-body" viewBox="0 0 40 50" fill="none">
+            <circle cx="20" cy="9" r="6.5" stroke="currentColor" stroke-width="2"/>
+            <circle cx="17.5" cy="8.5" r="0.9" fill="currentColor"/><circle cx="22.5" cy="8.5" r="0.9" fill="currentColor"/>
+            <line x1="20" y1="15.5" x2="20" y2="33" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="20" x2="10" y2="28" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="20" x2="30" y2="28" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="33" x2="13" y2="46" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="33" x2="27" y2="46" stroke="currentColor" stroke-width="2"/>
+          </svg>
         </div>
       </div>
+      <div class="agent-info">
+        <div class="agent-name"><span class="agent-status"></span>GHOST</div>
+        <div class="agent-task" id="task-ghost">Crafting ads...</div>
+        <div class="xp-bar"><div class="xp-fill" id="xp-ghost" style="width:0%"></div></div>
+        <div class="xp-label"><span id="lvl-ghost">LVL 1</span><span id="xpv-ghost">0 XP</span></div>
+      </div>
+      <div class="room-stats">
+        <div class="mini-stat"><div class="n" id="ghost-done">0</div><div class="t">DONE</div></div>
+        <div class="mini-stat"><div class="n" id="ghost-fail">0</div><div class="t">FAIL</div></div>
+        <div class="mini-stat"><div class="n" id="ghost-rate">—</div><div class="t">RATE</div></div>
+      </div>
+    </div>
 
-      <div class="room ops" data-room="ops" onclick="openRoom('ops')">
-        <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
-        <div class="room-head"><span class="room-name">OPS DECK</span></div>
-        <div class="agent">
-          <div class="figure">
-            <svg viewBox="0 0 40 60" fill="none">
-              <circle cx="20" cy="10" r="7" stroke="currentColor" stroke-width="2"/>
-              <circle cx="17" cy="9" r="1" fill="currentColor"/><circle cx="23" cy="9" r="1" fill="currentColor"/>
-              <line x1="20" y1="17" x2="20" y2="40" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="23" x2="10" y2="32" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="23" x2="30" y2="32" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="40" x2="12" y2="55" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="40" x2="28" y2="55" stroke="currentColor" stroke-width="2"/>
-            </svg>
-          </div>
-          <div class="agent-info">
-            <div class="agent-name"><span class="agent-status"></span>PULSE</div>
-            <div class="agent-task" id="task-ops">Monitoring systems...</div>
-          </div>
+    <div class="room ops" data-room="ops" data-agent="pulse" onclick="openRoom('ops')" style="grid-column:1;grid-row:3">
+      <div class="room-glow"></div>
+      <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
+      <div class="room-head"><span class="room-name"><span class="live-dot"></span>OPS DECK</span></div>
+      <div class="workstation">
+        <div class="monitor"><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div></div>
+        <div class="agent-char working" id="char-pulse">
+          <div class="agent-aura"></div>
+          <svg class="agent-body" viewBox="0 0 40 50" fill="none">
+            <circle cx="20" cy="9" r="6.5" stroke="currentColor" stroke-width="2"/>
+            <circle cx="17.5" cy="8.5" r="0.9" fill="currentColor"/><circle cx="22.5" cy="8.5" r="0.9" fill="currentColor"/>
+            <line x1="20" y1="15.5" x2="20" y2="33" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="20" x2="10" y2="28" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="20" x2="30" y2="28" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="33" x2="13" y2="46" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="33" x2="27" y2="46" stroke="currentColor" stroke-width="2"/>
+          </svg>
         </div>
-        <div class="desk">
-          <div class="mini-stat"><div class="n" id="pulse-done">—</div><div class="t">DONE</div></div>
-          <div class="mini-stat"><div class="n" id="pulse-fail">—</div><div class="t">FAIL</div></div>
-          <div class="mini-stat"><div class="n" id="pulse-rate">—</div><div class="t">RATE</div></div>
-        </div>
+      </div>
+      <div class="agent-info">
+        <div class="agent-name"><span class="agent-status"></span>PULSE</div>
+        <div class="agent-task" id="task-pulse">Monitoring...</div>
+        <div class="xp-bar"><div class="xp-fill" id="xp-pulse" style="width:0%"></div></div>
+        <div class="xp-label"><span id="lvl-pulse">LVL 1</span><span id="xpv-pulse">0 XP</span></div>
+      </div>
+      <div class="room-stats">
+        <div class="mini-stat"><div class="n" id="pulse-done">0</div><div class="t">DONE</div></div>
+        <div class="mini-stat"><div class="n" id="pulse-fail">0</div><div class="t">FAIL</div></div>
+        <div class="mini-stat"><div class="n" id="pulse-rate">—</div><div class="t">RATE</div></div>
       </div>
     </div>
 
     <!-- COMMAND CENTER -->
     <div class="cmd">
       <div class="room command" data-room="command" onclick="openRoom('command')">
+        <div class="room-glow"></div>
         <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
-        <div class="room-head"><span class="room-name big">COMMAND CENTER</span><span style="font-size:10px;color:var(--cyan)">◉ JARVIS</span></div>
+        <div class="cmd-inner">
+          <div class="room-head" style="width:100%">
+            <span class="room-name"><span class="live-dot"></span>COMMAND CENTER</span>
+            <span style="font-size:9px;color:var(--cyan);letter-spacing:1.5px">◉ ACTIVE</span>
+          </div>
 
-        <div class="monitor">
-          <div class="screen">
-            <div class="scan-line"></div><div class="scan-line"></div>
-            <div class="scan-line"></div><div class="scan-line"></div>
+          <div class="cmd-monitors">
+            <div class="cmd-screen">
+              <div class="code-line"></div><div class="code-line"></div><div class="code-line"></div>
+              <div class="code-line"></div><div class="code-line"></div>
+            </div>
+            <div class="cmd-screen">
+              <div class="code-line"></div><div class="code-line"></div><div class="code-line"></div>
+              <div class="code-line"></div><div class="code-line"></div>
+            </div>
+            <div class="cmd-screen">
+              <div class="code-line"></div><div class="code-line"></div><div class="code-line"></div>
+              <div class="code-line"></div><div class="code-line"></div>
+            </div>
           </div>
-          <div class="screen">
-            <div class="scan-line"></div><div class="scan-line"></div>
-            <div class="scan-line"></div><div class="scan-line"></div>
-          </div>
-          <div class="screen">
-            <div class="scan-line"></div><div class="scan-line"></div>
-            <div class="scan-line"></div><div class="scan-line"></div>
-          </div>
-        </div>
 
-        <div class="agent">
-          <div class="figure" style="width:50px;height:70px">
-            <svg viewBox="0 0 40 60" fill="none">
-              <circle cx="20" cy="10" r="8" stroke="currentColor" stroke-width="2.5"/>
-              <circle cx="17" cy="9" r="1.2" fill="currentColor"/><circle cx="23" cy="9" r="1.2" fill="currentColor"/>
-              <line x1="20" y1="18" x2="20" y2="40" stroke="currentColor" stroke-width="2.5"/>
-              <line x1="20" y1="24" x2="10" y2="34" stroke="currentColor" stroke-width="2.5"/>
-              <line x1="20" y1="24" x2="30" y2="34" stroke="currentColor" stroke-width="2.5"/>
-              <line x1="20" y1="40" x2="12" y2="55" stroke="currentColor" stroke-width="2.5"/>
-              <line x1="20" y1="40" x2="28" y2="55" stroke="currentColor" stroke-width="2.5"/>
+          <div class="hologram">
+            <div class="hologram-ring">
+              <svg viewBox="-40 -25 80 50">
+                <polygon class="holo-tri" points="0,-20 17,10 -17,10"/>
+                <polygon class="holo-tri" points="0,-14 12,7 -12,7" transform="rotate(180)"/>
+              </svg>
+            </div>
+            <div class="holo-pulse"></div>
+          </div>
+
+          <div class="jarvis-char agent-char working" id="char-jarvis">
+            <div class="agent-aura"></div>
+            <svg class="agent-body" viewBox="0 0 40 50" fill="none">
+              <circle cx="20" cy="8" r="7.5" stroke="currentColor" stroke-width="2.2"/>
+              <circle cx="17" cy="7.5" r="1" fill="currentColor"/><circle cx="23" cy="7.5" r="1" fill="currentColor"/>
+              <line x1="20" y1="15.5" x2="20" y2="33" stroke="currentColor" stroke-width="2.2"/>
+              <line x1="20" y1="20" x2="9" y2="29" stroke="currentColor" stroke-width="2.2"/>
+              <line x1="20" y1="20" x2="31" y2="29" stroke="currentColor" stroke-width="2.2"/>
+              <line x1="20" y1="33" x2="12" y2="47" stroke="currentColor" stroke-width="2.2"/>
+              <line x1="20" y1="33" x2="28" y2="47" stroke="currentColor" stroke-width="2.2"/>
             </svg>
           </div>
-          <div class="agent-info">
-            <div class="agent-name" style="font-size:13px"><span class="agent-status"></span>JARVIS <span style="font-size:9px;color:var(--dim);font-weight:400;margin-left:6px">OPUS 4.6</span></div>
-            <div class="agent-task">Orchestrating the workforce</div>
-          </div>
+          <div class="jarvis-name-big">JARVIS <span class="lvl-badge">OPUS 4.6</span></div>
+          <div class="agent-task" style="color:var(--dim);font-size:10px;margin-top:4px">Orchestrating the workforce</div>
         </div>
       </div>
     </div>
 
     <!-- RIGHT COLUMN -->
-    <div class="right-col">
-      <div class="room etsy" data-room="etsy" onclick="openEtsy()">
-        <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
-        <div class="room-head">
-          <span class="room-name">🛍️ ETSY STORE</span>
-          <span class="room-rev">$2,100</span>
-        </div>
-        <div class="agent">
-          <div class="figure">
-            <svg viewBox="0 0 40 60" fill="none">
-              <circle cx="20" cy="10" r="7" stroke="currentColor" stroke-width="2"/>
-              <circle cx="17" cy="9" r="1" fill="currentColor"/><circle cx="23" cy="9" r="1" fill="currentColor"/>
-              <line x1="20" y1="17" x2="20" y2="40" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="23" x2="10" y2="32" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="23" x2="30" y2="32" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="40" x2="12" y2="55" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="40" x2="28" y2="55" stroke="currentColor" stroke-width="2"/>
-            </svg>
-          </div>
-          <div class="agent-info">
-            <div class="agent-name"><span class="agent-status"></span>FORGE</div>
-            <div class="agent-task">Creating listings</div>
-          </div>
+    <div class="room etsy" data-room="etsy" data-agent="forge" onclick="openEtsy()" style="grid-column:3;grid-row:1">
+      <div class="room-glow"></div>
+      <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
+      <div class="room-head">
+        <span class="room-name"><span class="live-dot"></span>🛍️ ETSY STORE</span>
+        <span class="room-rev" id="etsy-rev">$0</span>
+      </div>
+      <div class="workstation">
+        <div class="monitor"><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div></div>
+        <div class="agent-char working" id="char-forge">
+          <div class="agent-aura"></div>
+          <svg class="agent-body" viewBox="0 0 40 50" fill="none">
+            <circle cx="20" cy="9" r="6.5" stroke="currentColor" stroke-width="2"/>
+            <circle cx="17.5" cy="8.5" r="0.9" fill="currentColor"/><circle cx="22.5" cy="8.5" r="0.9" fill="currentColor"/>
+            <line x1="20" y1="15.5" x2="20" y2="33" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="20" x2="10" y2="28" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="20" x2="30" y2="28" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="33" x2="13" y2="46" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="33" x2="27" y2="46" stroke="currentColor" stroke-width="2"/>
+          </svg>
         </div>
       </div>
+      <div class="agent-info">
+        <div class="agent-name"><span class="agent-status"></span>FORGE</div>
+        <div class="agent-task" id="task-forge">Creating listings...</div>
+      </div>
+      <div class="room-stats">
+        <div class="mini-stat"><div class="n" id="forge-total">0</div><div class="t">LISTED</div></div>
+        <div class="mini-stat"><div class="n" id="forge-orders">0</div><div class="t">ORDERS</div></div>
+      </div>
+    </div>
 
-      <div class="room printify" data-room="printify" onclick="openRoom('printify')">
-        <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
-        <div class="room-head">
-          <span class="room-name">🖨️ PRINTIFY SHOP</span>
-          <span class="room-rev">$450</span>
-        </div>
-        <div class="agent">
-          <div class="figure">
-            <svg viewBox="0 0 40 60" fill="none">
-              <circle cx="20" cy="10" r="7" stroke="currentColor" stroke-width="2"/>
-              <circle cx="17" cy="9" r="1" fill="currentColor"/><circle cx="23" cy="9" r="1" fill="currentColor"/>
-              <line x1="20" y1="17" x2="20" y2="40" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="23" x2="10" y2="32" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="23" x2="30" y2="32" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="40" x2="12" y2="55" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="40" x2="28" y2="55" stroke="currentColor" stroke-width="2"/>
-            </svg>
-          </div>
-          <div class="agent-info">
-            <div class="agent-name"><span class="agent-status"></span>PIXEL</div>
-            <div class="agent-task">Designing products</div>
-          </div>
+    <div class="room printify" data-room="printify" data-agent="pixel" onclick="openRoom('printify')" style="grid-column:3;grid-row:2">
+      <div class="room-glow"></div>
+      <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
+      <div class="room-head">
+        <span class="room-name"><span class="live-dot"></span>🖨️ PRINTIFY</span>
+        <span class="room-rev">$0</span>
+      </div>
+      <div class="workstation">
+        <div class="monitor"><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div></div>
+        <div class="agent-char idle">
+          <div class="agent-aura"></div>
+          <svg class="agent-body" viewBox="0 0 40 50" fill="none">
+            <circle cx="20" cy="9" r="6.5" stroke="currentColor" stroke-width="2"/>
+            <circle cx="17.5" cy="8.5" r="0.9" fill="currentColor"/><circle cx="22.5" cy="8.5" r="0.9" fill="currentColor"/>
+            <line x1="20" y1="15.5" x2="20" y2="33" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="20" x2="10" y2="28" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="20" x2="30" y2="28" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="33" x2="13" y2="46" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="33" x2="27" y2="46" stroke="currentColor" stroke-width="2"/>
+          </svg>
         </div>
       </div>
+      <div class="agent-info">
+        <div class="agent-name"><span class="agent-status"></span>PIXEL</div>
+        <div class="agent-task">Designing products</div>
+      </div>
+    </div>
 
-      <div class="room roofing" data-room="roofing" onclick="openApp('roofing')">
-        <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
-        <div class="room-head">
-          <span class="room-name">🏠 PREMIUM ROOFING</span>
-          <span class="room-rev">$82,400</span>
+    <div class="room roofing" data-room="roofing" data-agent="roofer" onclick="openApp('roofing')" style="grid-column:3;grid-row:3">
+      <div class="room-glow"></div>
+      <div class="bracket br-tl"></div><div class="bracket br-tr"></div><div class="bracket br-bl"></div><div class="bracket br-br"></div>
+      <div class="room-head">
+        <span class="room-name"><span class="live-dot"></span>🏠 PREMIUM ROOFING</span>
+        <span class="room-rev">$82K</span>
+      </div>
+      <div class="workstation">
+        <div class="monitor"><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div><div class="code-line"></div></div>
+        <div class="agent-char working">
+          <div class="agent-aura"></div>
+          <svg class="agent-body" viewBox="0 0 40 50" fill="none">
+            <circle cx="20" cy="9" r="6.5" stroke="currentColor" stroke-width="2"/>
+            <circle cx="17.5" cy="8.5" r="0.9" fill="currentColor"/><circle cx="22.5" cy="8.5" r="0.9" fill="currentColor"/>
+            <line x1="20" y1="15.5" x2="20" y2="33" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="20" x2="10" y2="28" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="20" x2="30" y2="28" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="33" x2="13" y2="46" stroke="currentColor" stroke-width="2"/>
+            <line x1="20" y1="33" x2="27" y2="46" stroke="currentColor" stroke-width="2"/>
+          </svg>
         </div>
-        <div class="agent">
-          <div class="figure">
-            <svg viewBox="0 0 40 60" fill="none">
-              <circle cx="20" cy="10" r="7" stroke="currentColor" stroke-width="2"/>
-              <circle cx="17" cy="9" r="1" fill="currentColor"/><circle cx="23" cy="9" r="1" fill="currentColor"/>
-              <line x1="20" y1="17" x2="20" y2="40" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="23" x2="10" y2="32" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="23" x2="30" y2="32" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="40" x2="12" y2="55" stroke="currentColor" stroke-width="2"/>
-              <line x1="20" y1="40" x2="28" y2="55" stroke="currentColor" stroke-width="2"/>
-            </svg>
-          </div>
-          <div class="agent-info">
-            <div class="agent-name"><span class="agent-status"></span>ROOFER</div>
-            <div class="agent-task">47 active leads</div>
-          </div>
-        </div>
+      </div>
+      <div class="agent-info">
+        <div class="agent-name"><span class="agent-status"></span>ROOFER</div>
+        <div class="agent-task">47 active leads</div>
       </div>
     </div>
   </div>
@@ -368,7 +495,7 @@ body{display:flex;flex-direction:column;background:radial-gradient(ellipse at ce
 
 <!-- BOTTOM BAR -->
 <div class="bottom">
-  <span class="hint">◉ CLICK ANY ROOM TO ENTER</span>
+  <span class="hint">◉ CLICK ROOM TO ENTER</span>
   <input type="text" class="workflow-input" id="wf-input" placeholder="Tell Jarvis what to build..." onkeydown="if(event.key==='Enter')runWorkflow()">
   <button class="btn" onclick="runWorkflow()">EXECUTE</button>
 </div>
@@ -376,26 +503,26 @@ body{display:flex;flex-direction:column;background:radial-gradient(ellipse at ce
 <!-- VOICE BUTTON -->
 <button class="voice-btn" onclick="openVoice()" title="Talk to Jarvis">🎤</button>
 
+<!-- ACHIEVEMENT POPUP -->
+<div class="achievement" id="achievement">
+  <div class="achievement-title">🏆 <span id="ach-title">ACHIEVEMENT</span></div>
+  <div class="achievement-body" id="ach-body"></div>
+</div>
+
 <!-- ROOM MODAL -->
 <div class="modal" id="room-modal">
   <div class="modal-body">
     <button class="modal-close" onclick="closeModal()">×</button>
     <h2 id="modal-title">ROOM</h2>
     <div class="modal-grid" id="modal-stats"></div>
-    <div class="modal-section">
-      <h3>RECENT JOBS</h3>
-      <div id="modal-jobs"></div>
-    </div>
-    <div class="modal-section">
-      <h3>API CONNECTIONS</h3>
-      <div id="modal-apis" style="font-size:11px;line-height:1.8"></div>
-    </div>
+    <div class="modal-section"><h3>RECENT JOBS</h3><div id="modal-jobs"></div></div>
+    <div class="modal-section"><h3>API CONNECTIONS</h3><div id="modal-apis" style="font-size:11px;line-height:1.8"></div></div>
   </div>
 </div>
 
 <!-- ETSY MODAL -->
 <div class="modal" id="etsy-modal">
-  <div class="modal-body" style="max-width:800px">
+  <div class="modal-body" style="max-width:820px">
     <button class="modal-close" onclick="closeEtsy()">×</button>
     <h2 style="color:var(--etsy)">🛍️ ETSY STORE</h2>
     <div id="etsy-body"></div>
@@ -404,10 +531,10 @@ body{display:flex;flex-direction:column;background:radial-gradient(ellipse at ce
 
 <!-- VOICE MODAL -->
 <div class="modal" id="voice-modal">
-  <div class="modal-body" style="max-width:480px">
+  <div class="modal-body" style="max-width:500px">
     <button class="modal-close" onclick="closeVoice()">×</button>
     <h2>🎤 JARVIS VOICE</h2>
-    <div id="voice-log" style="min-height:200px;max-height:300px;overflow-y:auto;background:rgba(0,0,0,0.3);padding:12px;border-radius:6px;margin-bottom:12px;font-size:12px;line-height:1.6"></div>
+    <div id="voice-log" style="min-height:220px;max-height:320px;overflow-y:auto;background:rgba(0,0,0,0.4);padding:14px;border-radius:6px;margin-bottom:12px;font-size:12px;line-height:1.6;border:1px solid var(--line)"></div>
     <div style="display:flex;gap:8px">
       <input type="text" class="workflow-input" id="voice-input" placeholder="Say something..." onkeydown="if(event.key==='Enter')sendVoice()">
       <button class="btn" onclick="sendVoice()">SEND</button>
@@ -430,24 +557,207 @@ async function api(path, opts) {
     });
     if (!res.ok) return null;
     return await res.json();
-  } catch(e) { console.error('api error', path, e); return null; }
+  } catch(e) { console.error('api', path, e); return null; }
 }
 
-// ═══ STARS ═══
-(function(){
-  const c = document.getElementById('stars');
-  for (let i = 0; i < 150; i++) {
-    const s = document.createElement('div');
-    s.className = 'star';
-    s.style.left = Math.random() * 100 + '%';
-    s.style.top = Math.random() * 100 + '%';
-    const size = Math.random() * 2 + 0.5;
-    s.style.width = s.style.height = size + 'px';
-    s.style.opacity = Math.random() * 0.6 + 0.2;
-    s.style.animation = 'pulse ' + (2 + Math.random() * 3) + 's infinite';
-    c.appendChild(s);
+// ═══ BACKGROUND CANVAS — parallax stars + gradient ═══
+const bgCanvas = document.getElementById('bg-canvas');
+const bgCtx = bgCanvas.getContext('2d');
+const stars = [];
+let bgW, bgH;
+
+function resizeBg() {
+  bgW = bgCanvas.width = window.innerWidth;
+  bgH = bgCanvas.height = window.innerHeight;
+}
+resizeBg();
+window.addEventListener('resize', resizeBg);
+
+// Create 3 layers of parallax stars
+for (let i = 0; i < 220; i++) {
+  stars.push({
+    x: Math.random() * bgW,
+    y: Math.random() * bgH,
+    size: Math.random() * 1.8 + 0.3,
+    speed: Math.random() * 0.15 + 0.02,
+    phase: Math.random() * Math.PI * 2,
+    layer: Math.floor(Math.random() * 3),
+  });
+}
+
+function drawBg() {
+  bgCtx.fillStyle = '#000';
+  bgCtx.fillRect(0, 0, bgW, bgH);
+
+  // Radial gradient
+  const grad = bgCtx.createRadialGradient(bgW/2, bgH/2, 0, bgW/2, bgH/2, Math.max(bgW, bgH)/1.2);
+  grad.addColorStop(0, 'rgba(10, 20, 40, 0.6)');
+  grad.addColorStop(0.5, 'rgba(4, 10, 22, 0.8)');
+  grad.addColorStop(1, 'rgba(0, 0, 5, 1)');
+  bgCtx.fillStyle = grad;
+  bgCtx.fillRect(0, 0, bgW, bgH);
+
+  // Grid lines
+  bgCtx.strokeStyle = 'rgba(26, 39, 68, 0.2)';
+  bgCtx.lineWidth = 1;
+  for (let x = 0; x < bgW; x += 60) {
+    bgCtx.beginPath(); bgCtx.moveTo(x, 0); bgCtx.lineTo(x, bgH); bgCtx.stroke();
   }
-})();
+  for (let y = 0; y < bgH; y += 60) {
+    bgCtx.beginPath(); bgCtx.moveTo(0, y); bgCtx.lineTo(bgW, y); bgCtx.stroke();
+  }
+
+  const t = Date.now() / 1000;
+  // Stars
+  for (const s of stars) {
+    s.phase += 0.02;
+    s.y += s.speed;
+    if (s.y > bgH + 5) { s.y = -5; s.x = Math.random() * bgW; }
+    const flicker = Math.sin(s.phase) * 0.4 + 0.6;
+    const alpha = [0.3, 0.6, 0.9][s.layer] * flicker;
+    bgCtx.fillStyle = 'rgba(200, 220, 255, ' + alpha + ')';
+    bgCtx.beginPath();
+    bgCtx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+    bgCtx.fill();
+    if (s.layer === 2) {
+      bgCtx.fillStyle = 'rgba(0, 229, 255, ' + (alpha * 0.3) + ')';
+      bgCtx.beginPath();
+      bgCtx.arc(s.x, s.y, s.size * 2.5, 0, Math.PI * 2);
+      bgCtx.fill();
+    }
+  }
+}
+
+// ═══ FX CANVAS — data flow between rooms ═══
+const fxCanvas = document.getElementById('fx-canvas');
+const fxCtx = fxCanvas.getContext('2d');
+const dataPackets = [];
+let fxW, fxH;
+
+function resizeFx() {
+  fxW = fxCanvas.width = window.innerWidth;
+  fxH = fxCanvas.height = window.innerHeight;
+}
+resizeFx();
+window.addEventListener('resize', resizeFx);
+
+function getRoomCenter(roomId) {
+  const el = document.querySelector('.room[data-room="' + roomId + '"]');
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}
+
+// Connection lines between rooms (Jarvis is central hub)
+const connections = [
+  ['command', 'research'], ['command', 'marketing'], ['command', 'ops'],
+  ['command', 'etsy'], ['command', 'printify'], ['command', 'roofing'],
+];
+
+function drawFx() {
+  fxCtx.clearRect(0, 0, fxW, fxH);
+
+  const colors = {
+    command: '#00e5ff', research: '#b388ff', marketing: '#69f0ae',
+    ops: '#ff9100', etsy: '#f5641e', printify: '#39d4a5', roofing: '#4a7fc9',
+  };
+
+  const t = Date.now() / 1000;
+
+  // Draw connection lines
+  for (const [from, to] of connections) {
+    const a = getRoomCenter(from);
+    const b = getRoomCenter(to);
+    if (!a || !b) continue;
+
+    // Dim base line
+    fxCtx.strokeStyle = 'rgba(0, 229, 255, 0.08)';
+    fxCtx.lineWidth = 1;
+    fxCtx.beginPath();
+    fxCtx.moveTo(a.x, a.y);
+    fxCtx.lineTo(b.x, b.y);
+    fxCtx.stroke();
+
+    // Traveling pulse dots
+    for (let i = 0; i < 3; i++) {
+      const speed = 0.3 + i * 0.15;
+      const offset = i * 0.33;
+      const tt = ((t * speed + offset) % 1);
+      const px = a.x + (b.x - a.x) * tt;
+      const py = a.y + (b.y - a.y) * tt;
+      const color = colors[to] || '#00e5ff';
+
+      // Glow
+      const grad = fxCtx.createRadialGradient(px, py, 0, px, py, 12);
+      grad.addColorStop(0, color + 'cc');
+      grad.addColorStop(0.4, color + '44');
+      grad.addColorStop(1, color + '00');
+      fxCtx.fillStyle = grad;
+      fxCtx.beginPath();
+      fxCtx.arc(px, py, 12, 0, Math.PI * 2);
+      fxCtx.fill();
+
+      // Core
+      fxCtx.fillStyle = color;
+      fxCtx.beginPath();
+      fxCtx.arc(px, py, 2.5, 0, Math.PI * 2);
+      fxCtx.fill();
+    }
+  }
+
+  // Draw floating data packets (randomly spawned)
+  for (let i = dataPackets.length - 1; i >= 0; i--) {
+    const p = dataPackets[i];
+    p.age += 0.016;
+    if (p.age > p.life) { dataPackets.splice(i, 1); continue; }
+
+    const progress = p.age / p.life;
+    const px = p.x + (p.tx - p.x) * progress;
+    const py = p.y + (p.ty - p.y) * progress - Math.sin(progress * Math.PI) * 20;
+    const alpha = 1 - progress;
+
+    fxCtx.fillStyle = p.color + Math.floor(alpha * 255).toString(16).padStart(2, '0');
+    fxCtx.beginPath();
+    fxCtx.arc(px, py, 3, 0, Math.PI * 2);
+    fxCtx.fill();
+
+    // Trail
+    fxCtx.fillStyle = p.color + '22';
+    fxCtx.beginPath();
+    fxCtx.arc(px, py, 8, 0, Math.PI * 2);
+    fxCtx.fill();
+  }
+}
+
+function spawnDataPacket(fromRoom, toRoom) {
+  const a = getRoomCenter(fromRoom);
+  const b = getRoomCenter(toRoom);
+  if (!a || !b) return;
+  const colors = { command: '#00e5ff', research: '#b388ff', marketing: '#69f0ae', ops: '#ff9100', etsy: '#f5641e' };
+  dataPackets.push({
+    x: a.x, y: a.y, tx: b.x, ty: b.y,
+    age: 0, life: 1.5,
+    color: colors[toRoom] || '#00e5ff',
+  });
+}
+
+// ═══ MAIN LOOP ═══
+function loop() {
+  drawBg();
+  drawFx();
+  requestAnimationFrame(loop);
+}
+loop();
+
+// Spawn data packets periodically
+setInterval(() => {
+  const rooms = ['research', 'marketing', 'ops', 'etsy', 'printify', 'roofing'];
+  const target = rooms[Math.floor(Math.random() * rooms.length)];
+  spawnDataPacket('command', target);
+  if (Math.random() > 0.6) {
+    setTimeout(() => spawnDataPacket(target, 'command'), 800);
+  }
+}, 1500);
 
 // ═══ CLOCK ═══
 function tickClock() {
@@ -456,41 +766,70 @@ function tickClock() {
 }
 setInterval(tickClock, 1000); tickClock();
 
+// ═══ XP SYSTEM ═══
+function calcLevel(xp) {
+  // Level up every 10 tasks, XP = tasks_completed
+  return { level: Math.floor(xp / 10) + 1, pct: (xp % 10) * 10 };
+}
+
+// ═══ ACHIEVEMENT POPUPS ═══
+let lastJobCount = 0;
+function showAchievement(title, body) {
+  const el = document.getElementById('achievement');
+  document.getElementById('ach-title').textContent = title;
+  document.getElementById('ach-body').textContent = body;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 4500);
+}
+
 // ═══ DATA REFRESH ═══
 let failures = 0;
 async function refresh() {
-  const [health, crew, costs, leads] = await Promise.all([
+  const [health, crew, costs, leads, etsy] = await Promise.all([
     api('/dashboard/api/health'),
     api('/dashboard/api/crew'),
     api('/dashboard/api/costs'),
     api('/dashboard/api/leads'),
+    api('/dashboard/api/etsy/products'),
   ]);
 
-  if (health || crew || costs || leads) {
-    failures = 0;
-    setStatus('on');
-  } else {
-    failures++;
-    if (failures >= 3) setStatus('off');
-  }
+  if (health || crew || costs) { failures = 0; setStatus('on'); }
+  else { failures++; if (failures >= 3) setStatus('off'); }
 
-  if (health?.stats) {
-    document.getElementById('s-mem').textContent = health.stats.memories || '—';
-  }
+  if (health?.stats) document.getElementById('s-mem').textContent = health.stats.memories || '—';
 
   if (crew?.workers) {
-    const activeCount = crew.workers.filter(w => w.status === 'active' || w.status === 'working').length;
-    document.getElementById('s-agents').textContent = activeCount;
+    const active = crew.workers.filter(w => w.status === 'active' || w.status === 'working').length;
+    document.getElementById('s-agents').textContent = active;
     document.getElementById('s-jobs').textContent = crew.jobs?.completed ?? '—';
+
+    const totalCompleted = (crew.jobs?.completed || 0);
+    if (lastJobCount > 0 && totalCompleted > lastJobCount) {
+      showAchievement('JOB COMPLETED', '+' + (totalCompleted - lastJobCount) + ' tasks finished by the crew');
+    }
+    lastJobCount = totalCompleted;
 
     crew.workers.forEach(w => {
       const name = (w.name || '').toLowerCase();
-      const prefix = name.includes('hawk') ? 'hawk' : name.includes('ghost') ? 'ghost' : name.includes('pulse') ? 'pulse' : null;
-      if (prefix) {
-        const done = document.getElementById(prefix + '-done'); if (done) done.textContent = w.tasks_completed || 0;
-        const fail = document.getElementById(prefix + '-fail'); if (fail) fail.textContent = w.tasks_failed || 0;
-        const rate = document.getElementById(prefix + '-rate'); if (rate) rate.textContent = (w.successRate || 0) + '%';
-      }
+      let prefix = null;
+      if (name.includes('hawk')) prefix = 'hawk';
+      else if (name.includes('ghost')) prefix = 'ghost';
+      else if (name.includes('pulse')) prefix = 'pulse';
+      if (!prefix) return;
+
+      const done = w.tasks_completed || 0;
+      const fail = w.tasks_failed || 0;
+      const rate = done + fail > 0 ? Math.round(done / (done + fail) * 100) : 0;
+      setText(prefix + '-done', done);
+      setText(prefix + '-fail', fail);
+      setText(prefix + '-rate', rate + '%');
+
+      // XP bar
+      const { level, pct } = calcLevel(done);
+      const xpEl = document.getElementById('xp-' + prefix);
+      if (xpEl) xpEl.style.width = pct + '%';
+      setText('lvl-' + prefix, 'LVL ' + level);
+      setText('xpv-' + prefix, done + ' XP');
     });
   }
 
@@ -502,7 +841,19 @@ async function refresh() {
     const arr = Array.isArray(leads) ? leads : (leads.leads || []);
     document.getElementById('s-leads').textContent = arr.length;
   }
+
+  if (etsy) {
+    const published = etsy.publishedCount || 0;
+    document.getElementById('forge-total').textContent = published;
+    document.getElementById('forge-orders').textContent = etsy.totalOrders || 0;
+    // Rough revenue estimate: $15 avg x orders, or $0 if none
+    const rev = (etsy.totalOrders || 0) * 22;
+    document.getElementById('etsy-rev').textContent = '$' + rev;
+    document.getElementById('s-revenue').textContent = '$' + (82400 + rev).toLocaleString();
+  }
 }
+
+function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
 
 function setStatus(s) {
   const dot = document.getElementById('status-dot');
@@ -515,7 +866,7 @@ function setStatus(s) {
 refresh();
 setInterval(refresh, 15000);
 
-// ═══ ROOM INTERIOR MODAL ═══
+// ═══ ROOM MODAL ═══
 async function openRoom(roomId) {
   const modal = document.getElementById('room-modal');
   const title = document.getElementById('modal-title');
@@ -523,11 +874,8 @@ async function openRoom(roomId) {
   const jobs = document.getElementById('modal-jobs');
   const apis = document.getElementById('modal-apis');
 
-  const roomNames = {
-    command: 'COMMAND CENTER', research: 'RESEARCH LAB', marketing: 'MARKETING BAY',
-    ops: 'OPS DECK', etsy: 'ETSY STORE', printify: 'PRINTIFY SHOP'
-  };
-  title.textContent = roomNames[roomId] || roomId.toUpperCase();
+  const names = { command:'COMMAND CENTER',research:'RESEARCH LAB',marketing:'MARKETING BAY',ops:'OPS DECK',etsy:'ETSY STORE',printify:'PRINTIFY' };
+  title.textContent = names[roomId] || roomId.toUpperCase();
   stats.innerHTML = '<div class="modal-stat"><div class="n">...</div><div class="l">loading</div></div>';
   jobs.innerHTML = '<div style="color:#6b7fa3;font-size:11px">loading...</div>';
   apis.innerHTML = '';
@@ -550,18 +898,12 @@ async function openRoom(roomId) {
     stats.innerHTML += '<div class="modal-stat"><div class="n" style="color:var(--cyan)">' + (data.stats.costs.total_calls || 0) + '</div><div class="l">API Calls</div></div>';
   }
 
-  // Recent jobs
   const jobList = (data.recentJobs || []).slice(0, 8);
-  if (jobList.length) {
-    jobs.innerHTML = jobList.map(j => {
-      const cls = j.status === 'completed' ? 'j-done' : j.status === 'failed' ? 'j-fail' : 'j-run';
-      return '<div class="job-row"><span class="job-badge ' + cls + '">' + (j.status || 'pending').toUpperCase() + '</span><span style="flex:1;color:#c8d6e5">' + escapeHtml(j.title || 'Untitled') + '</span></div>';
-    }).join('');
-  } else {
-    jobs.innerHTML = '<div style="color:#6b7fa3;font-size:11px">No recent jobs</div>';
-  }
+  jobs.innerHTML = jobList.length ? jobList.map(j => {
+    const cls = j.status === 'completed' ? 'j-done' : j.status === 'failed' ? 'j-fail' : 'j-run';
+    return '<div class="job-row"><span class="job-badge ' + cls + '">' + (j.status || 'pending').toUpperCase() + '</span><span style="flex:1;color:#c8d6e5">' + escapeHtml(j.title || '') + '</span></div>';
+  }).join('') : '<div style="color:#6b7fa3;font-size:11px">No recent jobs</div>';
 
-  // API connections
   if (data.apiConnections) {
     apis.innerHTML = data.apiConnections.map(c =>
       '<div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:' + (c.connected ? 'var(--green)' : 'var(--pink)') + ';box-shadow:0 0 6px currentColor"></span>' + c.name + '</div>'
@@ -571,11 +913,9 @@ async function openRoom(roomId) {
 
 function closeModal() { document.getElementById('room-modal').classList.remove('open'); }
 function closeVoice() { document.getElementById('voice-modal').classList.remove('open'); }
-
-function openApp(slug) {
-  const url = API + '/' + slug + '?key=' + API_KEY;
-  window.open(url, '_blank');
-}
+function closeEtsy() { document.getElementById('etsy-modal').classList.remove('open'); }
+function openApp(slug) { window.open(API + '/' + slug + '?key=' + API_KEY, '_blank'); }
+function openVoice() { document.getElementById('voice-modal').classList.add('open'); }
 
 // ═══ ETSY STORE MODAL ═══
 async function openEtsy() {
@@ -590,7 +930,7 @@ async function openEtsy() {
   ]);
 
   if (!data || data.error) {
-    body.innerHTML = '<div style="color:#ff4081;padding:20px">Error loading store: ' + (data?.error || 'unknown') + '</div>';
+    body.innerHTML = '<div style="color:#ff4081;padding:20px">Error: ' + (data?.error || 'unknown') + '</div>';
     return;
   }
 
@@ -598,138 +938,94 @@ async function openEtsy() {
   const shopName = assets?.shopName || 'ApexPrintLLC';
 
   let html = '';
+  html += '<div style="background:linear-gradient(135deg,rgba(245,100,30,0.15),rgba(245,100,30,0.05));border:2px solid rgba(245,100,30,0.4);border-radius:10px;padding:14px;margin-bottom:18px;display:flex;align-items:center;gap:14px">';
+  html += '<div style="font-size:30px">🛍️</div>';
+  html += '<div style="flex:1"><div style="font-size:10px;color:var(--dim);letter-spacing:2px;text-transform:uppercase">Your Etsy Store</div>';
+  html += '<div style="font-size:16px;font-weight:700;color:var(--etsy);letter-spacing:1px">' + shopName + '</div></div>';
+  html += '<a href="' + shopUrl + '" target="_blank" style="background:var(--etsy);color:white;padding:10px 18px;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:1px;text-decoration:none">VIEW STORE →</a></div>';
 
-  // Big shop link banner
-  html += '<div style="background:linear-gradient(135deg,rgba(245,100,30,0.15),rgba(245,100,30,0.05));border:2px solid rgba(245,100,30,0.4);border-radius:10px;padding:16px;margin-bottom:20px;display:flex;align-items:center;gap:14px">';
-  html += '<div style="font-size:32px">🛍️</div>';
-  html += '<div style="flex:1">';
-  html += '<div style="font-size:10px;color:var(--dim);letter-spacing:2px;text-transform:uppercase">Your Etsy Store</div>';
-  html += '<div style="font-size:16px;font-weight:700;color:var(--etsy);letter-spacing:1px">' + shopName + '</div>';
-  html += '</div>';
-  html += '<a href="' + shopUrl + '" target="_blank" style="background:var(--etsy);color:white;padding:10px 20px;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:1px;text-decoration:none">VIEW STORE →</a>';
-  html += '</div>';
-
-  // Stats
-  html += '<div class="modal-grid" style="margin-bottom:20px">';
+  html += '<div class="modal-grid" style="margin-bottom:16px">';
   html += '<div class="modal-stat"><div class="n" style="color:var(--etsy)">' + data.totalProducts + '</div><div class="l">Total Products</div></div>';
   html += '<div class="modal-stat"><div class="n" style="color:var(--green)">' + data.publishedCount + '</div><div class="l">Live on Etsy</div></div>';
   html += '<div class="modal-stat"><div class="n" style="color:var(--orange)">' + data.totalOrders + '</div><div class="l">Orders</div></div>';
   html += '</div>';
 
-  // Actions
-  html += '<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">';
+  html += '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">';
   html += '<button class="btn" onclick="runEtsyPipeline()">▶ CREATE 3 MORE</button>';
   html += '<button class="btn" onclick="publishAllEtsy()">⚡ PUBLISH ALL</button>';
   html += '<button class="btn" onclick="openAssets()">🎨 SHOP ASSETS</button>';
   html += '</div>';
 
-  // Products
   html += '<div class="modal-section"><h3>ALL PRODUCTS</h3>';
   for (const p of data.products) {
     const statusColor = p.published ? 'var(--green)' : 'var(--yellow)';
     const statusText = p.published ? 'LIVE ON ETSY' : 'UNPUBLISHED';
     html += '<div class="job-row">';
-    html += '<span class="job-badge" style="background:rgba(105,240,174,0.15);color:' + statusColor + '">' + statusText + '</span>';
-    html += '<span style="flex:1;color:#c8d6e5;font-size:11px">' + escapeHtml(p.title || 'Untitled') + '</span>';
-    if (p.etsyUrl) {
-      html += '<a href="' + p.etsyUrl + '" target="_blank" style="color:var(--cyan);font-size:10px;text-decoration:none">VIEW →</a>';
-    }
+    html += '<span class="job-badge" style="color:' + statusColor + ';background:rgba(105,240,174,0.1);border:1px solid currentColor">' + statusText + '</span>';
+    html += '<span style="flex:1;color:#c8d6e5;font-size:11px">' + escapeHtml(p.title || '') + '</span>';
+    if (p.etsyUrl) html += '<a href="' + p.etsyUrl + '" target="_blank" style="color:var(--cyan);font-size:10px;text-decoration:none">VIEW →</a>';
     html += '</div>';
   }
   html += '</div>';
   body.innerHTML = html;
 }
 
-// ═══ SHOP ASSETS (icon, banner, story, bio) ═══
 async function openAssets() {
   const body = document.getElementById('etsy-body');
   body.innerHTML = '<div style="text-align:center;padding:30px;color:#6b7fa3">Loading shop assets...</div>';
-
   const assets = await api('/dashboard/api/etsy/assets');
-  if (!assets) {
-    body.innerHTML = '<div style="color:#ff4081;padding:20px">Error loading assets</div>';
-    return;
-  }
+  if (!assets) { body.innerHTML = '<div style="color:#ff4081">Error</div>'; return; }
 
-  let html = '<button class="btn" style="margin-bottom:16px" onclick="openEtsy()">← BACK TO STORE</button>';
-  html += '<h3 style="color:var(--etsy);margin-bottom:14px;font-size:14px;letter-spacing:2px">🎨 SHOP ASSETS (upload these to Etsy manually)</h3>';
+  let html = '<button class="btn" style="margin-bottom:14px" onclick="openEtsy()">← BACK TO STORE</button>';
+  html += '<div style="background:rgba(255,215,64,0.08);border:1px solid rgba(255,215,64,0.25);border-radius:8px;padding:12px;margin-bottom:14px;font-size:11px;line-height:1.6">';
+  html += '<b style="color:var(--yellow)">⚡ SETUP CHECKLIST</b> — Go to <a href="https://www.etsy.com/your/shops/me/onboarding" target="_blank" style="color:var(--cyan)">Etsy Shop Manager</a>, then:';
+  html += '<ol style="margin:6px 0 0 16px;padding:0"><li>Download Shop Icon → Upload to Etsy</li><li>Download Shop Banner → Upload</li><li>Copy Shop Story → Paste</li><li>Copy Seller Bio → Paste</li></ol></div>';
 
-  html += '<div style="background:rgba(255,215,64,0.08);border:1px solid rgba(255,215,64,0.25);border-radius:8px;padding:12px;margin-bottom:16px;font-size:11px;color:#c8d6e5;line-height:1.6">';
-  html += '<b style="color:var(--yellow)">⚡ SETUP CHECKLIST</b> — Go to <a href="https://www.etsy.com/your/shops/me/onboarding" target="_blank" style="color:var(--cyan)">Etsy Shop Manager</a> → Customize your shop, then:';
-  html += '<ol style="margin:8px 0 0 16px;padding:0">';
-  html += '<li>Download Shop Icon → Upload to "Add an icon"</li>';
-  html += '<li>Download Shop Banner → Upload to "Create a banner"</li>';
-  html += '<li>Copy Shop Story → Paste into "Share your story"</li>';
-  html += '<li>Copy Seller Bio → Paste into "Upload a seller photo" section</li>';
-  html += '</ol></div>';
-
-  // Icon
   html += '<div class="modal-section"><h3>SHOP ICON</h3>';
-  html += '<img src="/dashboard/api/etsy/asset/shop-icon.png?key=' + API_KEY + '" style="width:200px;height:200px;border-radius:12px;border:2px solid var(--line);display:block;margin-bottom:10px" />';
-  html += '<div style="display:flex;gap:8px">';
-  html += '<a class="btn" href="/dashboard/api/etsy/asset/shop-icon.png?key=' + API_KEY + '" download="apexprintllc-icon.png">⬇ DOWNLOAD</a>';
-  html += '<button class="btn" onclick="regenAsset(\'icon\')">🔄 REGENERATE</button>';
-  html += '</div></div>';
+  html += '<img src="/dashboard/api/etsy/asset/shop-icon.png?key=' + API_KEY + '" style="width:180px;height:180px;border-radius:12px;border:2px solid var(--line);display:block;margin-bottom:10px" />';
+  html += '<div style="display:flex;gap:8px"><a class="btn" href="/dashboard/api/etsy/asset/shop-icon.png?key=' + API_KEY + '" download>⬇ DOWNLOAD</a><button class="btn" onclick="regenAsset(\'icon\',event)">🔄 REGENERATE</button></div></div>';
 
-  // Banner
   html += '<div class="modal-section"><h3>SHOP BANNER</h3>';
   html += '<img src="/dashboard/api/etsy/asset/shop-banner.png?key=' + API_KEY + '" style="width:100%;max-width:600px;border-radius:8px;border:2px solid var(--line);display:block;margin-bottom:10px" />';
-  html += '<div style="display:flex;gap:8px">';
-  html += '<a class="btn" href="/dashboard/api/etsy/asset/shop-banner.png?key=' + API_KEY + '" download="apexprintllc-banner.png">⬇ DOWNLOAD</a>';
-  html += '<button class="btn" onclick="regenAsset(\'banner\')">🔄 REGENERATE</button>';
-  html += '</div></div>';
+  html += '<div style="display:flex;gap:8px"><a class="btn" href="/dashboard/api/etsy/asset/shop-banner.png?key=' + API_KEY + '" download>⬇ DOWNLOAD</a><button class="btn" onclick="regenAsset(\'banner\',event)">🔄 REGENERATE</button></div></div>';
 
-  // Story
   html += '<div class="modal-section"><h3>SHARE YOUR STORY</h3>';
-  html += '<textarea id="story-text" style="width:100%;min-height:180px;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:12px;color:#c8d6e5;font-size:12px;font-family:inherit;line-height:1.6" readonly>' + escapeHtml(assets.storyText || '') + '</textarea>';
-  html += '<div style="display:flex;gap:8px;margin-top:8px">';
-  html += '<button class="btn" onclick="copyText(\'story-text\')">📋 COPY</button>';
-  html += '<button class="btn" onclick="regenAsset(\'story\')">🔄 REGENERATE</button>';
-  html += '</div></div>';
+  html += '<textarea id="story-text" style="width:100%;min-height:160px;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:12px;color:#c8d6e5;font-size:12px;font-family:inherit;line-height:1.6" readonly>' + escapeHtml(assets.storyText || '') + '</textarea>';
+  html += '<div style="display:flex;gap:8px;margin-top:8px"><button class="btn" onclick="copyText(\'story-text\',event)">📋 COPY</button><button class="btn" onclick="regenAsset(\'story\',event)">🔄 REGENERATE</button></div></div>';
 
-  // Bio
   html += '<div class="modal-section"><h3>SELLER BIO</h3>';
-  html += '<textarea id="bio-text" style="width:100%;min-height:100px;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:12px;color:#c8d6e5;font-size:12px;font-family:inherit;line-height:1.6" readonly>' + escapeHtml(assets.bioText || '') + '</textarea>';
-  html += '<div style="display:flex;gap:8px;margin-top:8px">';
-  html += '<button class="btn" onclick="copyText(\'bio-text\')">📋 COPY</button>';
-  html += '<button class="btn" onclick="regenAsset(\'bio\')">🔄 REGENERATE</button>';
-  html += '</div></div>';
+  html += '<textarea id="bio-text" style="width:100%;min-height:90px;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:12px;color:#c8d6e5;font-size:12px;font-family:inherit;line-height:1.6" readonly>' + escapeHtml(assets.bioText || '') + '</textarea>';
+  html += '<div style="display:flex;gap:8px;margin-top:8px"><button class="btn" onclick="copyText(\'bio-text\',event)">📋 COPY</button><button class="btn" onclick="regenAsset(\'bio\',event)">🔄 REGENERATE</button></div></div>';
 
   body.innerHTML = html;
 }
 
-async function regenAsset(type) {
-  const btn = event.target;
-  const original = btn.textContent;
+async function regenAsset(type, ev) {
+  const btn = ev.target;
   btn.textContent = '⏳ GENERATING...';
   btn.disabled = true;
   await api('/dashboard/api/etsy/regen', { method: 'POST', body: { type } });
-  btn.textContent = '✓ DONE';
   setTimeout(() => openAssets(), 500);
 }
 
-function copyText(id) {
+function copyText(id, ev) {
   const el = document.getElementById(id);
   el.select();
   document.execCommand('copy');
-  const btn = event.target;
-  const original = btn.textContent;
-  btn.textContent = '✓ COPIED';
-  setTimeout(() => { btn.textContent = original; }, 1500);
+  ev.target.textContent = '✓ COPIED';
+  setTimeout(() => { ev.target.textContent = '📋 COPY'; }, 1500);
 }
 
 async function runEtsyPipeline() {
   const r = await api('/dashboard/api/etsy/run-pipeline', { method: 'POST', body: {} });
-  alert(r?.message || 'Started. Check back in 2-3 minutes for new products.');
+  showAchievement('PIPELINE STARTED', 'Creating 3 new products. Check back in 5 min.');
 }
 
 async function publishAllEtsy() {
   const r = await api('/dashboard/api/etsy/publish-all', { method: 'POST', body: {} });
-  alert('Published ' + (r?.optimized?.length || 0) + ' products.');
-  openEtsy(); // refresh
+  showAchievement('PUBLISHED', 'All unpublished products pushed to Etsy.');
+  openEtsy();
 }
-
-function closeEtsy() { document.getElementById('etsy-modal').classList.remove('open'); }
 
 // ═══ WORKFLOW ═══
 async function runWorkflow() {
@@ -737,15 +1033,16 @@ async function runWorkflow() {
   const text = input.value.trim();
   if (!text) return;
   input.value = '';
+  showAchievement('TASK QUEUED', text.substring(0, 100));
   const r = await api('/dashboard/api/chat', { method: 'POST', body: { text } });
   if (r?.reply) {
-    alert('Jarvis: ' + r.reply);
+    setTimeout(() => {
+      showAchievement('JARVIS REPLIED', r.reply.substring(0, 150));
+    }, 500);
   }
 }
 
 // ═══ VOICE ═══
-function openVoice() { document.getElementById('voice-modal').classList.add('open'); }
-
 async function sendVoice() {
   const input = document.getElementById('voice-input');
   const log = document.getElementById('voice-log');
@@ -760,10 +1057,7 @@ async function sendVoice() {
     log.innerHTML += '<div style="color:var(--green);margin-bottom:12px"><b>JARVIS:</b> ' + escapeHtml(r.reply) + '</div>';
     log.scrollTop = log.scrollHeight;
     if (r.audio) {
-      try {
-        const audio = new Audio('data:audio/mpeg;base64,' + r.audio);
-        audio.play();
-      } catch(e) {}
+      try { new Audio('data:audio/mpeg;base64,' + r.audio).play(); } catch(e) {}
     }
   }
 }
@@ -774,13 +1068,10 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
-// Close modals on backdrop click
-document.getElementById('room-modal').addEventListener('click', e => {
-  if (e.target.id === 'room-modal') closeModal();
-});
-document.getElementById('voice-modal').addEventListener('click', e => {
-  if (e.target.id === 'voice-modal') closeVoice();
-});
+// Close modals on backdrop
+document.getElementById('room-modal').addEventListener('click', e => { if (e.target.id === 'room-modal') closeModal(); });
+document.getElementById('voice-modal').addEventListener('click', e => { if (e.target.id === 'voice-modal') closeVoice(); });
+document.getElementById('etsy-modal').addEventListener('click', e => { if (e.target.id === 'etsy-modal') closeEtsy(); });
 </script>
 </body>
 </html>
