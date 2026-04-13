@@ -307,8 +307,8 @@ async function updateWorkerStats(workerId, success) {
 // ═══ EXECUTE A JOB ═══
 // Scoped tools, cost tracking, per-iteration timeout, kill switch
 
-const MAX_WORKER_ITERATIONS = 8;
-const JOB_TIMEOUT = 5 * 60 * 1000; // 5 min max per job
+const MAX_WORKER_ITERATIONS = 20;
+const JOB_TIMEOUT = 10 * 60 * 1000; // 10 min max per job
 
 async function executeJob(job) {
   const worker = await getWorker(job.worker_id);
@@ -340,10 +340,16 @@ async function executeJob(job) {
   const toolDescriptions = toolNames.map(t => '  ' + t + ' — ' + scopedTools[t].description).join('\n');
 
   const systemPrompt = (worker.system_prompt || 'You are ' + worker.name + ', a sub-agent.') +
-    '\n\nAVAILABLE TOOLS (you can ONLY use these):\n' + toolDescriptions +
-    '\n\nTo use a tool, respond with ONLY a JSON block: {"tool": "tool_name", "input": {...}}' +
-    '\nWhen done, respond with ONLY: {"done": true, "result": "your findings/output"}' +
-    '\nYou have up to ' + MAX_WORKER_ITERATIONS + ' tool uses. Be efficient. Finish quickly.';
+    '\n\n═══ CRITICAL RULES ═══' +
+    '\n1. You MUST use your tools to complete the task. NEVER respond with just text.' +
+    '\n2. Every response MUST be a JSON object. No markdown. No explanations outside JSON.' +
+    '\n3. To use a tool: {"tool": "tool_name", "input": {...}}' +
+    '\n4. When FULLY done: {"done": true, "result": "your complete findings"}' +
+    '\n5. Your result MUST contain actual data, not promises to do more research.' +
+    '\n6. You have up to ' + MAX_WORKER_ITERATIONS + ' tool calls. Use them ALL if needed.' +
+    '\n7. DO NOT stop early. DO NOT say "I would need to research more." USE YOUR TOOLS AND DO IT.' +
+    '\n\nAVAILABLE TOOLS:\n' + toolDescriptions +
+    '\n\nSTART by calling a tool. Your first response must be a tool call, not text.';
 
   const messages = [{
     role: 'user',
@@ -417,8 +423,15 @@ async function executeJob(job) {
         parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
       } catch { parsed = null; }
 
-      // Plain text = treat as final result
+      // Plain text with no JSON = push back and demand tool use
       if (!parsed) {
+        if (i < MAX_WORKER_ITERATIONS - 1 && toolLog.length === 0) {
+          // Agent hasn't used any tools yet — force it to use one
+          messages.push({ role: 'assistant', content: text });
+          messages.push({ role: 'user', content: 'ERROR: You responded with text instead of JSON. You MUST use your tools. Respond with: {"tool": "brave_search", "input": {"query": "..."}} — DO NOT respond with plain text.' });
+          continue;
+        }
+        // Agent has used tools and is now giving a text summary — accept it
         finalResult = text.substring(0, 5000);
         break;
       }
