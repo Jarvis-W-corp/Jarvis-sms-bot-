@@ -148,13 +148,19 @@ async function runProductPipeline(niche, count, tenantId) {
   const created = [];
   for (const p of products.slice(0, count || 3)) {
     try {
+      // GUARD: Never publish without tags — Etsy won't show untagged products in search
+      if (!p.tags || p.tags.length < 5) {
+        console.error('[ECOM] BLOCKED: ' + p.title + ' has ' + (p.tags?.length || 0) + ' tags — need at least 5. Skipping.');
+        created.push({ title: p.title, error: 'Insufficient tags — product would be invisible on Etsy' });
+        continue;
+      }
       const result = await createAndListProduct({
         title: p.title,
         description: p.description,
         tags: p.tags,
         designPrompt: p.designPrompt,
         productType: p.productType || 'tshirt',
-        price: p.price || 1999,
+        price: p.price || p.priceInCents || 1999,
         publish: true, // auto-publish to Etsy
       });
       created.push(result);
