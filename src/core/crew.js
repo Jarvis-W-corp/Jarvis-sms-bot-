@@ -1,12 +1,14 @@
 // crew.js — Sub-agent system with scoped tools, cost tracking, timeouts, kill switch
 // Ghost (marketing), Hawk (research), Pulse (ops) — each gets ONLY their tools
 // Every API call is tracked. Every job has a timeout. Any job can be killed.
+// Jobs execute via BullMQ (instant) with Supabase fallback (polling)
 
 const Anthropic = require('@anthropic-ai/sdk').default;
 const { supabase } = require('../db/supabase');
 const { searchWeb } = require('./search');
 const { sendBossMessage, logToDiscord } = require('../channels/discord');
 const db = require('../db/queries');
+const queue = require('./queue');
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -234,21 +236,46 @@ async function getWorker(workerId) {
 
 async function createJob(workerIdOrName, title, description, input, priority, parentJobId) {
   let workerId = workerIdOrName;
+  let workerName = workerIdOrName;
   const workerNameMap = { research: 'Hawk', marketing: 'Ghost', ops: 'Pulse', hawk: 'Hawk', ghost: 'Ghost', pulse: 'Pulse' };
   if (workerNameMap[workerIdOrName]) {
+    workerName = workerNameMap[workerIdOrName];
     const { data: worker } = await supabase.from('agent_workers').select('id')
-      .ilike('name', '%' + workerNameMap[workerIdOrName] + '%').single();
+      .ilike('name', '%' + workerName + '%').single();
     if (worker) workerId = worker.id;
   }
 
   const id = 'job_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+
+  // Always persist to Supabase (audit trail + fallback)
   const { error } = await supabase.from('agent_jobs').insert({
     id, worker_id: workerId, title, description,
     status: 'pending', priority: priority || 5,
     input: input || {}, parent_job_id: parentJobId || '',
   });
   if (error) { console.error('[CREW] Create job error:', error.message); return null; }
-  console.log('[CREW] Job created: ' + title + ' -> ' + workerId);
+
+  // Push to BullMQ for instant execution (if Redis is up)
+  if (queue.isQueueReady()) {
+    try {
+      await queue.addCrewJob({
+        jobId: id,
+        workerId,
+        workerName,
+        title,
+        description,
+        input: input || {},
+        priority: priority || 5,
+        parentJobId: parentJobId || null,
+      }, { priority: priority || 5 });
+      console.log('[CREW] Job created + queued: ' + title + ' -> ' + workerName);
+    } catch (err) {
+      console.error('[CREW] BullMQ queue error (will use polling fallback):', err.message);
+    }
+  } else {
+    console.log('[CREW] Job created (polling mode): ' + title + ' -> ' + workerName);
+  }
+
   return id;
 }
 
@@ -577,6 +604,58 @@ async function getCrewStatus() {
   };
 }
 
+// ═══ BULLMQ WORKER PROCESSOR ═══
+// This is the function BullMQ calls when a job is ready to execute
+
+async function processBullMQJob(bullJob) {
+  const data = bullJob.data;
+  console.log('[CREW/BULL] Processing job: ' + data.title + ' (worker: ' + data.workerName + ')');
+
+  // Fetch the full job record from Supabase
+  const { data: job } = await supabase.from('agent_jobs').select('*').eq('id', data.jobId).single();
+  if (!job) {
+    throw new Error('Job not found in Supabase: ' + data.jobId);
+  }
+
+  // Execute using existing executeJob logic
+  const result = await executeJob(job);
+
+  // Log outcome for the learning loop
+  try {
+    const tenant = await db.getDefaultTenant();
+    if (tenant) {
+      await db.logOutcome({
+        tenant_id: tenant.id,
+        job_id: data.jobId,
+        task_type: 'crew_job',
+        worker: data.workerName,
+        success: !!result,
+        duration_ms: bullJob.processedOn ? Date.now() - bullJob.processedOn : null,
+        notes: result ? String(result).substring(0, 500) : 'No result',
+        error_message: result ? null : 'Job returned no result',
+      });
+    }
+  } catch (e) {
+    // outcome logging is best-effort — don't fail the job over it
+    console.error('[CREW/BULL] Outcome log error:', e.message);
+  }
+
+  return { result: result ? String(result).substring(0, 2000) : null, jobId: data.jobId };
+}
+
+// ═══ INITIALIZE QUEUE ═══
+// Called from index.js on startup
+
+async function initQueue() {
+  const ready = await queue.init(processBullMQJob);
+  if (ready) {
+    console.log('[CREW] BullMQ queue initialized — jobs will execute instantly');
+  } else {
+    console.log('[CREW] BullMQ unavailable — using 2h Supabase polling fallback');
+  }
+  return ready;
+}
+
 module.exports = {
   createJob,
   getPendingJobs,
@@ -591,4 +670,6 @@ module.exports = {
   isKilled,
   runningJobs,
   getToolsForWorker,
+  initQueue,
+  processBullMQJob,
 };

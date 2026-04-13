@@ -487,6 +487,184 @@ async function getLeadStats(tenantId) {
   }
 }
 
+// ── Ideas (Idea Bank) ──
+
+async function createIdea(tenantId, idea) {
+  try {
+    const { data, error } = await supabase.from('ideas').insert({
+      tenant_id: tenantId,
+      title: idea.title,
+      description: idea.description || null,
+      source: idea.source || 'user',
+      status: idea.status || 'queued',
+      score_impact: idea.score_impact || null,
+      score_feasibility: idea.score_feasibility || null,
+      score_alignment: idea.score_alignment || null,
+      score_urgency: idea.score_urgency || null,
+      embedding: idea.embedding || null,
+      expires_at: idea.expires_at || null,
+    }).select().single();
+    if (error) { console.error('[DB] createIdea error:', error.message); return null; }
+    return data;
+  } catch (err) {
+    console.error('[DB] createIdea error:', err.message);
+    return null;
+  }
+}
+
+async function getIdeas(tenantId, status, limit = 20) {
+  try {
+    let query = supabase.from('ideas').select('*').eq('tenant_id', tenantId);
+    if (status) query = query.eq('status', status);
+    const { data } = await query.order('priority_score', { ascending: false }).limit(limit);
+    return data || [];
+  } catch (err) {
+    console.error('[DB] getIdeas error:', err.message);
+    return [];
+  }
+}
+
+async function getReadyIdeas(tenantId, limit = 10) {
+  try {
+    const { data } = await supabase.from('ideas').select('*')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'queued')
+      .gt('priority_score', 0.6)
+      .order('priority_score', { ascending: false })
+      .limit(limit);
+    return data || [];
+  } catch (err) {
+    console.error('[DB] getReadyIdeas error:', err.message);
+    return [];
+  }
+}
+
+async function updateIdea(ideaId, updates) {
+  try {
+    updates.updated_at = new Date().toISOString();
+    const { data, error } = await supabase.from('ideas')
+      .update(updates).eq('idea_id', ideaId).select().single();
+    if (error) { console.error('[DB] updateIdea error:', error.message); return null; }
+    return data;
+  } catch (err) {
+    console.error('[DB] updateIdea error:', err.message);
+    return null;
+  }
+}
+
+async function searchIdeas(tenantId, embedding, count = 5, threshold = 0.92) {
+  try {
+    const { data } = await supabase.rpc('match_ideas', {
+      query_embedding: embedding,
+      match_threshold: threshold,
+      match_count: count,
+      p_tenant_id: tenantId,
+    });
+    return data || [];
+  } catch (err) {
+    console.error('[DB] searchIdeas error:', err.message);
+    return [];
+  }
+}
+
+// ── Outcomes (Task Execution Log) ──
+
+async function logOutcome(outcome) {
+  try {
+    const { data, error } = await supabase.from('outcomes').insert({
+      tenant_id: outcome.tenant_id,
+      idea_id: outcome.idea_id || null,
+      job_id: outcome.job_id || null,
+      task_type: outcome.task_type || 'crew_job',
+      worker: outcome.worker || null,
+      success: outcome.success,
+      impact_actual: outcome.impact_actual || null,
+      duration_ms: outcome.duration_ms || null,
+      token_usage: outcome.token_usage || null,
+      cost_usd: outcome.cost_usd || null,
+      error_message: outcome.error_message || null,
+      notes: outcome.notes || null,
+    }).select().single();
+    if (error) { console.error('[DB] logOutcome error:', error.message); return null; }
+    return data;
+  } catch (err) {
+    console.error('[DB] logOutcome error:', err.message);
+    return null;
+  }
+}
+
+async function getOutcomes(tenantId, limit = 50) {
+  try {
+    const { data } = await supabase.from('outcomes').select('*')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    return data || [];
+  } catch (err) {
+    console.error('[DB] getOutcomes error:', err.message);
+    return [];
+  }
+}
+
+async function getOutcomeStats(tenantId, since) {
+  try {
+    let query = supabase.from('outcomes').select('*').eq('tenant_id', tenantId);
+    if (since) query = query.gte('created_at', since);
+    const { data } = await query;
+    if (!data || !data.length) return { total: 0, success: 0, failed: 0, success_rate: 0, by_worker: {} };
+
+    const success = data.filter(o => o.success).length;
+    const byWorker = {};
+    data.forEach(o => {
+      const w = o.worker || 'unknown';
+      if (!byWorker[w]) byWorker[w] = { total: 0, success: 0 };
+      byWorker[w].total++;
+      if (o.success) byWorker[w].success++;
+    });
+
+    return {
+      total: data.length,
+      success,
+      failed: data.length - success,
+      success_rate: Math.round((success / data.length) * 100),
+      by_worker: byWorker,
+    };
+  } catch (err) {
+    console.error('[DB] getOutcomeStats error:', err.message);
+    return { total: 0, success: 0, failed: 0, success_rate: 0, by_worker: {} };
+  }
+}
+
+// ── Scoring Weights ──
+
+async function getScoringWeights(tenantId) {
+  try {
+    const { data } = await supabase.from('scoring_weights').select('*')
+      .eq('tenant_id', tenantId).single();
+    return data || { w_impact: 0.4, w_feasibility: 0.3, w_alignment: 0.2, w_urgency: 0.1 };
+  } catch (err) {
+    return { w_impact: 0.4, w_feasibility: 0.3, w_alignment: 0.2, w_urgency: 0.1 };
+  }
+}
+
+async function updateScoringWeights(tenantId, weights) {
+  try {
+    const { data, error } = await supabase.from('scoring_weights').upsert({
+      tenant_id: tenantId,
+      w_impact: weights.w_impact || 0.4,
+      w_feasibility: weights.w_feasibility || 0.3,
+      w_alignment: weights.w_alignment || 0.2,
+      w_urgency: weights.w_urgency || 0.1,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'tenant_id' }).select().single();
+    if (error) { console.error('[DB] updateScoringWeights error:', error.message); return null; }
+    return data;
+  } catch (err) {
+    console.error('[DB] updateScoringWeights error:', err.message);
+    return null;
+  }
+}
+
 module.exports = {
   getTenantByDiscordId, getDefaultTenant, getTenantById, getAllActiveTenants,
   getOrCreateUser, getAllUsers, deleteUser,
@@ -501,4 +679,10 @@ module.exports = {
   logActivity, getLeadActivities,
   createAppointment, updateAppointment, getUpcomingAppointments,
   getLeadStats,
+  // Ideas
+  createIdea, getIdeas, getReadyIdeas, updateIdea, searchIdeas,
+  // Outcomes
+  logOutcome, getOutcomes, getOutcomeStats,
+  // Scoring
+  getScoringWeights, updateScoringWeights,
 };

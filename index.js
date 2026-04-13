@@ -43,6 +43,9 @@ app.get('/privacy', (req, res) => {
 // ── Snack AI API (food scanning for the app) ──
 app.use('/api/snackai', require('./src/api/bitelens'));
 
+// ── Task API (submit jobs, system status, freeze/unfreeze, ideas, outcomes) ──
+app.use('/api', require('./src/api/tasks'));
+
 // Dashboard
 const dashboard = require('./src/dashboard/routes');
 app.use(dashboard);
@@ -121,7 +124,16 @@ initDiscord();
 const { initSMS } = require('./src/channels/sms');
 initSMS(app);
 
-setTimeout(() => {
+setTimeout(async () => {
+  // Initialize BullMQ queue (Redis on Mac Mini)
+  try {
+    const crew = require('./src/core/crew');
+    const queueReady = await crew.initQueue();
+    console.log('[STARTUP] Queue mode: ' + (queueReady ? 'BullMQ (instant)' : 'Supabase polling (2h)'));
+  } catch (err) {
+    console.error('[STARTUP] Queue init error:', err.message, '— falling back to polling');
+  }
+
   const { startAllJobs } = require('./src/jobs/scheduler');
   startAllJobs();
 }, 10000);
@@ -134,9 +146,16 @@ app.listen(PORT, () => {
   console.log('🏢 Architecture: Multi-tenant ready\n');
 });
 
-process.on('SIGINT', () => {
-  const { discord } = require('./src/channels/discord');
-  discord.destroy();
+process.on('SIGINT', async () => {
+  console.log('[SHUTDOWN] Cleaning up...');
+  try {
+    const queue = require('./src/core/queue');
+    await queue.shutdown();
+  } catch (e) {}
+  try {
+    const { discord } = require('./src/channels/discord');
+    discord.destroy();
+  } catch (e) {}
   process.exit(0);
 });
 
