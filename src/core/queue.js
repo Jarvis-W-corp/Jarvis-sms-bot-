@@ -41,7 +41,7 @@ function getConnection() {
 function initCrewQueue() {
   const conn = getConnection();
 
-  crewQueue = new Queue('jarvis:crew', {
+  crewQueue = new Queue('jarvis-crew', {
     connection: conn,
     defaultJobOptions: {
       attempts: 3,
@@ -61,7 +61,7 @@ function initCrewWorker(processJob) {
     enableReadyCheck: false,
   });
 
-  crewWorker = new Worker('jarvis:crew', async (job) => {
+  crewWorker = new Worker('jarvis-crew', async (job) => {
     if (isFrozen) {
       console.log('[QUEUE] System frozen — skipping job: ' + job.data.title);
       return { skipped: true, reason: 'frozen' };
@@ -97,7 +97,7 @@ function initCrewWorker(processJob) {
 function initIdeaQueue() {
   const conn = getConnection();
 
-  ideaQueue = new Queue('jarvis:ideas', {
+  ideaQueue = new Queue('jarvis-ideas', {
     connection: conn,
     defaultJobOptions: {
       attempts: 2,
@@ -116,7 +116,7 @@ function initIdeaWorker(processIdea) {
     enableReadyCheck: false,
   });
 
-  ideaWorker = new Worker('jarvis:ideas', async (job) => {
+  ideaWorker = new Worker('jarvis-ideas', async (job) => {
     if (isFrozen) {
       console.log('[QUEUE] System frozen — skipping idea: ' + job.data.title);
       return { skipped: true, reason: 'frozen' };
