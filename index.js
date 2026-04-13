@@ -118,25 +118,35 @@ app.post('/sms/inbound', async (req, res) => {
   } catch (e) { console.error('[SMS-AI] Inbound error:', e.message); }
 });
 
-const { initDiscord } = require('./src/channels/discord');
-initDiscord();
+// Detect if we're on Render (web-only mode) or Mac Mini (full mode)
+const IS_RENDER = !!process.env.RENDER;
+const MODE = IS_RENDER ? 'web-only' : 'full';
+console.log('[STARTUP] Mode: ' + MODE + (IS_RENDER ? ' (Render — dashboards only, no Discord/scheduler)' : ' (Mac Mini — full bot)'));
 
-const { initSMS } = require('./src/channels/sms');
-initSMS(app);
+if (!IS_RENDER) {
+  // Full mode — Discord, SMS, scheduler, queue
+  const { initDiscord } = require('./src/channels/discord');
+  initDiscord();
 
-setTimeout(async () => {
-  // Initialize BullMQ queue (Redis on Mac Mini)
-  try {
-    const crew = require('./src/core/crew');
-    const queueReady = await crew.initQueue();
-    console.log('[STARTUP] Queue mode: ' + (queueReady ? 'BullMQ (instant)' : 'Supabase polling (2h)'));
-  } catch (err) {
-    console.error('[STARTUP] Queue init error:', err.message, '— falling back to polling');
-  }
+  const { initSMS } = require('./src/channels/sms');
+  initSMS(app);
 
-  const { startAllJobs } = require('./src/jobs/scheduler');
-  startAllJobs();
-}, 10000);
+  setTimeout(async () => {
+    // Initialize BullMQ queue (Redis on Mac Mini)
+    try {
+      const crew = require('./src/core/crew');
+      const queueReady = await crew.initQueue();
+      console.log('[STARTUP] Queue mode: ' + (queueReady ? 'BullMQ (instant)' : 'Supabase polling (2h)'));
+    } catch (err) {
+      console.error('[STARTUP] Queue init error:', err.message, '— falling back to polling');
+    }
+
+    const { startAllJobs } = require('./src/jobs/scheduler');
+    startAllJobs();
+  }, 10000);
+} else {
+  console.log('[STARTUP] Render mode — serving dashboards + APIs only. Bot runs on Mac Mini.');
+}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
