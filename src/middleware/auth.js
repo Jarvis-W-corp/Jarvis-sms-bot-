@@ -15,6 +15,8 @@ function apiKeyAuth(req, res, next) {
   if (req.path.startsWith('/api/snackai/')) return next();
   // Skip privacy page
   if (req.path === '/privacy') return next();
+  // Skip /sales/api and /roofing/api — they use hc_token session auth (hcauth.js)
+  if (req.path.startsWith('/sales/api/') || req.path.startsWith('/roofing/api/')) return next();
 
   const key = process.env.DASHBOARD_API_KEY;
   if (!key) return next(); // If no key set, don't block (backwards compatible)
