@@ -1,9 +1,10 @@
 const express = require('express');
 const path = require('path');
 const { supabase } = require('../db/supabase');
+const { createSession, requireAuth } = require('../middleware/hcauth');
 
 const router = express.Router();
-console.log('[SALES] Routes loaded v2');
+console.log('[SALES] Routes loaded v3 (unified auth + premium)');
 
 router.get('/sales', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
@@ -16,10 +17,23 @@ router.post('/sales/api/login', async (req, res) => {
   const { data } = await supabase.from('hc_users').select('*').eq('username', username).single();
   if (!data) return res.json({ success: false, error: 'User not found' });
   const bcrypt = require('bcryptjs');
-  // Support both hashed and legacy plaintext passwords
   const match = data.password.startsWith('$2') ? bcrypt.compareSync(password, data.password) : (password === data.password);
   if (!match) return res.json({ success: false, error: 'Wrong password' });
-  res.json({ success: true, user: mapUser(data) });
+  const token = await createSession(data.id);
+  res.cookie('hc_token', token, { httpOnly: false, sameSite: 'lax', maxAge: 30 * 24 * 60 * 60 * 1000 });
+  res.json({ success: true, user: mapUser(data), token });
+});
+
+router.post('/sales/api/logout', async (req, res) => {
+  const h = req.headers.authorization || '';
+  const token = h.startsWith('Bearer ') ? h.slice(7) : (req.cookies && req.cookies.hc_token);
+  if (token) await supabase.from('hc_sessions').delete().eq('token', token);
+  res.clearCookie('hc_token');
+  res.json({ success: true });
+});
+
+router.get('/sales/api/me', requireAuth(), (req, res) => {
+  res.json({ success: true, user: mapUser(req.hcUser) });
 });
 
 // === USERS ===
@@ -274,7 +288,12 @@ router.get('/sales/api/crew', async (req, res) => {
 function int(v) { return parseInt(v) || 0; }
 
 function mapUser(r) {
-  return { id: r.id, username: r.username, name: r.name, role: r.role, teamId: r.team_id, status: r.status };
+  return {
+    id: r.id, username: r.username, name: r.name, role: r.role,
+    teamId: r.team_id, status: r.status,
+    email: r.email || '', phone: r.phone || '',
+    isPremium: !!r.is_premium, avatarUrl: r.avatar_url || ''
+  };
 }
 function mapTeam(r) {
   return { id: r.id, name: r.name, managerId: r.manager_id };
@@ -309,5 +328,138 @@ function mapRoof(r) {
 function mapNotification(r) {
   return { id: r.id, userId: r.user_id, message: r.message, leadId: r.lead_id, read: r.read, createdAt: r.created_at };
 }
+
+// === PREMIUM FLAG TOGGLE (admin only) ===
+
+// === REP-SCOPED ENDPOINTS (rep PWA only — office CRM lives under /roofing/api) ===
+
+// Submit a lead from the field — writes to shared hc_contacts, tagged to this rep.
+// Shows up instantly in the office CRM at /roofing.
+router.post('/sales/api/leads', requireAuth(), async (req, res) => {
+  const c = req.body;
+  const id = 'ct_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const { error } = await supabase.from('hc_contacts').insert({
+    id,
+    display_name: c.displayName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unnamed Lead',
+    first_name: c.firstName || '', last_name: c.lastName || '',
+    email: c.email || '', mobile_phone: c.phone || c.mobilePhone || '',
+    address_line1: c.address || '', city: c.city || '', state_text: c.state || '', zip: c.zip || '',
+    description: c.notes || '',
+    record_type: c.recordType || 'Customer',
+    status: 'Lead', stage: 'Lead',
+    source: c.source || 'Door Knock',
+    sales_rep_id: req.hcUser.id,
+    created_by: req.hcUser.id
+  });
+  if (error) return res.json({ success: false, error: error.message });
+  // Log activity so it appears in the CRM feed
+  await supabase.from('hc_activities').insert({
+    id: 'ac_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    type: 'Note', note: `Lead submitted from rep PWA by ${req.hcUser.name}`,
+    contact_id: id,
+    created_by: req.hcUser.id, created_by_name: req.hcUser.name
+  });
+  res.json({ success: true, id });
+});
+
+// Rep's own appointments (for their calendar in the PWA)
+router.get('/sales/api/my-appointments', requireAuth(), async (req, res) => {
+  let q = supabase.from('hc_appointments').select('*')
+    .contains('assigned_to', [req.hcUser.id]).order('date_start');
+  if (req.query.from) q = q.gte('date_start', req.query.from);
+  if (req.query.to) q = q.lte('date_start', req.query.to);
+  const { data, error } = await q;
+  if (error) return res.json({ success: false, error: error.message });
+  res.json({
+    success: true,
+    data: (data || []).map(r => ({
+      id: r.id, type: r.type, title: r.title, description: r.description,
+      dateStart: r.date_start, dateEnd: r.date_end, durationMin: r.duration_min,
+      contactId: r.contact_id, jobId: r.job_id,
+      locationAddress: r.location_address,
+      isCompleted: r.is_completed
+    }))
+  });
+});
+
+// Rep submits an appointment set — creates an hc_appointments row assigned to them.
+router.post('/sales/api/my-appointments', requireAuth(), async (req, res) => {
+  const a = req.body;
+  const id = 'ap_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const { error } = await supabase.from('hc_appointments').insert({
+    id,
+    type: a.type || 'Appointment',
+    title: a.title || (a.customerName ? `Appt — ${a.customerName}` : 'Appointment'),
+    description: a.description || a.notes || '',
+    date_start: a.dateStart,
+    date_end: a.dateEnd || null,
+    duration_min: a.durationMin || 60,
+    priority: a.priority || 'Medium',
+    assigned_to: [req.hcUser.id],
+    contact_id: a.contactId || null,
+    job_id: a.jobId || null,
+    location_address: a.locationAddress || a.address || '',
+    created_by: req.hcUser.id
+  });
+  if (error) return res.json({ success: false, error: error.message });
+  res.json({ success: true, id });
+});
+
+// Rep's commissions — sum of commission_amount on jobs where they are the sales rep.
+router.get('/sales/api/my-commissions', requireAuth(), async (req, res) => {
+  const { data, error } = await supabase.from('hc_jobs')
+    .select('id, name, stage, status, commission_amount, commission_rate, commission_paid, commission_paid_date, approved_estimate_total, contact_id, updated_at')
+    .eq('sales_rep_id', req.hcUser.id).order('updated_at', { ascending: false });
+  if (error) return res.json({ success: false, error: error.message });
+  const rows = data || [];
+  const totals = rows.reduce((acc, r) => {
+    const c = parseFloat(r.commission_amount) || 0;
+    acc.all += c;
+    if (r.commission_paid) acc.paid += c; else acc.pending += c;
+    return acc;
+  }, { all: 0, paid: 0, pending: 0 });
+  res.json({
+    success: true,
+    totals,
+    data: rows.map(r => ({
+      id: r.id, name: r.name, stage: r.stage, status: r.status,
+      commissionAmount: r.commission_amount, commissionRate: r.commission_rate,
+      commissionPaid: r.commission_paid, commissionPaidDate: r.commission_paid_date,
+      approvedEstimateTotal: r.approved_estimate_total,
+      contactId: r.contact_id, updatedAt: r.updated_at
+    }))
+  });
+});
+
+// PWA manifest — lets reps install the tracker to their home screen.
+router.get('/sales/manifest.webmanifest', (req, res) => {
+  res.type('application/manifest+json').json({
+    name: 'HC Daily Tracker',
+    short_name: 'HC Tracker',
+    start_url: '/sales',
+    display: 'standalone',
+    background_color: '#0d0d0d',
+    theme_color: '#7B5EA7',
+    orientation: 'portrait',
+    icons: [
+      { src: '/sales/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+      { src: '/sales/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+    ]
+  });
+});
+
+// Service worker stub — enables PWA installability. Keep minimal; no offline cache.
+router.get('/sales/sw.js', (req, res) => {
+  res.type('application/javascript').send(
+    "self.addEventListener('install',e=>self.skipWaiting());" +
+    "self.addEventListener('activate',e=>self.clients.claim());" +
+    "self.addEventListener('fetch',()=>{});"
+  );
+});
+
+// Placeholder icons (1x1 PNG) — replace with real icons when Mark ships art.
+const ICON_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+router.get('/sales/icon-192.png', (_req, res) => res.type('image/png').send(ICON_PNG));
+router.get('/sales/icon-512.png', (_req, res) => res.type('image/png').send(ICON_PNG));
 
 module.exports = router;
